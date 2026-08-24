@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "id": "kubohiroyacamerasource",
+  "blocks": [
+    {
+      "opcode": "cameraDeviceIdReporter",
+      "blockType": "REPORTER",
+      "arguments": []
+    },
+    {
+      "opcode": "isCameraRunning",
+      "blockType": "BOOLEAN",
+      "arguments": []
+    },
+    {
+      "opcode": "startSharedCamera",
+      "blockType": "COMMAND",
+      "arguments": []
+    },
+    {
+      "opcode": "stopSharedCamera",
+      "blockType": "COMMAND",
+      "arguments": []
+    }
+  ],
+  "menus": []
+}

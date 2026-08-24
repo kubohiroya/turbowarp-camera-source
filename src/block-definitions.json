@@ -1,0 +1,33 @@
+{
+  "extensionName": "Camera Source",
+  "blocks": [
+    {
+      "opcode": "startSharedCamera",
+      "blockType": "COMMAND",
+      "text": "start shared camera",
+      "description": "Starts the shared MediaDevices camera stream.",
+      "arguments": {}
+    },
+    {
+      "opcode": "stopSharedCamera",
+      "blockType": "COMMAND",
+      "text": "stop shared camera",
+      "description": "Stops the shared camera stream and releases its tracks.",
+      "arguments": {}
+    },
+    {
+      "opcode": "isCameraRunning",
+      "blockType": "BOOLEAN",
+      "text": "shared camera is running?",
+      "description": "Reports whether the shared camera stream is active.",
+      "arguments": {}
+    },
+    {
+      "opcode": "cameraDeviceIdReporter",
+      "blockType": "REPORTER",
+      "text": "shared camera device ID",
+      "description": "Returns the active shared camera device ID when available.",
+      "arguments": {}
+    }
+  ]
+}
