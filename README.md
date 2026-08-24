@@ -1,8 +1,8 @@
-# Camera Source
+# TurboWarp-Camera-Source
 
 [日本語](README.ja.md)
 
-Camera Source is a TurboWarp extension capability for sharing named
+TurboWarp-Camera-Source is a TurboWarp extension capability for sharing named
 `MediaDevices` camera streams across consumers such as pose recognition, image
 classification, and QR scanning. It owns camera startup and shutdown through
 leases so multiple extensions can intentionally share the same physical camera
