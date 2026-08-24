@@ -12,12 +12,13 @@
     name: "Camera Source"
   };
   const extensionName = "Camera Source";
-  const blocks = [{ "opcode": "startSharedCamera", "blockType": "COMMAND", "text": "start shared camera", "description": "Starts the shared MediaDevices camera stream.", "arguments": {} }, { "opcode": "stopSharedCamera", "blockType": "COMMAND", "text": "stop shared camera", "description": "Stops the shared camera stream and releases its tracks.", "arguments": {} }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "shared camera is running?", "description": "Reports whether the shared camera stream is active.", "arguments": {} }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "shared camera device ID", "description": "Returns the active shared camera device ID when available.", "arguments": {} }];
+  const blocks = [{ "opcode": "startSharedCamera", "blockType": "COMMAND", "text": "start shared camera [CAMERA_ID] with device ID [DEVICE_ID]", "description": "Starts or keeps a named shared MediaDevices camera stream.", "arguments": { "CAMERA_ID": { "type": "STRING", "defaultValue": "default" }, "DEVICE_ID": { "type": "STRING", "defaultValue": "" } } }, { "opcode": "stopSharedCamera", "blockType": "COMMAND", "text": "stop shared camera [CAMERA_ID]", "description": "Stops a named shared camera stream and releases its tracks.", "arguments": { "CAMERA_ID": { "type": "STRING", "defaultValue": "default" } } }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "shared camera [CAMERA_ID] is running?", "description": "Reports whether a named shared camera stream is active.", "arguments": { "CAMERA_ID": { "type": "STRING", "defaultValue": "default" } } }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "shared camera [CAMERA_ID] device ID", "description": "Returns the active device ID for a named shared camera when available.", "arguments": { "CAMERA_ID": { "type": "STRING", "defaultValue": "default" } } }, { "opcode": "refreshCameraDevices", "blockType": "COMMAND", "text": "refresh camera devices", "description": "Refreshes the browser camera device list.", "arguments": {} }, { "opcode": "cameraDeviceCount", "blockType": "REPORTER", "text": "camera device count", "description": "Returns the number of known camera devices after refresh.", "arguments": {} }, { "opcode": "cameraDeviceIdAt", "blockType": "REPORTER", "text": "camera device ID at [INDEX]", "description": "Returns the one-based camera device ID at the requested index.", "arguments": { "INDEX": { "type": "STRING", "defaultValue": "1" } } }, { "opcode": "cameraDeviceLabelAt", "blockType": "REPORTER", "text": "camera device label at [INDEX]", "description": "Returns the one-based camera device label at the requested index when the browser exposes it.", "arguments": { "INDEX": { "type": "STRING", "defaultValue": "1" } } }];
   const definitions = {
     extensionName,
     blocks
   };
   const blockDefinitions = definitions.blocks;
+  const defaultCameraId = "default";
   function mediaDevices() {
     const devices = globalThis.navigator?.mediaDevices;
     if (!devices || typeof devices.getUserMedia !== "function") {
@@ -25,17 +26,31 @@
     }
     return devices;
   }
+  function normalizeId(value, fallback = defaultCameraId) {
+    const text = String(value ?? "").trim();
+    return text || fallback;
+  }
+  function optionalText(value) {
+    return String(value ?? "").trim();
+  }
+  function indexFrom(value) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    return Number.isFinite(parsed) ? parsed - 1 : -1;
+  }
   function videoConstraints(options) {
+    if (typeof options.video === "object" && options.video !== null) {
+      return { audio: false, video: options.video };
+    }
+    if (options.deviceId) {
+      return { audio: false, video: { deviceId: { exact: options.deviceId } } };
+    }
     return { audio: false, video: options.video ?? true };
   }
   class CameraSourceExtension {
     constructor() {
-      this.stream = null;
-      this.video = null;
-      this.leases = /* @__PURE__ */ new Set();
-      this.startPromise = null;
-      this.mirrored = false;
-      this.activeDeviceId = "";
+      this.sessions = /* @__PURE__ */ new Map();
+      this.blockLeases = /* @__PURE__ */ new Map();
+      this.devices = [];
       Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
     }
     getInfo() {
@@ -45,80 +60,131 @@
         blocks: blockDefinitions.map((block) => this.toScratchBlock(block))
       };
     }
-    isCameraRunning() {
-      return this.stream !== null;
+    isCameraRunning(args = {}) {
+      const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+      return Boolean(session?.stream);
     }
-    cameraDeviceIdReporter() {
-      return this.activeDeviceId;
+    cameraDeviceIdReporter(args = {}) {
+      return this.sessions.get(normalizeId(args.CAMERA_ID))?.activeDeviceId ?? "";
     }
-    async startSharedCamera() {
-      const lease = await this.acquireCamera({ owner: "camera-source-block" });
-      await lease.release();
+    async startSharedCamera(args = {}) {
+      const cameraId = normalizeId(args.CAMERA_ID);
+      if (this.blockLeases.has(cameraId)) return;
+      const deviceId = optionalText(args.DEVICE_ID);
+      const options = { owner: "camera-source-block", cameraId };
+      if (deviceId) options.deviceId = deviceId;
+      const lease = await this.acquireCamera(options);
+      this.blockLeases.set(cameraId, lease);
     }
     async acquireCamera(options = {}) {
+      const cameraId = normalizeId(options.cameraId);
+      const session = this.session(cameraId);
       const token = Symbol(String(options.owner ?? "camera-lease"));
-      if (this.startPromise) {
-        await this.startPromise;
-      } else if (!this.stream) {
-        await this.start(options);
+      if (session.startPromise) {
+        await session.startPromise;
+      } else if (!session.stream) {
+        await this.start(session, options);
       }
-      this.leases.add(token);
+      session.leases.add(token);
       let released = false;
       return Object.freeze({
-        getFrameSource: () => this.getFrameSource(),
+        getFrameSource: () => this.getFrameSource(session),
         release: async () => {
           if (released) return;
           released = true;
-          this.leases.delete(token);
-          if (this.leases.size === 0) this.stopSharedCamera();
+          session.leases.delete(token);
+          if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
         }
       });
     }
-    stopSharedCamera() {
-      this.stream?.getTracks().forEach((track) => track.stop());
-      if (this.video) this.video.srcObject = null;
-      this.stream = null;
-      this.video = null;
-      this.startPromise = null;
-      this.activeDeviceId = "";
+    stopSharedCamera(args = {}) {
+      this.stopCameraSession(normalizeId(args.CAMERA_ID));
     }
-    async start(options) {
-      this.mirrored = options.mirrored === true;
-      this.startPromise = (async () => {
+    async refreshCameraDevices() {
+      this.devices = (await mediaDevices().enumerateDevices()).filter(
+        (device) => device.kind === "videoinput"
+      );
+    }
+    cameraDeviceCount() {
+      return this.devices.length;
+    }
+    cameraDeviceIdAt(args) {
+      return this.devices[indexFrom(args.INDEX)]?.deviceId ?? "";
+    }
+    cameraDeviceLabelAt(args) {
+      return this.devices[indexFrom(args.INDEX)]?.label ?? "";
+    }
+    stopAllCameras() {
+      for (const cameraId of [...this.sessions.keys()]) {
+        this.stopCameraSession(cameraId);
+      }
+      this.blockLeases.clear();
+    }
+    session(cameraId) {
+      const existing = this.sessions.get(cameraId);
+      if (existing) return existing;
+      const session = {
+        cameraId,
+        leases: /* @__PURE__ */ new Set(),
+        stream: null,
+        video: null,
+        startPromise: null,
+        mirrored: false,
+        activeDeviceId: ""
+      };
+      this.sessions.set(cameraId, session);
+      return session;
+    }
+    async start(session, options) {
+      session.mirrored = options.mirrored === true;
+      session.startPromise = (async () => {
         const stream = await mediaDevices().getUserMedia(videoConstraints(options));
         const video = document.createElement("video");
         video.muted = true;
         video.playsInline = true;
         video.srcObject = stream;
         await video.play();
-        this.stream = stream;
-        this.video = video;
-        this.updateActiveDevice();
+        session.stream = stream;
+        session.video = video;
+        this.updateActiveDevice(session);
       })();
       try {
-        await this.startPromise;
+        await session.startPromise;
       } catch (error) {
-        this.stopSharedCamera();
+        this.stopCameraSession(session.cameraId);
         throw error;
       }
     }
-    updateActiveDevice() {
-      const track = this.stream?.getVideoTracks()[0] ?? null;
+    updateActiveDevice(session) {
+      const track = session.stream?.getVideoTracks()[0] ?? null;
       const settings = track?.getSettings();
-      this.activeDeviceId = typeof settings?.deviceId === "string" ? settings.deviceId : "";
+      session.activeDeviceId = typeof settings?.deviceId === "string" ? settings.deviceId : "";
     }
-    getFrameSource() {
-      if (!this.video || !this.stream) {
+    getFrameSource(session) {
+      if (!session.video || !session.stream) {
         throw new Error("Shared camera is not running.");
       }
       return Object.freeze({
         kind: "video",
-        element: this.video,
-        width: this.video.videoWidth,
-        height: this.video.videoHeight,
-        mirrored: this.mirrored,
-        deviceId: this.activeDeviceId
+        element: session.video,
+        width: session.video.videoWidth,
+        height: session.video.videoHeight,
+        mirrored: session.mirrored,
+        deviceId: session.activeDeviceId
       });
+    }
+    stopCameraSession(cameraId) {
+      const session = this.sessions.get(cameraId);
+      if (!session) return;
+      session.stream?.getTracks().forEach((track) => track.stop());
+      if (session.video) session.video.srcObject = null;
+      session.stream = null;
+      session.video = null;
+      session.startPromise = null;
+      session.activeDeviceId = "";
+      session.leases.clear();
+      this.sessions.delete(cameraId);
+      this.blockLeases.delete(cameraId);
     }
     toScratchBlock(block) {
       return {

@@ -2,10 +2,11 @@
 
 [日本語](README.ja.md)
 
-Camera Source is a TurboWarp extension capability for sharing one `MediaDevices`
-camera stream across camera consumers such as pose recognition and QR scanning.
-It owns camera startup and shutdown through leases so multiple extensions do not
-start competing `getUserMedia()` sessions for the same physical camera.
+Camera Source is a TurboWarp extension capability for sharing named
+`MediaDevices` camera streams across consumers such as pose recognition, image
+classification, and QR scanning. It owns camera startup and shutdown through
+leases so multiple extensions can intentionally share the same physical camera
+or select separate cameras for separate roles.
 
 **[Open the user guide](https://kubohiroya.github.io/turbowarp-camera-source/)** ·
 **[日本語ガイド](https://kubohiroya.github.io/turbowarp-camera-source/ja/)**
@@ -29,41 +30,84 @@ The generated JavaScript is a single, non-minified TurboWarp extension file with
 
 <!-- BEGIN GENERATED BLOCKS -->
 
-### `start shared camera`
+### `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`
 
-Starts the shared MediaDevices camera stream.
+Starts or keeps a named shared MediaDevices camera stream.
 
 | Property | Value |
 |---|---|
 | Type | Command |
 | Opcode | `startSharedCamera` |
+| `CAMERA_ID` | String, default: `default` |
+| `DEVICE_ID` | String, default: `` |
 
-### `stop shared camera`
+### `stop shared camera [CAMERA_ID]`
 
-Stops the shared camera stream and releases its tracks.
+Stops a named shared camera stream and releases its tracks.
 
 | Property | Value |
 |---|---|
 | Type | Command |
 | Opcode | `stopSharedCamera` |
+| `CAMERA_ID` | String, default: `default` |
 
-### `shared camera is running?`
+### `shared camera [CAMERA_ID] is running?`
 
-Reports whether the shared camera stream is active.
+Reports whether a named shared camera stream is active.
 
 | Property | Value |
 |---|---|
 | Type | Boolean |
 | Opcode | `isCameraRunning` |
+| `CAMERA_ID` | String, default: `default` |
 
-### `shared camera device ID`
+### `shared camera [CAMERA_ID] device ID`
 
-Returns the active shared camera device ID when available.
+Returns the active device ID for a named shared camera when available.
 
 | Property | Value |
 |---|---|
 | Type | Reporter |
 | Opcode | `cameraDeviceIdReporter` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `refresh camera devices`
+
+Refreshes the browser camera device list.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `refreshCameraDevices` |
+
+### `camera device count`
+
+Returns the number of known camera devices after refresh.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraDeviceCount` |
+
+### `camera device ID at [INDEX]`
+
+Returns the one-based camera device ID at the requested index.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraDeviceIdAt` |
+| `INDEX` | String, default: `1` |
+
+### `camera device label at [INDEX]`
+
+Returns the one-based camera device label at the requested index when the browser exposes it.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraDeviceLabelAt` |
+| `INDEX` | String, default: `1` |
 
 <!-- END GENERATED BLOCKS -->
 
@@ -78,7 +122,22 @@ npm run check
 
 Other unsandboxed extensions can access `Scratch.vm.runtime.ext_kubohiroyacamerasource`.
 Use `acquireCamera()` to receive a lease, call `getFrameSource()` while it is active, and
-release the lease when the consumer no longer needs frames.
+release the lease when the consumer no longer needs frames. Pass `cameraId` as a
+project-local role name such as `pose` or `qr`; pass `deviceId` when a role should
+bind to a specific browser camera device.
+
+```js
+const poseLease = await cameraSource.acquireCamera({
+  owner: 'tmpose',
+  cameraId: 'pose',
+  deviceId: poseDeviceId
+});
+const qrLease = await cameraSource.acquireCamera({
+  owner: 'jsqr',
+  cameraId: 'qr',
+  deviceId: qrDeviceId
+});
+```
 
 For continuous rebuilding during development:
 

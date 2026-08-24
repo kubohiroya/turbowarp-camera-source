@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="TurboWarp拡張間で1つのMediaDevicesカメラストリームを共有するCamera Sourceのガイド。">
+  <meta name="description" content="TurboWarp拡張間で名前付きMediaDevicesカメラストリームを共有するCamera Sourceのガイド。">
   <title>Camera Source ガイド</title>
   <link rel="canonical" href="https://kubohiroya.github.io/turbowarp-camera-source/ja/">
   <link rel="alternate" hreflang="en" href="https://kubohiroya.github.io/turbowarp-camera-source/">
@@ -18,20 +18,30 @@
   </div></header>
   <main>
     <section class="hero">
-      <div><p class="eyebrow">TurboWarp capability extension</p><h1>カメラストリームを1本にまとめる。</h1>
-      <p class="lede">Camera Sourceは`navigator.mediaDevices.getUserMedia()`を一元管理し、TMPoseやjsQRなどの拡張にlease付きでライブフレームを共有します。</p></div>
-      <div class="panel"><span class="block">start shared camera</span><span class="block">shared camera is running?</span><span class="block">stop shared camera</span></div>
+      <div><p class="eyebrow">TurboWarp capability extension</p><h1>姿勢、画像、QRでカメラを使い分ける。</h1>
+      <p class="lede">Camera Sourceは`navigator.mediaDevices.getUserMedia()`を管理し、役割名ごとにライブフレームを共有します。TMPoseは水平カメラ、jsQRや画像認識は下向きカメラ、という構成にできます。</p></div>
+      <div class="panel"><span class="block">start shared camera pose</span><span class="block">start shared camera qr</span><span class="block">camera device ID at 1</span></div>
     </section>
     <section class="section" id="blocks"><h2>ブロック</h2><div class="grid">
-      <article class="card"><h3>start shared camera</h3><p>カメラ許可を要求し、共有MediaStreamを開始します。</p></article>
-      <article class="card"><h3>stop shared camera</h3><p>共有ストリームを停止し、トラックを解放します。</p></article>
-      <article class="card"><h3>shared camera is running?</h3><p>共有ストリームが有効かを返します。`shared camera device ID`は利用中のデバイスIDを返します。</p></article>
+      <article class="card"><h3>start shared camera</h3><p>カメラ許可を要求し、`pose`や`qr`などの名前付きMediaStreamを開始または維持します。</p></article>
+      <article class="card"><h3>refresh camera devices</h3><p>ブラウザのカメラ一覧を更新し、役割名をdevice IDへ割り当てられるようにします。</p></article>
+      <article class="card"><h3>shared camera is running?</h3><p>名前付きストリームが有効かを返します。device ID reporterは選択中の物理カメラを返します。</p></article>
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>unsandboxed拡張は`Scratch.vm.runtime.ext_kubohiroyacamerasource`を参照できます。</p>
-<pre><code>const lease = await cameraSource.acquireCamera({owner: 'my-extension'});
-const frame = lease.getFrameSource();
-await lease.release();</code></pre>
-    <p>最後のleaseが解放されるまでストリームは維持されます。</p></section>
+<pre><code>const poseLease = await cameraSource.acquireCamera({
+  owner: 'tmpose',
+  cameraId: 'pose',
+  deviceId: poseDeviceId
+});
+const qrLease = await cameraSource.acquireCamera({
+  owner: 'jsqr',
+  cameraId: 'qr',
+  deviceId: qrDeviceId
+});
+const frame = qrLease.getFrameSource();
+await qrLease.release();
+await poseLease.release();</code></pre>
+    <p>各ストリームは最後のleaseが解放されるまで維持されます。同じ`cameraId`なら1つの物理カメラを共有し、異なるIDなら別カメラを同時利用できます。</p></section>
     <section class="section" id="privacy"><h2>プライバシーと要件</h2><p class="note">カメラ利用にはユーザー許可とHTTPSまたはlocalhostなどの安全なコンテキストが必要です。Camera Sourceはフレームをアップロードせず、画像も保存しません。</p></section>
   </main>
   <footer>Source: <a href="https://github.com/kubohiroya/turbowarp-camera-source">GitHub</a></footer>

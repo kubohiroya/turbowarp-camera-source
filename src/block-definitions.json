@@ -4,30 +4,71 @@
     {
       "opcode": "startSharedCamera",
       "blockType": "COMMAND",
-      "text": "start shared camera",
-      "description": "Starts the shared MediaDevices camera stream.",
-      "arguments": {}
+      "text": "start shared camera [CAMERA_ID] with device ID [DEVICE_ID]",
+      "description": "Starts or keeps a named shared MediaDevices camera stream.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"},
+        "DEVICE_ID": {"type": "STRING", "defaultValue": ""}
+      }
     },
     {
       "opcode": "stopSharedCamera",
       "blockType": "COMMAND",
-      "text": "stop shared camera",
-      "description": "Stops the shared camera stream and releases its tracks.",
-      "arguments": {}
+      "text": "stop shared camera [CAMERA_ID]",
+      "description": "Stops a named shared camera stream and releases its tracks.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
     },
     {
       "opcode": "isCameraRunning",
       "blockType": "BOOLEAN",
-      "text": "shared camera is running?",
-      "description": "Reports whether the shared camera stream is active.",
-      "arguments": {}
+      "text": "shared camera [CAMERA_ID] is running?",
+      "description": "Reports whether a named shared camera stream is active.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
     },
     {
       "opcode": "cameraDeviceIdReporter",
       "blockType": "REPORTER",
-      "text": "shared camera device ID",
-      "description": "Returns the active shared camera device ID when available.",
+      "text": "shared camera [CAMERA_ID] device ID",
+      "description": "Returns the active device ID for a named shared camera when available.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
+      "opcode": "refreshCameraDevices",
+      "blockType": "COMMAND",
+      "text": "refresh camera devices",
+      "description": "Refreshes the browser camera device list.",
       "arguments": {}
+    },
+    {
+      "opcode": "cameraDeviceCount",
+      "blockType": "REPORTER",
+      "text": "camera device count",
+      "description": "Returns the number of known camera devices after refresh.",
+      "arguments": {}
+    },
+    {
+      "opcode": "cameraDeviceIdAt",
+      "blockType": "REPORTER",
+      "text": "camera device ID at [INDEX]",
+      "description": "Returns the one-based camera device ID at the requested index.",
+      "arguments": {
+        "INDEX": {"type": "STRING", "defaultValue": "1"}
+      }
+    },
+    {
+      "opcode": "cameraDeviceLabelAt",
+      "blockType": "REPORTER",
+      "text": "camera device label at [INDEX]",
+      "description": "Returns the one-based camera device label at the requested index when the browser exposes it.",
+      "arguments": {
+        "INDEX": {"type": "STRING", "defaultValue": "1"}
+      }
     }
   ]
 }

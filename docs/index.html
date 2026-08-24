@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Camera Source user guide for sharing one MediaDevices camera stream across TurboWarp extensions.">
+  <meta name="description" content="Camera Source user guide for sharing named MediaDevices camera streams across TurboWarp extensions.">
   <title>Camera Source user guide</title>
   <link rel="canonical" href="https://kubohiroya.github.io/turbowarp-camera-source/">
   <link rel="alternate" hreflang="en" href="https://kubohiroya.github.io/turbowarp-camera-source/">
@@ -18,21 +18,31 @@
   </div></header>
   <main>
     <section class="hero">
-      <div><p class="eyebrow">TurboWarp capability extension</p><h1>One camera stream for every consumer.</h1>
-      <p class="lede">Camera Source owns `navigator.mediaDevices.getUserMedia()` once and shares the live frame source with extensions such as TMPose and jsQR through leases.</p></div>
-      <div class="panel"><span class="block">start shared camera</span><span class="block">shared camera is running?</span><span class="block">stop shared camera</span></div>
+      <div><p class="eyebrow">TurboWarp capability extension</p><h1>Named cameras for pose, image, and QR inputs.</h1>
+      <p class="lede">Camera Source owns `navigator.mediaDevices.getUserMedia()` and shares live frame sources by role name, so TMPose can use a horizontal camera while jsQR or image recognition uses a downward camera.</p></div>
+      <div class="panel"><span class="block">start shared camera pose</span><span class="block">start shared camera qr</span><span class="block">camera device ID at 1</span></div>
     </section>
     <section class="section" id="blocks"><h2>Blocks</h2><div class="grid">
-      <article class="card"><h3>start shared camera</h3><p>Requests camera permission and starts the shared MediaStream.</p></article>
-      <article class="card"><h3>stop shared camera</h3><p>Stops the shared stream and releases its tracks.</p></article>
-      <article class="card"><h3>shared camera is running?</h3><p>Reports whether a shared stream is active. `shared camera device ID` reports the active device when available.</p></article>
+      <article class="card"><h3>start shared camera</h3><p>Requests camera permission and starts or keeps a named MediaStream such as `pose` or `qr`.</p></article>
+      <article class="card"><h3>refresh camera devices</h3><p>Updates the browser camera list so projects can bind role names to device IDs.</p></article>
+      <article class="card"><h3>shared camera is running?</h3><p>Reports whether a named stream is active. The device-ID reporter identifies the selected physical camera when available.</p></article>
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>Unsandboxed extensions can read `Scratch.vm.runtime.ext_kubohiroyacamerasource`.</p>
-<pre><code>const lease = await cameraSource.acquireCamera({owner: 'my-extension'});
-const frame = lease.getFrameSource();
+<pre><code>const poseLease = await cameraSource.acquireCamera({
+  owner: 'tmpose',
+  cameraId: 'pose',
+  deviceId: poseDeviceId
+});
+const qrLease = await cameraSource.acquireCamera({
+  owner: 'jsqr',
+  cameraId: 'qr',
+  deviceId: qrDeviceId
+});
+const frame = qrLease.getFrameSource();
 // frame.element is an HTMLVideoElement.
-await lease.release();</code></pre>
-    <p>The stream remains active until the last lease is released. This avoids competing camera sessions.</p></section>
+await qrLease.release();
+await poseLease.release();</code></pre>
+    <p>Each named stream remains active until its last lease is released. Consumers that use the same `cameraId` share one physical camera; different IDs can run separate cameras.</p></section>
     <section class="section" id="privacy"><h2>Privacy and requirements</h2><p class="note">Camera access requires user permission and a secure browser context such as HTTPS or localhost. Camera Source does not upload frames or store images.</p></section>
   </main>
   <footer>Source: <a href="https://github.com/kubohiroya/turbowarp-camera-source">GitHub</a></footer>

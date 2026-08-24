@@ -19,6 +19,8 @@ interface BlockDefinition {
 
 export interface CameraAcquireOptions {
   owner?: string;
+  cameraId?: string;
+  deviceId?: string;
   video?: MediaTrackConstraints | boolean;
   mirrored?: boolean;
 }
@@ -38,6 +40,17 @@ export interface CameraLease {
 }
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
+const defaultCameraId = 'default';
+
+interface CameraSession {
+  readonly cameraId: string;
+  readonly leases: Set<symbol>;
+  stream: MediaStream | null;
+  video: HTMLVideoElement | null;
+  startPromise: Promise<void> | null;
+  mirrored: boolean;
+  activeDeviceId: string;
+}
 
 function mediaDevices(): MediaDevices {
   const devices = globalThis.navigator?.mediaDevices;
@@ -47,17 +60,34 @@ function mediaDevices(): MediaDevices {
   return devices;
 }
 
+function normalizeId(value: unknown, fallback = defaultCameraId): string {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function optionalText(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function indexFrom(value: unknown): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? parsed - 1 : -1;
+}
+
 function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints {
+  if (typeof options.video === 'object' && options.video !== null) {
+    return {audio: false, video: options.video};
+  }
+  if (options.deviceId) {
+    return {audio: false, video: {deviceId: {exact: options.deviceId}}};
+  }
   return {audio: false, video: options.video ?? true};
 }
 
 export class CameraSourceExtension implements TurboWarpExtension {
-  private stream: MediaStream | null = null;
-  private video: HTMLVideoElement | null = null;
-  private readonly leases = new Set<symbol>();
-  private startPromise: Promise<void> | null = null;
-  private mirrored = false;
-  private activeDeviceId = '';
+  private readonly sessions = new Map<string, CameraSession>();
+  private readonly blockLeases = new Map<string, CameraLease>();
+  private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
     Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
@@ -71,87 +101,145 @@ export class CameraSourceExtension implements TurboWarpExtension {
     };
   }
 
-  public isCameraRunning(): boolean {
-    return this.stream !== null;
+  public isCameraRunning(args: {CAMERA_ID?: unknown} = {}): boolean {
+    const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+    return Boolean(session?.stream);
   }
 
-  public cameraDeviceIdReporter(): string {
-    return this.activeDeviceId;
+  public cameraDeviceIdReporter(args: {CAMERA_ID?: unknown} = {}): string {
+    return this.sessions.get(normalizeId(args.CAMERA_ID))?.activeDeviceId ?? '';
   }
 
-  public async startSharedCamera(): Promise<void> {
-    const lease = await this.acquireCamera({owner: 'camera-source-block'});
-    await lease.release();
+  public async startSharedCamera(args: {CAMERA_ID?: unknown; DEVICE_ID?: unknown} = {}): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    if (this.blockLeases.has(cameraId)) return;
+    const deviceId = optionalText(args.DEVICE_ID);
+    const options: CameraAcquireOptions = {owner: 'camera-source-block', cameraId};
+    if (deviceId) options.deviceId = deviceId;
+    const lease = await this.acquireCamera(options);
+    this.blockLeases.set(cameraId, lease);
   }
 
   public async acquireCamera(options: CameraAcquireOptions = {}): Promise<CameraLease> {
+    const cameraId = normalizeId(options.cameraId);
+    const session = this.session(cameraId);
     const token = Symbol(String(options.owner ?? 'camera-lease'));
-    if (this.startPromise) {
-      await this.startPromise;
-    } else if (!this.stream) {
-      await this.start(options);
+    if (session.startPromise) {
+      await session.startPromise;
+    } else if (!session.stream) {
+      await this.start(session, options);
     }
-    this.leases.add(token);
+    session.leases.add(token);
     let released = false;
     return Object.freeze({
-      getFrameSource: () => this.getFrameSource(),
+      getFrameSource: () => this.getFrameSource(session),
       release: async () => {
         if (released) return;
         released = true;
-        this.leases.delete(token);
-        if (this.leases.size === 0) this.stopSharedCamera();
+        session.leases.delete(token);
+        if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
       }
     });
   }
 
-  public stopSharedCamera(): void {
-    this.stream?.getTracks().forEach((track) => track.stop());
-    if (this.video) this.video.srcObject = null;
-    this.stream = null;
-    this.video = null;
-    this.startPromise = null;
-    this.activeDeviceId = '';
+  public stopSharedCamera(args: {CAMERA_ID?: unknown} = {}): void {
+    this.stopCameraSession(normalizeId(args.CAMERA_ID));
   }
 
-  private async start(options: CameraAcquireOptions): Promise<void> {
-    this.mirrored = options.mirrored === true;
-    this.startPromise = (async () => {
+  public async refreshCameraDevices(): Promise<void> {
+    this.devices = (await mediaDevices().enumerateDevices()).filter(
+      (device) => device.kind === 'videoinput'
+    );
+  }
+
+  public cameraDeviceCount(): number {
+    return this.devices.length;
+  }
+
+  public cameraDeviceIdAt(args: {INDEX?: unknown}): string {
+    return this.devices[indexFrom(args.INDEX)]?.deviceId ?? '';
+  }
+
+  public cameraDeviceLabelAt(args: {INDEX?: unknown}): string {
+    return this.devices[indexFrom(args.INDEX)]?.label ?? '';
+  }
+
+  public stopAllCameras(): void {
+    for (const cameraId of [...this.sessions.keys()]) {
+      this.stopCameraSession(cameraId);
+    }
+    this.blockLeases.clear();
+  }
+
+  private session(cameraId: string): CameraSession {
+    const existing = this.sessions.get(cameraId);
+    if (existing) return existing;
+    const session: CameraSession = {
+      cameraId,
+      leases: new Set(),
+      stream: null,
+      video: null,
+      startPromise: null,
+      mirrored: false,
+      activeDeviceId: ''
+    };
+    this.sessions.set(cameraId, session);
+    return session;
+  }
+
+  private async start(session: CameraSession, options: CameraAcquireOptions): Promise<void> {
+    session.mirrored = options.mirrored === true;
+    session.startPromise = (async () => {
       const stream = await mediaDevices().getUserMedia(videoConstraints(options));
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
       video.srcObject = stream;
       await video.play();
-      this.stream = stream;
-      this.video = video;
-      this.updateActiveDevice();
+      session.stream = stream;
+      session.video = video;
+      this.updateActiveDevice(session);
     })();
     try {
-      await this.startPromise;
+      await session.startPromise;
     } catch (error) {
-      this.stopSharedCamera();
+      this.stopCameraSession(session.cameraId);
       throw error;
     }
   }
 
-  private updateActiveDevice(): void {
-    const track = this.stream?.getVideoTracks()[0] ?? null;
+  private updateActiveDevice(session: CameraSession): void {
+    const track = session.stream?.getVideoTracks()[0] ?? null;
     const settings = track?.getSettings();
-    this.activeDeviceId = typeof settings?.deviceId === 'string' ? settings.deviceId : '';
+    session.activeDeviceId = typeof settings?.deviceId === 'string' ? settings.deviceId : '';
   }
 
-  private getFrameSource(): CameraFrameSource {
-    if (!this.video || !this.stream) {
+  private getFrameSource(session: CameraSession): CameraFrameSource {
+    if (!session.video || !session.stream) {
       throw new Error('Shared camera is not running.');
     }
     return Object.freeze({
       kind: 'video',
-      element: this.video,
-      width: this.video.videoWidth,
-      height: this.video.videoHeight,
-      mirrored: this.mirrored,
-      deviceId: this.activeDeviceId
+      element: session.video,
+      width: session.video.videoWidth,
+      height: session.video.videoHeight,
+      mirrored: session.mirrored,
+      deviceId: session.activeDeviceId
     });
+  }
+
+  private stopCameraSession(cameraId: string): void {
+    const session = this.sessions.get(cameraId);
+    if (!session) return;
+    session.stream?.getTracks().forEach((track) => track.stop());
+    if (session.video) session.video.srcObject = null;
+    session.stream = null;
+    session.video = null;
+    session.startPromise = null;
+    session.activeDeviceId = '';
+    session.leases.clear();
+    this.sessions.delete(cameraId);
+    this.blockLeases.delete(cameraId);
   }
 
   private toScratchBlock(block: BlockDefinition): Record<string, unknown> {

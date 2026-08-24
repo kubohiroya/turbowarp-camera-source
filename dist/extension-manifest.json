@@ -3,24 +3,78 @@
   "id": "kubohiroyacamerasource",
   "blocks": [
     {
-      "opcode": "cameraDeviceIdReporter",
+      "opcode": "cameraDeviceCount",
       "blockType": "REPORTER",
       "arguments": []
     },
     {
+      "opcode": "cameraDeviceIdAt",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "INDEX",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraDeviceIdReporter",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraDeviceLabelAt",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "INDEX",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "isCameraRunning",
       "blockType": "BOOLEAN",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "refreshCameraDevices",
+      "blockType": "COMMAND",
       "arguments": []
     },
     {
       "opcode": "startSharedCamera",
       "blockType": "COMMAND",
-      "arguments": []
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        },
+        {
+          "id": "DEVICE_ID",
+          "type": "STRING"
+        }
+      ]
     },
     {
       "opcode": "stopSharedCamera",
       "blockType": "COMMAND",
-      "arguments": []
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
     }
   ],
   "menus": []
