@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="TurboWarp拡張間で名前付きMediaDevicesカメラストリームを共有するCamera Sourceのガイド。">
-  <title>Camera Source ガイド</title>
+  <title>TurboWarp Camera Source ガイド</title>
   <link rel="canonical" href="https://kubohiroya.github.io/turbowarp-camera-source/ja/">
   <link rel="alternate" hreflang="en" href="https://kubohiroya.github.io/turbowarp-camera-source/">
   <link rel="alternate" hreflang="ja" href="https://kubohiroya.github.io/turbowarp-camera-source/ja/">
@@ -12,14 +12,14 @@
 </head>
 <body>
   <header class="topbar"><div class="topbar-inner">
-    <a class="brand" href="./">Camera Source</a>
+    <a class="brand" href="./">TurboWarp Camera Source</a>
     <nav class="nav" aria-label="Sections"><a href="#blocks">ブロック</a><a href="#api">API</a><a href="#privacy">プライバシー</a></nav>
     <nav class="lang" aria-label="Language"><a href="../">English</a><a href="./" aria-current="page">日本語</a></nav>
   </div></header>
   <main>
     <section class="hero">
       <div><p class="eyebrow">TurboWarp capability extension</p><h1>姿勢、画像、QRでカメラを使い分ける。</h1>
-      <p class="lede">Camera Sourceは`navigator.mediaDevices.getUserMedia()`を管理し、役割名ごとにライブフレームを共有します。TMPoseは水平カメラ、jsQRや画像認識は下向きカメラ、という構成にできます。</p></div>
+      <p class="lede">TurboWarp Camera Sourceは`navigator.mediaDevices.getUserMedia()`を管理し、役割名ごとにライブフレームを共有します。TMは水平カメラ、jsQRや画像認識は下向きカメラ、という構成にできます。</p></div>
       <div class="panel"><span class="block">start shared camera pose</span><span class="block">start shared camera qr</span><span class="block">camera device ID at 1</span></div>
     </section>
     <section class="section" id="blocks"><h2>ブロック</h2><div class="grid">
@@ -29,7 +29,7 @@
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>unsandboxed拡張は`Scratch.vm.runtime.ext_kubohiroyacamerasource`を参照できます。</p>
 <pre><code>const poseLease = await cameraSource.acquireCamera({
-  owner: 'tmpose',
+  owner: 'tm',
   cameraId: 'pose',
   deviceId: poseDeviceId
 });

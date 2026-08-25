@@ -1,13 +1,52 @@
-# Camera Source
+# TurboWarp Camera Source
 
-[English](README.md)
+[English](README.md) | **日本語**
 
-Camera Sourceは、MediaDevicesのカメラストリームを名前付きで複数のTurboWarp拡張へ共有するcapability拡張です。leaseで起動と停止を管理し、TMPose、QR読み取り、将来の画像入力が同じ物理カメラを共有する場合も、姿勢認識用とQR/画像認識用で別カメラを使う場合も、`getUserMedia()`の競合を避けます。
+TurboWarp Camera Sourceは、MediaDevicesのカメラストリームを名前付きで複数のTurboWarp拡張へ共有するcapability拡張です。leaseで起動と停止を管理し、TM、QR読み取り、将来の画像入力が同じ物理カメラを共有する場合も、姿勢認識用とQR/画像認識用で別カメラを使う場合も、`getUserMedia()`の競合を避けます。
 
 **[English guide](https://kubohiroya.github.io/turbowarp-camera-source/)** ·
 **[日本語ガイド](https://kubohiroya.github.io/turbowarp-camera-source/ja/)**
 
-## ブロック
+## できること
+
+- `pose`、`qr`、`default`などの名前付きカメラストリームを開始・停止します。
+- 1つのライブ`HTMLVideoElement`フレームソースを複数のunsandboxed consumerで共有します。
+- 最後のleaseが解放されるまで各ストリームを維持します。
+- ブラウザのカメラ許可後にデバイス一覧を取得します。
+
+## 要件と安全性
+
+- TurboWarpの「Run extension without sandbox」
+- HTTPSまたはlocalhostなどの安全なコンテキスト
+- ブラウザのカメラ許可
+- Camera Sourceはカメラフレームをアップロードせず、画像を保存しません。
+
+## インストール
+
+次のURLをunsandboxed custom extensionとして読み込みます。
+
+```text
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.2.0/dist/camera-source.js
+```
+
+npm hostでは次を使います。
+
+```bash
+pnpm add @kubohiroya/turbowarp-camera-source@0.2.0
+```
+
+## Quick start
+
+カメラストリームには役割名を使います。同じ`cameraId`を使うconsumerは1つのカメラを共有し、異なる名前は別デバイスへ割り当てられます。
+
+```text
+start shared camera [pose] with device ID []
+start shared camera [qr] with device ID []
+shared camera [pose] is running?
+stop shared camera [pose]
+```
+
+## ブロック一覧
 
 - `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`: 名前付き共有カメラを開始します。
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
@@ -24,14 +63,14 @@ Camera Sourceは、MediaDevicesのカメラストリームを名前付きで複�
 
 ```js
 const poseLease = await cameraSource.acquireCamera({
-  owner: 'tmpose',
-  cameraId: 'pose',
-  deviceId: poseDeviceId
+  owner: "tm",
+  cameraId: "pose",
+  deviceId: poseDeviceId,
 });
 const qrLease = await cameraSource.acquireCamera({
-  owner: 'jsqr',
-  cameraId: 'qr',
-  deviceId: qrDeviceId
+  owner: "jsqr",
+  cameraId: "qr",
+  deviceId: qrDeviceId,
 });
 const frame = qrLease.getFrameSource();
 await qrLease.release();
@@ -40,23 +79,20 @@ await poseLease.release();
 
 `cameraId`は`pose`や`qr`のような作品内の役割名です。`deviceId`を指定すると、その役割をブラウザが公開する特定のカメラデバイスへ割り当てられます。`frame.element`は`HTMLVideoElement`です。各カメラは最後のleaseが解放されるまで維持されます。
 
-## 要件
+## 互換性
 
-- TurboWarpの「Run extension without sandbox」
-- HTTPSまたはlocalhostなどの安全なコンテキスト
-- ブラウザのカメラ許可
-
-Camera Sourceはカメラフレームをアップロードせず、画像を保存しません。
+Extension IDは`kubohiroyacamerasource`のままです。ブロックopcode、camera lease ownership、device selection、release semanticsは0.2.0でも変更しません。
 
 ## 開発
 
 ```bash
-pnpm install
-pnpm check
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run check
 ```
 
 GitHub Pages用の静的サイトは`docs/`にあり、英語版は`docs/index.html`、日本語版は`docs/ja/index.html`です。
 
 ## ライセンス
 
-MPL-2.0
+SPDX-License-Identifier: MPL-2.0

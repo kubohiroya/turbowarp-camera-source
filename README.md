@@ -1,8 +1,8 @@
-# Camera Source
+# TurboWarp Camera Source
 
-[日本語](README.ja.md)
+**English** | [日本語](README.ja.md)
 
-Camera Source is a TurboWarp extension capability for sharing named
+TurboWarp Camera Source is a TurboWarp extension capability for sharing named
 `MediaDevices` camera streams across consumers such as pose recognition, image
 classification, and QR scanning. It owns camera startup and shutdown through
 leases so multiple extensions can intentionally share the same physical camera
@@ -11,22 +11,46 @@ or select separate cameras for separate roles.
 **[Open the user guide](https://kubohiroya.github.io/turbowarp-camera-source/)** ·
 **[日本語ガイド](https://kubohiroya.github.io/turbowarp-camera-source/ja/)**
 
-## Build workflow
+## What it does
+
+- Starts and stops named camera streams such as `pose`, `qr`, or `default`.
+- Shares one live `HTMLVideoElement` frame source across multiple unsandboxed consumers.
+- Keeps each stream alive until the final lease is released.
+- Lists browser camera devices after permission is granted.
+
+## Requirements and Safety
+
+- TurboWarp custom extensions loaded with **Run extension without sandbox**.
+- A secure browser context such as HTTPS or localhost.
+- User camera permission through the browser permission prompt.
+- Camera frames stay in the browser. Camera Source does not upload frames or store images.
+
+## Installation
+
+Load this URL as an unsandboxed custom extension:
 
 ```text
-TypeScript source
-  -> Vite
-  -> vite-plugin-turbowarp-extension
-  -> dist/<extension-name>.js
-
-Extension config + block definitions
-  -> extension manifest plugin
-  -> dist/extension-manifest.json
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.2.0/dist/camera-source.js
 ```
 
-The generated JavaScript is a single, non-minified TurboWarp extension file with Extension Gallery metadata and the standard `(function (Scratch) { ... })(Scratch);` wrapper.
+For npm hosts:
 
-## Blocks
+```bash
+pnpm add @kubohiroya/turbowarp-camera-source@0.2.0
+```
+
+## Quick Start
+
+Use role names for camera streams. Consumers that use the same `cameraId` share one camera; different names can bind to different devices.
+
+```text
+start shared camera [pose] with device ID []
+start shared camera [qr] with device ID []
+shared camera [pose] is running?
+stop shared camera [pose]
+```
+
+## Block Reference
 
 <!-- BEGIN GENERATED BLOCKS -->
 
@@ -111,13 +135,6 @@ Returns the one-based camera device label at the requested index when the browse
 
 <!-- END GENERATED BLOCKS -->
 
-## Development
-
-```bash
-npm install
-npm run check
-```
-
 ## Runtime API
 
 Other unsandboxed extensions can access `Scratch.vm.runtime.ext_kubohiroyacamerasource`.
@@ -128,22 +145,49 @@ bind to a specific browser camera device.
 
 ```js
 const poseLease = await cameraSource.acquireCamera({
-  owner: 'tmpose',
-  cameraId: 'pose',
-  deviceId: poseDeviceId
+  owner: "tm",
+  cameraId: "pose",
+  deviceId: poseDeviceId,
 });
 const qrLease = await cameraSource.acquireCamera({
-  owner: 'jsqr',
-  cameraId: 'qr',
-  deviceId: qrDeviceId
+  owner: "jsqr",
+  cameraId: "qr",
+  deviceId: qrDeviceId,
 });
+```
+
+## Compatibility
+
+The extension ID remains `kubohiroyacamerasource`, and the block opcodes are unchanged. Camera lease ownership, device selection, and release semantics are unchanged in 0.2.0.
+
+## Development
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm run check
 ```
 
 For continuous rebuilding during development:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
+
+## Build Workflow
+
+```text
+TypeScript source
+  -> Vite
+  -> vite-plugin-turbowarp-extension
+  -> dist/camera-source.js
+
+Extension config + block definitions
+  -> extension manifest plugin
+  -> dist/extension-manifest.json
+```
+
+The generated JavaScript is a single, non-minified TurboWarp extension file with Extension Gallery metadata and the standard `(function (Scratch) { ... })(Scratch);` wrapper.
 
 ## Project structure
 
@@ -170,7 +214,7 @@ its ID. See [the architecture document](docs/architecture.md) and the
 After changing runtime or block metadata, regenerate and verify the tracked release artifacts:
 
 ```bash
-npm run check:dist
+pnpm run check:dist
 ```
 
 ## Generated documentation
@@ -178,11 +222,11 @@ npm run check:dist
 Regenerate block documentation with:
 
 ```bash
-npm run docs
+pnpm run docs
 ```
 
-`npm run check` also runs `docs:check`, which fails if `README.md` is out of date with `src/block-definitions.json`.
+`pnpm run check` also runs `docs:check`, which fails if `README.md` is out of date with `src/block-definitions.json`.
 
 ## License
 
-MPL-2.0
+SPDX-License-Identifier: MPL-2.0
