@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.2.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.3.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.2.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.3.0
 ```
 
 ## Quick Start
