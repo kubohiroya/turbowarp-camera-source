@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.3.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.4.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.3.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.4.0
 ```
 
 ## Quick start
@@ -104,7 +104,9 @@ Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いま�
 
 ## 互換性
 
-Extension IDは`kubohiroyacamerasource`のままです。ブロックopcode、camera lease ownership、device selection、release semanticsは0.2.0でも変更しません。
+0.4.0ではopt-inのGPU-backed video previewを追加します。Extension ID、ブロックopcode、camera lease
+ownership、device selection、release semanticsは変更しません。`preview: true`を指定しないconsumerは、
+従来のcamera-source動作を維持します。
 
 ## 開発
 

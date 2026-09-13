@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.3.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.4.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.3.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.4.0
 ```
 
 ## Quick Start
@@ -185,7 +185,9 @@ noninteractive; it is intended for display, not Scratch touching or color-sensin
 
 ## Compatibility
 
-The extension ID remains `kubohiroyacamerasource`, and the block opcodes are unchanged. Camera lease ownership, device selection, and release semantics are unchanged in 0.2.0.
+Version 0.4.0 adds the opt-in GPU-backed video preview without changing the extension ID,
+block opcodes, camera lease ownership, device selection, or release semantics. Consumers that do
+not request `preview: true` retain the existing camera-source behavior.
 
 ## Development
 
