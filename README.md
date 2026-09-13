@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.2.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.3.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.2.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.3.0
 ```
 
 ## Quick Start
@@ -198,7 +198,7 @@ The generated JavaScript is a single, non-minified TurboWarp extension file with
 - `src/index.ts`: extension registration entry point
 - `src/globals.d.ts`: Scratch API declarations used by the project
 - `schemas/extension-manifest.schema.json`: JSON Schema for the generated API contract
-- `scripts/generate-readme.mjs`: updates the generated README block section
+- `scripts/generate-readme.ts`: updates the generated README block section
 - `tests/`: unit tests
 - `vite.config.ts`: TurboWarp-compatible Vite build configuration
 - `dist/`: tracked TurboWarp JavaScript and extension API manifest
