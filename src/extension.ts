@@ -47,7 +47,7 @@ const defaultCameraId = 'default';
 interface CameraSession {
   readonly cameraId: string;
   readonly leases: Set<symbol>;
-  readonly previewLeases: Set<symbol>;
+  readonly previewLeases: Map<symbol, boolean>;
   stream: MediaStream | null;
   video: HTMLVideoElement | null;
   preview: VideoPreview | null;
@@ -136,8 +136,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.leases.add(token);
     try {
       if (options.preview === true) {
-        session.previewLeases.add(token);
+        session.previewLeases.set(token, options.mirrored === true);
         this.ensurePreview(session);
+        session.preview?.setMirrored(this.previewMirrored(session));
       }
     } catch (error) {
       session.leases.delete(token);
@@ -156,6 +157,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
         if (session.previewLeases.size === 0) {
           session.preview?.dispose();
           session.preview = null;
+        } else {
+          session.preview?.setMirrored(this.previewMirrored(session));
         }
         if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
       }
@@ -197,7 +200,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const session: CameraSession = {
       cameraId,
       leases: new Set(),
-      previewLeases: new Set(),
+      previewLeases: new Map(),
       stream: null,
       video: null,
       preview: null,
@@ -242,9 +245,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.preview = createVideoPreview(
       runtime.renderer as CameraRenderer | undefined,
       session.video,
-      session.mirrored,
+      this.previewMirrored(session),
       () => runtime.requestRedraw?.()
     );
+  }
+
+  private previewMirrored(session: CameraSession): boolean {
+    return [...session.previewLeases.values()].some(Boolean);
   }
 
   private getFrameSource(session: CameraSession): CameraFrameSource {

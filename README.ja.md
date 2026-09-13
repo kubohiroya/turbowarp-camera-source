@@ -79,6 +79,7 @@ const previewLease = await cameraSource.acquireCamera({
   mirrored: true,
 });
 const frame = qrLease.getFrameSource();
+await previewLease.release();
 await qrLease.release();
 await poseLease.release();
 ```
@@ -87,6 +88,8 @@ await poseLease.release();
 `HTMLVideoElement`を`texImage2D(video)`でアップロードし、preview drawableのX scaleで左右反転します。
 `drawImage()`、`getImageData()`、CPUでのフレームピクセル走査は行いません。既定値は`false`で、同じ
 カメラの最後のpreview leaseが解放されるまで表示を維持します。
+複数のpreview leaseが同じカメラを共有する場合、1つ以上の有効なleaseが`mirrored: true`を要求している間は
+previewを左右反転します。
 
 `frame.element`はpreviewを左右反転した場合も未加工の`HTMLVideoElement`です。そのためWebGPUや
 WebCodecsのconsumerは、CPU canvasやpreviewを経由せず、同じsourceを

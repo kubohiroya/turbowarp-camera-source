@@ -202,17 +202,26 @@
   	const skinId = renderer._nextSkinId++;
   	let drawableId;
   	let disposed = false;
+  	let previewMirrored = mirrored;
+  	let lastLayout = "";
   	const updateLayout = () => {
   		if (drawableId === void 0 || video.videoWidth === 0 || video.videoHeight === 0) return;
   		const [stageWidth, stageHeight] = renderer.getNativeSize();
+  		const layout = [
+  			video.videoWidth,
+  			video.videoHeight,
+  			stageWidth,
+  			stageHeight,
+  			previewMirrored
+  		].join(":");
+  		if (layout === lastLayout) return;
   		const scale = Math.max(stageWidth / video.videoWidth, stageHeight / video.videoHeight) * 100;
-  		renderer.updateDrawableScale(drawableId, [mirrored ? -scale : scale, scale]);
+  		renderer.updateDrawableScale(drawableId, [previewMirrored ? -scale : scale, scale]);
+  		lastLayout = layout;
   	};
   	const skin = new VideoSkin(skinId, renderer, video, (metricsChanged) => {
-  		if (metricsChanged) {
-  			skin.emitWasAltered();
-  			updateLayout();
-  		}
+  		if (metricsChanged) skin.emitWasAltered();
+  		updateLayout();
   		requestRedraw();
   	});
   	renderer._allSkins[skinId] = skin;
@@ -227,16 +236,34 @@
   		renderer.markDrawableAsNoninteractive?.(drawableId);
   		requestRedraw();
   	} catch (error) {
-  		renderer.destroySkin(skinId);
+  		try {
+  			if (drawableId !== void 0) renderer.destroyDrawable(drawableId, videoLayer);
+  		} finally {
+  			renderer.destroySkin(skinId);
+  		}
   		throw error;
   	}
-  	return Object.freeze({ dispose: () => {
-  		if (disposed) return;
-  		disposed = true;
-  		if (drawableId !== void 0) renderer.destroyDrawable(drawableId, videoLayer);
-  		renderer.destroySkin(skinId);
-  		requestRedraw();
-  	} });
+  	return Object.freeze({
+  		setMirrored: (nextMirrored) => {
+  			if (disposed || previewMirrored === nextMirrored) return;
+  			previewMirrored = nextMirrored;
+  			updateLayout();
+  			requestRedraw();
+  		},
+  		dispose: () => {
+  			if (disposed) return;
+  			disposed = true;
+  			try {
+  				if (drawableId !== void 0) renderer.destroyDrawable(drawableId, videoLayer);
+  			} finally {
+  				try {
+  					renderer.destroySkin(skinId);
+  				} finally {
+  					requestRedraw();
+  				}
+  			}
+  		}
+  	});
   }
   //#endregion
   //#region src/extension.ts
@@ -313,8 +340,9 @@
   		session.leases.add(token);
   		try {
   			if (options.preview === true) {
-  				session.previewLeases.add(token);
+  				session.previewLeases.set(token, options.mirrored === true);
   				this.ensurePreview(session);
+  				session.preview?.setMirrored(this.previewMirrored(session));
   			}
   		} catch (error) {
   			session.leases.delete(token);
@@ -333,7 +361,7 @@
   				if (session.previewLeases.size === 0) {
   					session.preview?.dispose();
   					session.preview = null;
-  				}
+  				} else session.preview?.setMirrored(this.previewMirrored(session));
   				if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
   			}
   		});
@@ -363,7 +391,7 @@
   		const session = {
   			cameraId,
   			leases: /* @__PURE__ */ new Set(),
-  			previewLeases: /* @__PURE__ */ new Set(),
+  			previewLeases: /* @__PURE__ */ new Map(),
   			stream: null,
   			video: null,
   			preview: null,
@@ -401,7 +429,10 @@
   	ensurePreview(session) {
   		if (session.preview || !session.video) return;
   		const runtime = Scratch.vm.runtime;
-  		session.preview = createVideoPreview(runtime.renderer, session.video, session.mirrored, () => runtime.requestRedraw?.());
+  		session.preview = createVideoPreview(runtime.renderer, session.video, this.previewMirrored(session), () => runtime.requestRedraw?.());
+  	}
+  	previewMirrored(session) {
+  		return [...session.previewLeases.values()].some(Boolean);
   	}
   	getFrameSource(session) {
   		if (!session.video || !session.stream) throw new Error("Shared camera is not running.");

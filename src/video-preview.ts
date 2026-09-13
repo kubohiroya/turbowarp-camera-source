@@ -47,6 +47,7 @@ export interface CameraRenderer {
 
 export interface VideoPreview {
   dispose(): void;
+  setMirrored(mirrored: boolean): void;
 }
 
 type FrameCallback = (metricsChanged: boolean) => void;
@@ -213,19 +214,22 @@ export function createVideoPreview(
   const skinId = renderer._nextSkinId++;
   let drawableId: number | undefined;
   let disposed = false;
+  let previewMirrored = mirrored;
+  let lastLayout = '';
 
   const updateLayout = (): void => {
     if (drawableId === undefined || video.videoWidth === 0 || video.videoHeight === 0) return;
     const [stageWidth, stageHeight] = renderer.getNativeSize();
+    const layout = [video.videoWidth, video.videoHeight, stageWidth, stageHeight, previewMirrored].join(':');
+    if (layout === lastLayout) return;
     const scale = Math.max(stageWidth / video.videoWidth, stageHeight / video.videoHeight) * 100;
-    renderer.updateDrawableScale(drawableId, [mirrored ? -scale : scale, scale]);
+    renderer.updateDrawableScale(drawableId, [previewMirrored ? -scale : scale, scale]);
+    lastLayout = layout;
   };
 
   const skin = new VideoSkin(skinId, renderer, video, (metricsChanged) => {
-    if (metricsChanged) {
-      skin.emitWasAltered();
-      updateLayout();
-    }
+    if (metricsChanged) skin.emitWasAltered();
+    updateLayout();
     requestRedraw();
   });
   renderer._allSkins[skinId] = skin;
@@ -241,17 +245,33 @@ export function createVideoPreview(
     renderer.markDrawableAsNoninteractive?.(drawableId);
     requestRedraw();
   } catch (error) {
-    renderer.destroySkin(skinId);
+    try {
+      if (drawableId !== undefined) renderer.destroyDrawable(drawableId, videoLayer);
+    } finally {
+      renderer.destroySkin(skinId);
+    }
     throw error;
   }
 
   return Object.freeze({
+    setMirrored: (nextMirrored: boolean) => {
+      if (disposed || previewMirrored === nextMirrored) return;
+      previewMirrored = nextMirrored;
+      updateLayout();
+      requestRedraw();
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      if (drawableId !== undefined) renderer.destroyDrawable(drawableId, videoLayer);
-      renderer.destroySkin(skinId);
-      requestRedraw();
+      try {
+        if (drawableId !== undefined) renderer.destroyDrawable(drawableId, videoLayer);
+      } finally {
+        try {
+          renderer.destroySkin(skinId);
+        } finally {
+          requestRedraw();
+        }
+      }
     }
   });
 }

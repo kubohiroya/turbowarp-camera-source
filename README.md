@@ -161,6 +161,9 @@ const previewLease = await cameraSource.acquireCamera({
   mirrored: true,
 });
 const frame = qrLease.getFrameSource();
+await previewLease.release();
+await qrLease.release();
+await poseLease.release();
 ```
 
 `preview: true` opts that lease into the GPU-backed stage preview. The dedicated video skin uploads
@@ -168,6 +171,8 @@ the shared `HTMLVideoElement` with `texImage2D(video)` and mirrors by changing t
 X scale. It does not call `drawImage()`, `getImageData()`, or scan frame pixels on the CPU. The option
 defaults to `false`; the preview remains visible until the final preview lease for that camera is
 released.
+If multiple preview leases share a camera, the preview is mirrored while any active preview lease
+requests `mirrored: true`.
 
 `frame.element` is the original, unmodified `HTMLVideoElement`, even when the preview is mirrored.
 WebGPU and WebCodecs consumers can therefore use that same source without going through the preview

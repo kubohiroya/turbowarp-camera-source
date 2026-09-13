@@ -75,6 +75,7 @@ function renderer() {
   }
 
   const skins: CameraRenderer['_allSkins'] = [];
+  const getNativeSize = vi.fn<() => readonly [number, number]>(() => [480, 360]);
   const cameraRenderer = {
     gl,
     exports: {Skin},
@@ -86,7 +87,7 @@ function renderer() {
       cameraRenderer._allSkins[skinId]?.dispose();
       delete cameraRenderer._allSkins[skinId];
     }),
-    getNativeSize: vi.fn(() => [480, 360] as const),
+    getNativeSize,
     markDrawableAsNoninteractive: vi.fn(),
     markSkinAsPrivate: vi.fn(),
     updateDrawablePosition: vi.fn(),
@@ -179,6 +180,7 @@ describe('CameraSourceExtension', () => {
     vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
 
     const extension = new CameraSourceExtension();
+    const processingLease = await extension.acquireCamera();
     const lease = await extension.acquireCamera({preview: true, mirrored: true});
     const skin = cameraRenderer._allSkins[0];
     expect(skin).toBeDefined();
@@ -200,7 +202,9 @@ describe('CameraSourceExtension', () => {
     expect(gl.texImage2D).toHaveBeenCalledTimes(1);
 
     Object.assign(sourceVideo, {currentTime: 1});
+    cameraRenderer.getNativeSize.mockReturnValue([960, 360]);
     frameCallback?.(1, {} as VideoFrameCallbackMetadata);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
     skin?.getTexture([100, 100]);
     expect(gl.texImage2D).toHaveBeenCalledTimes(2);
     expect(requestRedraw).toHaveBeenCalled();
@@ -209,6 +213,8 @@ describe('CameraSourceExtension', () => {
     expect(cameraRenderer.destroyDrawable).toHaveBeenCalledWith(10, 'video');
     expect(cameraRenderer.destroySkin).toHaveBeenCalledWith(0);
     expect(cancelVideoFrameCallback).toHaveBeenCalledWith(12);
+    expect(extension.isCameraRunning()).toBe(true);
+    await processingLease.release();
   });
 
   it('keeps an opt-in preview until its last preview lease is released', async () => {
@@ -222,13 +228,14 @@ describe('CameraSourceExtension', () => {
     vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
 
     const extension = new CameraSourceExtension();
-    const previewLease = await extension.acquireCamera({preview: true});
+    const previewLease = await extension.acquireCamera({preview: true, mirrored: true});
     const sharedPreviewLease = await extension.acquireCamera({preview: true});
     const processingLease = await extension.acquireCamera();
 
-    expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [75, 75]);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [-75, 75]);
     await previewLease.release();
     expect(cameraRenderer.destroyDrawable).not.toHaveBeenCalled();
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
     await sharedPreviewLease.release();
     expect(cameraRenderer.destroyDrawable).toHaveBeenCalledTimes(1);
     expect(extension.isCameraRunning()).toBe(true);
@@ -262,6 +269,26 @@ describe('CameraSourceExtension', () => {
     await expect(extension.acquireCamera({preview: true})).rejects.toThrow(
       'Camera preview requires a compatible TurboWarp renderer.'
     );
+    expect(extension.isCameraRunning()).toBe(false);
+  });
+
+  it('cleans up a partially created preview when renderer setup fails', async () => {
+    const cameraStream = stream('preview-device');
+    const {cameraRenderer} = renderer();
+    cameraRenderer.updateDrawablePosition.mockImplementation(() => {
+      throw new Error('renderer setup failed');
+    });
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+
+    await expect(extension.acquireCamera({preview: true})).rejects.toThrow('renderer setup failed');
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledWith(10, 'video');
+    expect(cameraRenderer.destroySkin).toHaveBeenCalledWith(0);
     expect(extension.isCameraRunning()).toBe(false);
   });
 
