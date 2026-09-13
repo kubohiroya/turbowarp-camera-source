@@ -1,5 +1,6 @@
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
+import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
 type ArgumentTypeName = 'STRING';
@@ -23,6 +24,7 @@ export interface CameraAcquireOptions {
   deviceId?: string;
   video?: MediaTrackConstraints | boolean;
   mirrored?: boolean;
+  preview?: boolean;
 }
 
 export interface CameraFrameSource {
@@ -45,8 +47,10 @@ const defaultCameraId = 'default';
 interface CameraSession {
   readonly cameraId: string;
   readonly leases: Set<symbol>;
+  readonly previewLeases: Set<symbol>;
   stream: MediaStream | null;
   video: HTMLVideoElement | null;
+  preview: VideoPreview | null;
   startPromise: Promise<void> | null;
   mirrored: boolean;
   activeDeviceId: string;
@@ -130,6 +134,17 @@ export class CameraSourceExtension implements TurboWarpExtension {
       await this.start(session, options);
     }
     session.leases.add(token);
+    try {
+      if (options.preview === true) {
+        session.previewLeases.add(token);
+        this.ensurePreview(session);
+      }
+    } catch (error) {
+      session.leases.delete(token);
+      session.previewLeases.delete(token);
+      if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+      throw error;
+    }
     let released = false;
     return Object.freeze({
       getFrameSource: () => this.getFrameSource(session),
@@ -137,6 +152,11 @@ export class CameraSourceExtension implements TurboWarpExtension {
         if (released) return;
         released = true;
         session.leases.delete(token);
+        session.previewLeases.delete(token);
+        if (session.previewLeases.size === 0) {
+          session.preview?.dispose();
+          session.preview = null;
+        }
         if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
       }
     });
@@ -177,8 +197,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const session: CameraSession = {
       cameraId,
       leases: new Set(),
+      previewLeases: new Set(),
       stream: null,
       video: null,
+      preview: null,
       startPromise: null,
       mirrored: false,
       activeDeviceId: ''
@@ -214,6 +236,17 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.activeDeviceId = typeof settings?.deviceId === 'string' ? settings.deviceId : '';
   }
 
+  private ensurePreview(session: CameraSession): void {
+    if (session.preview || !session.video) return;
+    const runtime = Scratch.vm.runtime;
+    session.preview = createVideoPreview(
+      runtime.renderer as CameraRenderer | undefined,
+      session.video,
+      session.mirrored,
+      () => runtime.requestRedraw?.()
+    );
+  }
+
   private getFrameSource(session: CameraSession): CameraFrameSource {
     if (!session.video || !session.stream) {
       throw new Error('Shared camera is not running.');
@@ -231,13 +264,16 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private stopCameraSession(cameraId: string): void {
     const session = this.sessions.get(cameraId);
     if (!session) return;
+    session.preview?.dispose();
     session.stream?.getTracks().forEach((track) => track.stop());
     if (session.video) session.video.srcObject = null;
     session.stream = null;
     session.video = null;
     session.startPromise = null;
+    session.preview = null;
     session.activeDeviceId = '';
     session.leases.clear();
+    session.previewLeases.clear();
     this.sessions.delete(cameraId);
     this.blockLeases.delete(cameraId);
   }

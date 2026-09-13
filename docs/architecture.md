@@ -42,3 +42,23 @@ changes from documentation or localization changes.
 `dist/` is committed as a release artifact. `pnpm run check:dist` rebuilds both files and fails when
 Git reports any modified, deleted, or untracked file below `dist/`. This catches manifest and bundle
 drift in local checks and CI.
+
+## Camera frame paths
+
+One camera session owns one `MediaStream` and one unmodified `HTMLVideoElement`. Leases share that
+element and independently opt into the display path.
+
+```text
+MediaStream -> HTMLVideoElement -> VideoSkin -> texImage2D(video) -> WebGL texture
+                              \-> HTMLVideoElement / VideoFrame -> WebGPU or vision consumer
+```
+
+The display skin receives video-frame notifications, reuses one WebGL texture, and requests a stage
+redraw only for a new frame. Mirroring is a negative X scale on the preview drawable, so it does not
+modify the source used by WebGPU, WebCodecs, pose recognition, or QR recognition. The drawable is
+private and noninteractive, allowing the skin to omit CPU silhouette updates and video-pixel
+readback.
+
+This removes explicit `drawImage()`, `getImageData()`, and CPU pixel scanning from the preview path.
+It does not guarantee browser-internal zero-copy because decoding, color conversion, and texture
+transfer are implementation-dependent.

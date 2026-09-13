@@ -34,3 +34,16 @@ v1契約は次の情報を含みます。
 ## 差分の検出
 
 `dist/`はリリース成果物としてコミットされます。`pnpm run check:dist`は両方のファイルを再ビルドし、`dist/`配下に変更、削除、未追跡ファイルがある場合に失敗します。これにより、ローカル検証とCIの両方でmanifestとバンドルの差分を検出できます。
+
+## カメラフレーム経路
+
+1つのcamera sessionが1つの`MediaStream`と未加工の`HTMLVideoElement`を所有します。leaseはそのelementを共有し、表示経路だけを個別にopt-inします。
+
+```text
+MediaStream -> HTMLVideoElement -> VideoSkin -> texImage2D(video) -> WebGL texture
+                              \-> HTMLVideoElement / VideoFrame -> WebGPU・vision consumer
+```
+
+表示skinはvideo frame通知を受け、1つのWebGL textureを再利用し、新しいframeがある場合だけstageの再描画を要求します。左右反転はpreview drawableの負のX scaleで行うため、WebGPU、WebCodecs、姿勢認識、QR認識が使うsourceは変更されません。drawableはprivateかつnoninteractiveであり、skinはCPU silhouette更新とvideo pixelのreadbackを省略します。
+
+これによりpreview経路から明示的な`drawImage()`、`getImageData()`、CPU pixel走査を除去します。ただしdecode、色変換、texture転送はブラウザ実装に依存するため、ブラウザ内部まで含むzero-copyは保証しません。

@@ -154,7 +154,29 @@ const qrLease = await cameraSource.acquireCamera({
   cameraId: "qr",
   deviceId: qrDeviceId,
 });
+const previewLease = await cameraSource.acquireCamera({
+  owner: "camera-preview",
+  cameraId: "pose",
+  preview: true,
+  mirrored: true,
+});
+const frame = qrLease.getFrameSource();
 ```
+
+`preview: true` opts that lease into the GPU-backed stage preview. The dedicated video skin uploads
+the shared `HTMLVideoElement` with `texImage2D(video)` and mirrors by changing the preview drawable's
+X scale. It does not call `drawImage()`, `getImageData()`, or scan frame pixels on the CPU. The option
+defaults to `false`; the preview remains visible until the final preview lease for that camera is
+released.
+
+`frame.element` is the original, unmodified `HTMLVideoElement`, even when the preview is mirrored.
+WebGPU and WebCodecs consumers can therefore use that same source without going through the preview
+or a CPU canvas, for example with `GPUQueue.copyExternalImageToTexture()` or a short-lived
+`VideoFrame`. Consumers own and must close any `VideoFrame` they create.
+
+The display path avoids explicit CPU readback, but it does not promise end-to-end zero-copy:
+browser-internal color conversion and GPU transfer may still occur. The preview is private and
+noninteractive; it is intended for display, not Scratch touching or color-sensing queries.
 
 ## Compatibility
 
@@ -194,6 +216,7 @@ The generated JavaScript is a single, non-minified TurboWarp extension file with
 - `src/config.ts`: extension metadata
 - `src/block-definitions.json`: canonical block metadata used by both the extension and README generator
 - `src/extension.ts`: extension implementation
+- `src/video-preview.ts`: GPU-backed `HTMLVideoElement` preview skin and drawable lifecycle
 - `src/extension-manifest.ts`: canonical manifest generator and Vite output plugin
 - `src/index.ts`: extension registration entry point
 - `src/globals.d.ts`: Scratch API declarations used by the project

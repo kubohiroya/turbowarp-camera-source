@@ -13,7 +13,10 @@ interface ScratchApi {
     register(extension: TurboWarpExtension): void;
   };
   vm: {
-    runtime: Record<string, unknown>;
+    runtime: Record<string, unknown> & {
+      renderer?: unknown;
+      requestRedraw?: () => void;
+    };
   };
   BlockType: Record<'COMMAND' | 'REPORTER' | 'BOOLEAN' | 'HAT', string>;
   ArgumentType: Record<'STRING' | 'NUMBER' | 'BOOLEAN', string>;

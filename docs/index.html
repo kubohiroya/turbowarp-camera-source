@@ -38,11 +38,20 @@ const qrLease = await cameraSource.acquireCamera({
   cameraId: 'qr',
   deviceId: qrDeviceId
 });
+const previewLease = await cameraSource.acquireCamera({
+  owner: 'camera-preview',
+  cameraId: 'pose',
+  preview: true,
+  mirrored: true
+});
 const frame = qrLease.getFrameSource();
 // frame.element is an HTMLVideoElement.
 await qrLease.release();
+await previewLease.release();
 await poseLease.release();</code></pre>
-    <p>Each named stream remains active until its last lease is released. Consumers that use the same `cameraId` share one physical camera; different IDs can run separate cameras.</p></section>
+    <p>Each named stream remains active until its last lease is released. Consumers that use the same `cameraId` share one physical camera; different IDs can run separate cameras.</p>
+    <p><code>preview: true</code> enables the dedicated GPU-backed stage preview for that lease. It sends the shared video element to <code>texImage2D(video)</code> without <code>drawImage()</code>, <code>getImageData()</code>, or CPU pixel scanning. Mirroring changes only the drawable scale, leaving <code>frame.element</code> unmodified for WebGPU, WebCodecs, and vision consumers.</p>
+    <p>The path avoids explicit CPU readback but does not guarantee browser-internal zero-copy. The browser may still perform color conversion or GPU transfer.</p></section>
     <section class="section" id="privacy"><h2>Privacy and requirements</h2><p class="note">Camera access requires user permission and a secure browser context such as HTTPS or localhost. Camera Source does not upload frames or store images.</p></section>
   </main>
   <footer>Source: <a href="https://github.com/kubohiroya/turbowarp-camera-source">GitHub</a></footer>

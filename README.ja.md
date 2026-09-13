@@ -72,12 +72,32 @@ const qrLease = await cameraSource.acquireCamera({
   cameraId: "qr",
   deviceId: qrDeviceId,
 });
+const previewLease = await cameraSource.acquireCamera({
+  owner: "camera-preview",
+  cameraId: "pose",
+  preview: true,
+  mirrored: true,
+});
 const frame = qrLease.getFrameSource();
 await qrLease.release();
 await poseLease.release();
 ```
 
-`cameraId`は`pose`や`qr`のような作品内の役割名です。`deviceId`を指定すると、その役割をブラウザが公開する特定のカメラデバイスへ割り当てられます。`frame.element`は`HTMLVideoElement`です。各カメラは最後のleaseが解放されるまで維持されます。
+`preview: true`を指定したleaseは、GPU-backed stage previewを利用します。専用video skinは共有
+`HTMLVideoElement`を`texImage2D(video)`でアップロードし、preview drawableのX scaleで左右反転します。
+`drawImage()`、`getImageData()`、CPUでのフレームピクセル走査は行いません。既定値は`false`で、同じ
+カメラの最後のpreview leaseが解放されるまで表示を維持します。
+
+`frame.element`はpreviewを左右反転した場合も未加工の`HTMLVideoElement`です。そのためWebGPUや
+WebCodecsのconsumerは、CPU canvasやpreviewを経由せず、同じsourceを
+`GPUQueue.copyExternalImageToTexture()`や短時間だけ保持する`VideoFrame`へ渡せます。consumerが生成した
+`VideoFrame`はconsumer自身が`close()`する必要があります。
+
+この表示経路は明示的なCPU readbackを避けますが、end-to-endの完全なzero-copyは保証しません。ブラウザ内部の
+色変換やGPU転送が発生する可能性があります。またpreviewはprivateかつnoninteractiveで、表示専用です。
+Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いません。
+
+`cameraId`は`pose`や`qr`のような作品内の役割名です。`deviceId`を指定すると、その役割をブラウザが公開する特定のカメラデバイスへ割り当てられます。各カメラは最後のleaseが解放されるまで維持されます。
 
 ## 互換性
 

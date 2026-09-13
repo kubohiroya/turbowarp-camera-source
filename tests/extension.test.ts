@@ -1,9 +1,10 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {CameraSourceExtension} from '../src/extension.js';
+import type {CameraRenderer} from '../src/video-preview.js';
 
-function scratch() {
+function scratch(runtime: Record<string, unknown> = {}) {
   return {
-    vm: {runtime: {}},
+    vm: {runtime},
     extensions: {unsandboxed: true, register: vi.fn()},
     BlockType: {COMMAND: 'command', REPORTER: 'reporter', BOOLEAN: 'boolean'},
     ArgumentType: {STRING: 'string'},
@@ -26,8 +27,75 @@ function video() {
     srcObject: null,
     videoWidth: 640,
     videoHeight: 480,
+    readyState: 2,
+    currentTime: 0,
     play: vi.fn(async () => undefined)
   } as unknown as HTMLVideoElement;
+}
+
+function renderer() {
+  const texture = {} as WebGLTexture;
+  const gl = {
+    TEXTURE_2D: 0x0de1,
+    TEXTURE_WRAP_S: 0x2802,
+    TEXTURE_WRAP_T: 0x2803,
+    TEXTURE_MIN_FILTER: 0x2801,
+    TEXTURE_MAG_FILTER: 0x2800,
+    CLAMP_TO_EDGE: 0x812f,
+    LINEAR: 0x2601,
+    UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
+    RGBA: 0x1908,
+    UNSIGNED_BYTE: 0x1401,
+    createTexture: vi.fn(() => texture),
+    bindTexture: vi.fn(),
+    texParameteri: vi.fn(),
+    pixelStorei: vi.fn(),
+    texImage2D: vi.fn(),
+    deleteTexture: vi.fn()
+  } as unknown as WebGLRenderingContext;
+
+  class Skin {
+    public readonly id: number;
+    public readonly rotationCenter = [0, 0];
+    public private = false;
+
+    public constructor(id: number) {
+      this.id = id;
+    }
+
+    public get size(): readonly number[] {
+      return [0, 0];
+    }
+
+    public dispose(): void {}
+    public emitWasAltered(): void {}
+    public getTexture(): WebGLTexture | null {
+      return null;
+    }
+  }
+
+  const skins: CameraRenderer['_allSkins'] = [];
+  const cameraRenderer = {
+    gl,
+    exports: {Skin},
+    _nextSkinId: 0,
+    _allSkins: skins,
+    createDrawable: vi.fn(() => 10),
+    destroyDrawable: vi.fn(),
+    destroySkin: vi.fn((skinId: number) => {
+      cameraRenderer._allSkins[skinId]?.dispose();
+      delete cameraRenderer._allSkins[skinId];
+    }),
+    getNativeSize: vi.fn(() => [480, 360] as const),
+    markDrawableAsNoninteractive: vi.fn(),
+    markSkinAsPrivate: vi.fn(),
+    updateDrawablePosition: vi.fn(),
+    updateDrawableScale: vi.fn(),
+    updateDrawableSkinId: vi.fn(),
+    updateDrawableVisible: vi.fn()
+  } satisfies CameraRenderer;
+
+  return {cameraRenderer, gl};
 }
 
 beforeEach(() => {
@@ -89,6 +157,112 @@ describe('CameraSourceExtension', () => {
     expect(extension.isCameraRunning({CAMERA_ID: 'qr'})).toBe(true);
     await qr.release();
     expect(extension.isCameraRunning({CAMERA_ID: 'qr'})).toBe(false);
+  });
+
+  it('uploads preview frames directly from video and mirrors with drawable scale', async () => {
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    Object.assign(sourceVideo, {videoWidth: 1280, videoHeight: 720});
+    let frameCallback: VideoFrameRequestCallback | undefined;
+    const requestVideoFrameCallback = vi.fn((callback: VideoFrameRequestCallback) => {
+      frameCallback = callback;
+      return 12;
+    });
+    const cancelVideoFrameCallback = vi.fn();
+    Object.assign(sourceVideo, {requestVideoFrameCallback, cancelVideoFrameCallback});
+    const {cameraRenderer, gl} = renderer();
+    const requestRedraw = vi.fn();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    const lease = await extension.acquireCamera({preview: true, mirrored: true});
+    const skin = cameraRenderer._allSkins[0];
+    expect(skin).toBeDefined();
+    expect(lease.getFrameSource().element).toBe(sourceVideo);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [-50, 50]);
+    expect(cameraRenderer.markSkinAsPrivate).toHaveBeenCalledWith(0);
+    expect(cameraRenderer.markDrawableAsNoninteractive).toHaveBeenCalledWith(10);
+
+    skin?.getTexture([100, 100]);
+    expect(gl.texImage2D).toHaveBeenCalledWith(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      sourceVideo
+    );
+    skin?.getTexture([100, 100]);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(1);
+
+    Object.assign(sourceVideo, {currentTime: 1});
+    frameCallback?.(1, {} as VideoFrameCallbackMetadata);
+    skin?.getTexture([100, 100]);
+    expect(gl.texImage2D).toHaveBeenCalledTimes(2);
+    expect(requestRedraw).toHaveBeenCalled();
+
+    await lease.release();
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledWith(10, 'video');
+    expect(cameraRenderer.destroySkin).toHaveBeenCalledWith(0);
+    expect(cancelVideoFrameCallback).toHaveBeenCalledWith(12);
+  });
+
+  it('keeps an opt-in preview until its last preview lease is released', async () => {
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    const previewLease = await extension.acquireCamera({preview: true});
+    const sharedPreviewLease = await extension.acquireCamera({preview: true});
+    const processingLease = await extension.acquireCamera();
+
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [75, 75]);
+    await previewLease.release();
+    expect(cameraRenderer.destroyDrawable).not.toHaveBeenCalled();
+    await sharedPreviewLease.release();
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledTimes(1);
+    expect(extension.isCameraRunning()).toBe(true);
+    await processingLease.release();
+    expect(extension.isCameraRunning()).toBe(false);
+  });
+
+  it('does not require a renderer when preview is disabled', async () => {
+    const cameraStream = stream('processing-device');
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    const lease = await extension.acquireCamera();
+
+    expect(lease.getFrameSource().deviceId).toBe('processing-device');
+    await lease.release();
+  });
+
+  it('fails preview acquisition clearly when the renderer is unavailable', async () => {
+    const cameraStream = stream('preview-device');
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+
+    await expect(extension.acquireCamera({preview: true})).rejects.toThrow(
+      'Camera preview requires a compatible TurboWarp renderer.'
+    );
+    expect(extension.isCameraRunning()).toBe(false);
   });
 
   it('refreshes and reports camera devices by one-based index', async () => {
