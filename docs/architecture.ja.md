@@ -47,3 +47,14 @@ MediaStream -> HTMLVideoElement -> VideoSkin -> texImage2D(video) -> WebGL textu
 表示skinはvideo frame通知を受け、1つのWebGL textureを再利用し、新しいframeがある場合だけstageの再描画を要求します。左右反転はpreview drawableの負のX scaleで行うため、WebGPU、WebCodecs、姿勢認識、QR認識が使うsourceは変更されません。drawableはprivateかつnoninteractiveであり、skinはCPU silhouette更新とvideo pixelのreadbackを省略します。
 
 これによりpreview経路から明示的な`drawImage()`、`getImageData()`、CPU pixel走査を除去します。ただしdecode、色変換、texture転送はブラウザ実装に依存するため、ブラウザ内部まで含むzero-copyは保証しません。
+
+## ブロック所有previewのlifecycle
+
+preview表示ブロックはcamera IDごとに専用preview leaseを1つだけ保持します。同じ左右反転設定での再実行は
+何も行いません。左右反転設定を変更するときは置換leaseを先に取得してから古いleaseを解放するため、共有sessionと
+drawableを維持できます。preview非表示ブロックはこのfacade所有leaseだけを解放し、ほかの処理用leaseは維持します。
+
+`stopSharedCamera()`は名前付きsessionの全leaseを破棄します。`PROJECT_STOP_ALL`、`PROJECT_LOADED`、
+`RUNTIME_DISPOSED`では全sessionを破棄し、停止または置換された作品がcamera track、texture、skin、drawableを
+残さないようにします。previewは引き続きopt-inです。runtime consumerが`preview: true`を要求するか、作品が
+preview表示ブロックを実行するまでrenderer APIには触れません。

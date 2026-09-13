@@ -8,14 +8,22 @@ function scratch(runtime: Record<string, unknown> = {}) {
     extensions: {unsandboxed: true, register: vi.fn()},
     BlockType: {COMMAND: 'command', REPORTER: 'reporter', BOOLEAN: 'boolean'},
     ArgumentType: {STRING: 'string'},
+    Cast: {
+      toString: (value: unknown) => String(value ?? ''),
+      toNumber: (value: unknown) => Number(value),
+      toBoolean: (value: unknown) => value !== false && value !== 'false' && value !== 0
+    },
     translate: (message: string) => message
   };
 }
 
-function stream(deviceId: string) {
+function stream(
+  deviceId: string,
+  settings: Partial<MediaTrackSettings> = {}
+) {
   const stop = vi.fn();
   return {
-    getVideoTracks: () => [{getSettings: () => ({deviceId})}],
+    getVideoTracks: () => [{getSettings: () => ({deviceId, ...settings})}],
     getTracks: () => [{stop}]
   } as unknown as MediaStream & {stop: ReturnType<typeof vi.fn>};
 }
@@ -122,7 +130,156 @@ describe('CameraSourceExtension', () => {
     );
     expect(extension.isCameraRunning()).toBe(false);
     expect(extension.cameraDeviceIdReporter()).toBe('');
+    expect(extension.cameraFrameWidth()).toBe(0);
+    expect(extension.cameraFrameHeight()).toBe(0);
+    expect(extension.cameraFrameRate()).toBe(0);
   });
+
+  it('shows, updates, and hides one block-owned GPU preview lease', async () => {
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
+
+    expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
+
+    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'false'});
+    expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
+
+    await extension.hideCameraPreview({CAMERA_ID: 'pose'});
+    await extension.hideCameraPreview({CAMERA_ID: 'pose'});
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledTimes(1);
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
+
+    extension.stopSharedCamera({CAMERA_ID: 'pose'});
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+  });
+
+  it('keeps only the latest concurrently requested preview setting', async () => {
+    const cameraStream = stream('preview-device');
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    await Promise.all([
+      extension.showCameraPreview({MIRRORED: 'true'}),
+      extension.showCameraPreview({MIRRORED: 'false'})
+    ]);
+
+    expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
+    await extension.hideCameraPreview();
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops a stream that resolves after project cleanup', async () => {
+    let resolveStream: ((value: MediaStream) => void) | undefined;
+    const cameraStream = stream('late-device');
+    const getUserMedia = vi.fn(
+      () => new Promise<MediaStream>((resolve) => {
+        resolveStream = resolve;
+      })
+    );
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia, enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    const acquisition = extension.startSharedCamera();
+    extension.stopAllCameras();
+    resolveStream?.(cameraStream);
+
+    await expect(acquisition).rejects.toThrow('Camera acquisition was cancelled.');
+    expect(cameraStream.getTracks()[0]?.stop).toHaveBeenCalledTimes(1);
+    expect(extension.isCameraRunning()).toBe(false);
+  });
+
+  it('stops the acquired stream when video playback fails', async () => {
+    const cameraStream = stream('broken-device');
+    const sourceVideo = video();
+    sourceVideo.play = vi.fn(async () => {
+      throw new Error('playback failed');
+    });
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+
+    await expect(extension.startSharedCamera()).rejects.toThrow('playback failed');
+    expect(cameraStream.getTracks()[0]?.stop).toHaveBeenCalledTimes(1);
+    expect(sourceVideo.srcObject).toBeNull();
+    expect(extension.isCameraRunning()).toBe(false);
+  });
+
+  it('reports actual video dimensions and track frame rate', async () => {
+    const cameraStream = stream('pose-device', {width: 1920, height: 1080, frameRate: 59.94});
+    const sourceVideo = video();
+    Object.assign(sourceVideo, {videoWidth: 1280, videoHeight: 720});
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+
+    expect(extension.cameraFrameWidth({CAMERA_ID: 'pose'})).toBe(1280);
+    expect(extension.cameraFrameHeight({CAMERA_ID: 'pose'})).toBe(720);
+    expect(extension.cameraFrameRate({CAMERA_ID: 'pose'})).toBe(59.94);
+
+    Object.assign(sourceVideo, {videoWidth: 0, videoHeight: 0});
+    expect(extension.cameraFrameWidth({CAMERA_ID: 'pose'})).toBe(1920);
+    expect(extension.cameraFrameHeight({CAMERA_ID: 'pose'})).toBe(1080);
+  });
+
+  it.each(['PROJECT_STOP_ALL', 'PROJECT_LOADED', 'RUNTIME_DISPOSED'])(
+    'cleans up block leases on %s',
+    async (event) => {
+      const listeners = new Map<string, Set<() => void>>();
+      const runtime = {
+        ...renderer().cameraRenderer,
+        renderer: renderer().cameraRenderer,
+        requestRedraw: vi.fn(),
+        on: vi.fn((name: string, listener: () => void) => {
+          const registered = listeners.get(name) ?? new Set();
+          registered.add(listener);
+          listeners.set(name, registered);
+        }),
+        off: vi.fn((name: string, listener: () => void) => listeners.get(name)?.delete(listener))
+      };
+      const cameraStream = stream('preview-device');
+      vi.stubGlobal('Scratch', scratch(runtime));
+      vi.stubGlobal('navigator', {
+        mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+      });
+      vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+      const extension = new CameraSourceExtension();
+      await extension.showCameraPreview();
+      listeners.get(event)?.forEach((listener) => listener());
+
+      expect(extension.isCameraRunning()).toBe(false);
+      expect(cameraStream.getTracks()[0]?.stop).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('keeps separate named camera sessions and device constraints', async () => {
     const poseStream = stream('pose-device');

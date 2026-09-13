@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.4.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.5.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.4.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.5.0
 ```
 
 ## Quick Start
@@ -45,6 +45,10 @@ Use role names for camera streams. Consumers that use the same `cameraId` share 
 
 ```text
 start shared camera [pose] with device ID []
+show shared camera [pose] preview mirrored [true]
+shared camera [pose] frame width
+shared camera [pose] frame rate
+hide shared camera [pose] preview
 start shared camera [qr] with device ID []
 shared camera [pose] is running?
 stop shared camera [pose]
@@ -93,6 +97,57 @@ Returns the active device ID for a named shared camera when available.
 |---|---|
 | Type | Reporter |
 | Opcode | `cameraDeviceIdReporter` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `show shared camera [CAMERA_ID] preview mirrored [MIRRORED]`
+
+Shows the named shared camera with the GPU-backed stage preview.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `showCameraPreview` |
+| `CAMERA_ID` | String, default: `default` |
+| `MIRRORED` | String, default: `true` |
+
+### `hide shared camera [CAMERA_ID] preview`
+
+Hides the block-owned preview without stopping leases owned by other consumers.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `hideCameraPreview` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `shared camera [CAMERA_ID] frame width`
+
+Returns the active video frame width in pixels, or zero while the camera is not running.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraFrameWidth` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `shared camera [CAMERA_ID] frame height`
+
+Returns the active video frame height in pixels, or zero while the camera is not running.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraFrameHeight` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `shared camera [CAMERA_ID] frame rate`
+
+Returns the active video track frame rate, or zero when it is unavailable.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraFrameRate` |
 | `CAMERA_ID` | String, default: `default` |
 
 ### `refresh camera devices`
@@ -174,6 +229,19 @@ released.
 If multiple preview leases share a camera, the preview is mirrored while any active preview lease
 requests `mirrored: true`.
 
+TurboWarp projects can manage the same display path with the `show shared camera ... preview`
+and `hide shared camera ... preview` blocks. The show block owns exactly one preview lease per
+camera ID. Calling it repeatedly with the same setting is idempotent; changing `MIRRORED` replaces
+that lease without creating another drawable. `MIRRORED` accepts TurboWarp boolean text such as
+`true` and `false`. Hiding the preview releases only the block-owned display lease, so processing
+leases held by other blocks or extensions continue running. Stopping the named camera, stopping or
+loading a project, and disposing the runtime release the block-owned camera and preview resources.
+
+The frame width and height reporters prefer the dimensions currently delivered by the video
+element and fall back to the active track settings before its first frame. The frame-rate reporter
+uses the active track setting. All three reporters return `0` when the camera is not running or the
+browser does not provide the value.
+
 `frame.element` is the original, unmodified `HTMLVideoElement`, even when the preview is mirrored.
 WebGPU and WebCodecs consumers can therefore use that same source without going through the preview
 or a CPU canvas, for example with `GPUQueue.copyExternalImageToTexture()` or a short-lived
@@ -184,6 +252,9 @@ browser-internal color conversion and GPU transfer may still occur. The preview 
 noninteractive; it is intended for display, not Scratch touching or color-sensing queries.
 
 ## Compatibility
+
+Version 0.5.0 exposes GPU-backed preview visibility, mirroring, and actual frame width, height,
+and rate as TurboWarp blocks. The default behavior remains unchanged.
 
 Version 0.4.0 adds the opt-in GPU-backed video preview without changing the extension ID,
 block opcodes, camera lease ownership, device selection, or release semantics. Consumers that do

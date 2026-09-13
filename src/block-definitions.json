@@ -39,6 +39,52 @@
       }
     },
     {
+      "opcode": "showCameraPreview",
+      "blockType": "COMMAND",
+      "text": "show shared camera [CAMERA_ID] preview mirrored [MIRRORED]",
+      "description": "Shows the named shared camera with the GPU-backed stage preview.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"},
+        "MIRRORED": {"type": "STRING", "defaultValue": "true"}
+      }
+    },
+    {
+      "opcode": "hideCameraPreview",
+      "blockType": "COMMAND",
+      "text": "hide shared camera [CAMERA_ID] preview",
+      "description": "Hides the block-owned preview without stopping leases owned by other consumers.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
+      "opcode": "cameraFrameWidth",
+      "blockType": "REPORTER",
+      "text": "shared camera [CAMERA_ID] frame width",
+      "description": "Returns the active video frame width in pixels, or zero while the camera is not running.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
+      "opcode": "cameraFrameHeight",
+      "blockType": "REPORTER",
+      "text": "shared camera [CAMERA_ID] frame height",
+      "description": "Returns the active video frame height in pixels, or zero while the camera is not running.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
+      "opcode": "cameraFrameRate",
+      "blockType": "REPORTER",
+      "text": "shared camera [CAMERA_ID] frame rate",
+      "description": "Returns the active video track frame rate, or zero when it is unavailable.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
       "opcode": "refreshCameraDevices",
       "blockType": "COMMAND",
       "text": "refresh camera devices",

@@ -16,6 +16,8 @@ interface ScratchApi {
     runtime: Record<string, unknown> & {
       renderer?: unknown;
       requestRedraw?: () => void;
+      on?: (event: string, listener: () => void) => void;
+      off?: (event: string, listener: () => void) => void;
     };
   };
   BlockType: Record<'COMMAND' | 'REPORTER' | 'BOOLEAN' | 'HAT', string>;
