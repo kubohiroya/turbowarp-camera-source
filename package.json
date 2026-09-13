@@ -38,6 +38,7 @@
     "typecheck": "tsc --noEmit",
     "build": "vite build",
     "lint": "eslint src tests vite.config.ts",
+    "format": "eslint src tests vite.config.ts --fix",
     "test": "vitest run",
     "docs": "node scripts/generate-readme.ts",
     "docs:check": "pnpm run docs && git diff --exit-code -- README.md",

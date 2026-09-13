@@ -48,12 +48,18 @@ interface CameraSession {
   readonly cameraId: string;
   readonly leases: Set<symbol>;
   readonly previewLeases: Map<symbol, boolean>;
+  active: boolean;
   stream: MediaStream | null;
   video: HTMLVideoElement | null;
   preview: VideoPreview | null;
   startPromise: Promise<void> | null;
   mirrored: boolean;
   activeDeviceId: string;
+}
+
+interface BlockPreviewLease {
+  readonly lease: CameraLease;
+  readonly mirrored: boolean;
 }
 
 function mediaDevices(): MediaDevices {
@@ -91,10 +97,15 @@ function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints
 export class CameraSourceExtension implements TurboWarpExtension {
   private readonly sessions = new Map<string, CameraSession>();
   private readonly blockLeases = new Map<string, CameraLease>();
+  private readonly blockPreviewLeases = new Map<string, BlockPreviewLease>();
+  private readonly blockPreviewRevisions = new Map<string, number>();
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
     Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
+    Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
+    Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
+    Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
   }
 
   public getInfo(): Record<string, unknown> {
@@ -112,6 +123,23 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraDeviceIdReporter(args: {CAMERA_ID?: unknown} = {}): string {
     return this.sessions.get(normalizeId(args.CAMERA_ID))?.activeDeviceId ?? '';
+  }
+
+  public cameraFrameWidth(args: {CAMERA_ID?: unknown} = {}): number {
+    const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+    if (!session?.stream) return 0;
+    return session.video?.videoWidth || this.trackSetting(session, 'width');
+  }
+
+  public cameraFrameHeight(args: {CAMERA_ID?: unknown} = {}): number {
+    const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+    if (!session?.stream) return 0;
+    return session.video?.videoHeight || this.trackSetting(session, 'height');
+  }
+
+  public cameraFrameRate(args: {CAMERA_ID?: unknown} = {}): number {
+    const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+    return session?.stream ? this.trackSetting(session, 'frameRate') : 0;
   }
 
   public async startSharedCamera(args: {CAMERA_ID?: unknown; DEVICE_ID?: unknown} = {}): Promise<void> {
@@ -165,6 +193,39 @@ export class CameraSourceExtension implements TurboWarpExtension {
     });
   }
 
+  public async showCameraPreview(
+    args: {CAMERA_ID?: unknown; MIRRORED?: unknown} = {}
+  ): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const mirrored = Scratch.Cast.toBoolean(args.MIRRORED ?? true);
+    const existing = this.blockPreviewLeases.get(cameraId);
+    if (existing?.mirrored === mirrored) return;
+    const revision = this.nextPreviewBlockRevision(cameraId);
+
+    const lease = await this.acquireCamera({
+      owner: 'camera-source-preview-block',
+      cameraId,
+      preview: true,
+      mirrored
+    });
+    if (this.blockPreviewRevisions.get(cameraId) !== revision) {
+      await lease.release();
+      return;
+    }
+    const current = this.blockPreviewLeases.get(cameraId);
+    this.blockPreviewLeases.set(cameraId, {lease, mirrored});
+    await current?.lease.release();
+  }
+
+  public async hideCameraPreview(args: {CAMERA_ID?: unknown} = {}): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    this.nextPreviewBlockRevision(cameraId);
+    const existing = this.blockPreviewLeases.get(cameraId);
+    if (!existing) return;
+    this.blockPreviewLeases.delete(cameraId);
+    await existing.lease.release();
+  }
+
   public stopSharedCamera(args: {CAMERA_ID?: unknown} = {}): void {
     this.stopCameraSession(normalizeId(args.CAMERA_ID));
   }
@@ -192,7 +253,19 @@ export class CameraSourceExtension implements TurboWarpExtension {
       this.stopCameraSession(cameraId);
     }
     this.blockLeases.clear();
+    this.blockPreviewLeases.clear();
   }
+
+  public readonly dispose = (): void => {
+    this.stopAllCameras();
+    Scratch.vm.runtime.off?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
+    Scratch.vm.runtime.off?.('PROJECT_LOADED', this.handleProjectBoundary);
+    Scratch.vm.runtime.off?.('RUNTIME_DISPOSED', this.dispose);
+  };
+
+  private readonly handleProjectBoundary = (): void => {
+    this.stopAllCameras();
+  };
 
   private session(cameraId: string): CameraSession {
     const existing = this.sessions.get(cameraId);
@@ -201,6 +274,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
       cameraId,
       leases: new Set(),
       previewLeases: new Map(),
+      active: true,
       stream: null,
       video: null,
       preview: null,
@@ -216,27 +290,52 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.mirrored = options.mirrored === true;
     session.startPromise = (async () => {
       const stream = await mediaDevices().getUserMedia(videoConstraints(options));
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      await video.play();
-      session.stream = stream;
-      session.video = video;
-      this.updateActiveDevice(session);
+      let video: HTMLVideoElement | null = null;
+      try {
+        if (!session.active) throw new Error('Camera acquisition was cancelled.');
+        video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await video.play();
+        if (!session.active) throw new Error('Camera acquisition was cancelled.');
+        session.stream = stream;
+        session.video = video;
+        this.updateActiveDevice(session);
+      } catch (error) {
+        stream.getTracks().forEach((track) => track.stop());
+        if (video) video.srcObject = null;
+        throw error;
+      }
     })();
     try {
       await session.startPromise;
     } catch (error) {
-      this.stopCameraSession(session.cameraId);
+      if (this.sessions.get(session.cameraId) === session) {
+        this.stopCameraSession(session.cameraId);
+      }
       throw error;
     }
+  }
+
+  private nextPreviewBlockRevision(cameraId: string): number {
+    const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
+    this.blockPreviewRevisions.set(cameraId, revision);
+    return revision;
   }
 
   private updateActiveDevice(session: CameraSession): void {
     const track = session.stream?.getVideoTracks()[0] ?? null;
     const settings = track?.getSettings();
     session.activeDeviceId = typeof settings?.deviceId === 'string' ? settings.deviceId : '';
+  }
+
+  private trackSetting(
+    session: CameraSession,
+    name: 'width' | 'height' | 'frameRate'
+  ): number {
+    const value = session.stream?.getVideoTracks()[0]?.getSettings()[name];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
 
   private ensurePreview(session: CameraSession): void {
@@ -271,6 +370,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private stopCameraSession(cameraId: string): void {
     const session = this.sessions.get(cameraId);
     if (!session) return;
+    session.active = false;
+    this.nextPreviewBlockRevision(cameraId);
     session.preview?.dispose();
     session.stream?.getTracks().forEach((track) => track.stop());
     if (session.video) session.video.srcObject = null;
@@ -283,6 +384,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.previewLeases.clear();
     this.sessions.delete(cameraId);
     this.blockLeases.delete(cameraId);
+    this.blockPreviewLeases.delete(cameraId);
   }
 
   private toScratchBlock(block: BlockDefinition): Record<string, unknown> {

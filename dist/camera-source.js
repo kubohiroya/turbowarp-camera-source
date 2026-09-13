@@ -67,6 +67,62 @@
   			} }
   		},
   		{
+  			"opcode": "showCameraPreview",
+  			"blockType": "COMMAND",
+  			"text": "show shared camera [CAMERA_ID] preview mirrored [MIRRORED]",
+  			"description": "Shows the named shared camera with the GPU-backed stage preview.",
+  			"arguments": {
+  				"CAMERA_ID": {
+  					"type": "STRING",
+  					"defaultValue": "default"
+  				},
+  				"MIRRORED": {
+  					"type": "STRING",
+  					"defaultValue": "true"
+  				}
+  			}
+  		},
+  		{
+  			"opcode": "hideCameraPreview",
+  			"blockType": "COMMAND",
+  			"text": "hide shared camera [CAMERA_ID] preview",
+  			"description": "Hides the block-owned preview without stopping leases owned by other consumers.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "cameraFrameWidth",
+  			"blockType": "REPORTER",
+  			"text": "shared camera [CAMERA_ID] frame width",
+  			"description": "Returns the active video frame width in pixels, or zero while the camera is not running.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "cameraFrameHeight",
+  			"blockType": "REPORTER",
+  			"text": "shared camera [CAMERA_ID] frame height",
+  			"description": "Returns the active video frame height in pixels, or zero while the camera is not running.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "cameraFrameRate",
+  			"blockType": "REPORTER",
+  			"text": "shared camera [CAMERA_ID] frame rate",
+  			"description": "Returns the active video track frame rate, or zero when it is unavailable.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
   			"opcode": "refreshCameraDevices",
   			"blockType": "COMMAND",
   			"text": "refresh camera devices",
@@ -302,8 +358,22 @@
   	constructor() {
   		this.sessions = /* @__PURE__ */ new Map();
   		this.blockLeases = /* @__PURE__ */ new Map();
+  		this.blockPreviewLeases = /* @__PURE__ */ new Map();
+  		this.blockPreviewRevisions = /* @__PURE__ */ new Map();
   		this.devices = [];
+  		this.dispose = () => {
+  			this.stopAllCameras();
+  			Scratch.vm.runtime.off?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
+  			Scratch.vm.runtime.off?.("PROJECT_LOADED", this.handleProjectBoundary);
+  			Scratch.vm.runtime.off?.("RUNTIME_DISPOSED", this.dispose);
+  		};
+  		this.handleProjectBoundary = () => {
+  			this.stopAllCameras();
+  		};
   		Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
+  		Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
+  		Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
+  		Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
   	}
   	getInfo() {
   		return {
@@ -318,6 +388,20 @@
   	}
   	cameraDeviceIdReporter(args = {}) {
   		return this.sessions.get(normalizeId(args.CAMERA_ID))?.activeDeviceId ?? "";
+  	}
+  	cameraFrameWidth(args = {}) {
+  		const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+  		if (!session?.stream) return 0;
+  		return session.video?.videoWidth || this.trackSetting(session, "width");
+  	}
+  	cameraFrameHeight(args = {}) {
+  		const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+  		if (!session?.stream) return 0;
+  		return session.video?.videoHeight || this.trackSetting(session, "height");
+  	}
+  	cameraFrameRate(args = {}) {
+  		const session = this.sessions.get(normalizeId(args.CAMERA_ID));
+  		return session?.stream ? this.trackSetting(session, "frameRate") : 0;
   	}
   	async startSharedCamera(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
@@ -366,6 +450,36 @@
   			}
   		});
   	}
+  	async showCameraPreview(args = {}) {
+  		const cameraId = normalizeId(args.CAMERA_ID);
+  		const mirrored = Scratch.Cast.toBoolean(args.MIRRORED ?? true);
+  		if (this.blockPreviewLeases.get(cameraId)?.mirrored === mirrored) return;
+  		const revision = this.nextPreviewBlockRevision(cameraId);
+  		const lease = await this.acquireCamera({
+  			owner: "camera-source-preview-block",
+  			cameraId,
+  			preview: true,
+  			mirrored
+  		});
+  		if (this.blockPreviewRevisions.get(cameraId) !== revision) {
+  			await lease.release();
+  			return;
+  		}
+  		const current = this.blockPreviewLeases.get(cameraId);
+  		this.blockPreviewLeases.set(cameraId, {
+  			lease,
+  			mirrored
+  		});
+  		await current?.lease.release();
+  	}
+  	async hideCameraPreview(args = {}) {
+  		const cameraId = normalizeId(args.CAMERA_ID);
+  		this.nextPreviewBlockRevision(cameraId);
+  		const existing = this.blockPreviewLeases.get(cameraId);
+  		if (!existing) return;
+  		this.blockPreviewLeases.delete(cameraId);
+  		await existing.lease.release();
+  	}
   	stopSharedCamera(args = {}) {
   		this.stopCameraSession(normalizeId(args.CAMERA_ID));
   	}
@@ -384,6 +498,7 @@
   	stopAllCameras() {
   		for (const cameraId of [...this.sessions.keys()]) this.stopCameraSession(cameraId);
   		this.blockLeases.clear();
+  		this.blockPreviewLeases.clear();
   	}
   	session(cameraId) {
   		const existing = this.sessions.get(cameraId);
@@ -392,6 +507,7 @@
   			cameraId,
   			leases: /* @__PURE__ */ new Set(),
   			previewLeases: /* @__PURE__ */ new Map(),
+  			active: true,
   			stream: null,
   			video: null,
   			preview: null,
@@ -406,25 +522,43 @@
   		session.mirrored = options.mirrored === true;
   		session.startPromise = (async () => {
   			const stream = await mediaDevices().getUserMedia(videoConstraints(options));
-  			const video = document.createElement("video");
-  			video.muted = true;
-  			video.playsInline = true;
-  			video.srcObject = stream;
-  			await video.play();
-  			session.stream = stream;
-  			session.video = video;
-  			this.updateActiveDevice(session);
+  			let video = null;
+  			try {
+  				if (!session.active) throw new Error("Camera acquisition was cancelled.");
+  				video = document.createElement("video");
+  				video.muted = true;
+  				video.playsInline = true;
+  				video.srcObject = stream;
+  				await video.play();
+  				if (!session.active) throw new Error("Camera acquisition was cancelled.");
+  				session.stream = stream;
+  				session.video = video;
+  				this.updateActiveDevice(session);
+  			} catch (error) {
+  				stream.getTracks().forEach((track) => track.stop());
+  				if (video) video.srcObject = null;
+  				throw error;
+  			}
   		})();
   		try {
   			await session.startPromise;
   		} catch (error) {
-  			this.stopCameraSession(session.cameraId);
+  			if (this.sessions.get(session.cameraId) === session) this.stopCameraSession(session.cameraId);
   			throw error;
   		}
+  	}
+  	nextPreviewBlockRevision(cameraId) {
+  		const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
+  		this.blockPreviewRevisions.set(cameraId, revision);
+  		return revision;
   	}
   	updateActiveDevice(session) {
   		const settings = (session.stream?.getVideoTracks()[0] ?? null)?.getSettings();
   		session.activeDeviceId = typeof settings?.deviceId === "string" ? settings.deviceId : "";
+  	}
+  	trackSetting(session, name) {
+  		const value = session.stream?.getVideoTracks()[0]?.getSettings()[name];
+  		return typeof value === "number" && Number.isFinite(value) ? value : 0;
   	}
   	ensurePreview(session) {
   		if (session.preview || !session.video) return;
@@ -448,6 +582,8 @@
   	stopCameraSession(cameraId) {
   		const session = this.sessions.get(cameraId);
   		if (!session) return;
+  		session.active = false;
+  		this.nextPreviewBlockRevision(cameraId);
   		session.preview?.dispose();
   		session.stream?.getTracks().forEach((track) => track.stop());
   		if (session.video) session.video.srcObject = null;
@@ -460,6 +596,7 @@
   		session.previewLeases.clear();
   		this.sessions.delete(cameraId);
   		this.blockLeases.delete(cameraId);
+  		this.blockPreviewLeases.delete(cameraId);
   	}
   	toScratchBlock(block) {
   		return {

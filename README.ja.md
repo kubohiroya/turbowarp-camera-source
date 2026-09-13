@@ -41,6 +41,10 @@ pnpm add @kubohiroya/turbowarp-camera-source@0.4.0
 
 ```text
 start shared camera [pose] with device ID []
+show shared camera [pose] preview mirrored [true]
+shared camera [pose] frame width
+shared camera [pose] frame rate
+hide shared camera [pose] preview
 start shared camera [qr] with device ID []
 shared camera [pose] is running?
 stop shared camera [pose]
@@ -52,6 +56,11 @@ stop shared camera [pose]
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
 - `shared camera [CAMERA_ID] is running?`: 指定した共有カメラが起動中かを返します。
 - `shared camera [CAMERA_ID] device ID`: 指定した共有カメラのdevice IDを返します。
+- `show shared camera [CAMERA_ID] preview mirrored [MIRRORED]`: GPU-backed stage previewを表示します。
+- `hide shared camera [CAMERA_ID] preview`: ブロックが所有するpreview leaseだけを解放して非表示にします。
+- `shared camera [CAMERA_ID] frame width`: 実際のframe幅をpixel単位で返します。
+- `shared camera [CAMERA_ID] frame height`: 実際のframe高さをpixel単位で返します。
+- `shared camera [CAMERA_ID] frame rate`: 有効なvideo trackのframe rateを返します。
 - `refresh camera devices`: カメラデバイス一覧を更新します。
 - `camera device count`: 更新済みカメラデバイス数を返します。
 - `camera device ID at [INDEX]`: 1始まりの位置でカメラdevice IDを返します。
@@ -90,6 +99,17 @@ await poseLease.release();
 カメラの最後のpreview leaseが解放されるまで表示を維持します。
 複数のpreview leaseが同じカメラを共有する場合、1つ以上の有効なleaseが`mirrored: true`を要求している間は
 previewを左右反転します。
+
+TurboWarp作品からは`show shared camera ... preview`と`hide shared camera ... preview`ブロックで同じ
+表示経路を操作できます。showブロックが所有するpreview leaseはcamera IDごとに1つだけです。同じ設定で
+繰り返し実行してもleaseやdrawableは増えず、`MIRRORED`を変更した場合は既存camera sessionを維持したまま
+leaseを置換します。`MIRRORED`には`true`または`false`など、TurboWarpがbooleanとして解釈できる値を指定します。
+hideはブロック所有の表示leaseだけを解放するため、ほかのブロックや拡張が所有する処理用leaseは継続します。
+名前付きcameraの停止、作品の停止・再読込、runtime disposeではブロック所有resourceをすべて解放します。
+
+frame widthとheightは、video elementが現在受信している寸法を優先し、最初のframeより前はvideo track設定を
+fallbackとして使います。frame rateは有効なvideo track設定を返します。cameraが未起動の場合、またはブラウザが
+値を提供しない場合、これら3つのreporterは`0`を返します。
 
 `frame.element`はpreviewを左右反転した場合も未加工の`HTMLVideoElement`です。そのためWebGPUや
 WebCodecsのconsumerは、CPU canvasやpreviewを経由せず、同じsourceを

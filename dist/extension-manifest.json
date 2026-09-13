@@ -38,6 +38,46 @@
       ]
     },
     {
+      "opcode": "cameraFrameHeight",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraFrameRate",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraFrameWidth",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "hideCameraPreview",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "isCameraRunning",
       "blockType": "BOOLEAN",
       "arguments": [
@@ -51,6 +91,20 @@
       "opcode": "refreshCameraDevices",
       "blockType": "COMMAND",
       "arguments": []
+    },
+    {
+      "opcode": "showCameraPreview",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        },
+        {
+          "id": "MIRRORED",
+          "type": "STRING"
+        }
+      ]
     },
     {
       "opcode": "startSharedCamera",

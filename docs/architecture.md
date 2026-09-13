@@ -62,3 +62,16 @@ readback.
 This removes explicit `drawImage()`, `getImageData()`, and CPU pixel scanning from the preview path.
 It does not guarantee browser-internal zero-copy because decoding, color conversion, and texture
 transfer are implementation-dependent.
+
+## Block-owned preview lifecycle
+
+The show-preview block holds one dedicated preview lease per camera ID. Repeating the block with
+the same mirror setting is a no-op. A mirror-setting change acquires the replacement before
+releasing the old lease, which keeps the shared session and drawable alive. The hide-preview block
+releases only this facade-owned lease; unrelated processing leases retain ownership.
+
+`stopSharedCamera()` tears down every lease for the named session. `PROJECT_STOP_ALL`,
+`PROJECT_LOADED`, and `RUNTIME_DISPOSED` tear down all sessions so a stopped or replaced project
+cannot leave camera tracks, textures, skins, or drawables alive. Preview remains opt-in: no renderer
+API is touched until either a runtime consumer requests `preview: true` or a project runs the
+show-preview block.

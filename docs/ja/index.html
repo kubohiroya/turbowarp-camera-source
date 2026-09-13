@@ -24,8 +24,10 @@
     </section>
     <section class="section" id="blocks"><h2>ブロック</h2><div class="grid">
       <article class="card"><h3>start shared camera</h3><p>カメラ許可を要求し、`pose`や`qr`などの名前付きMediaStreamを開始または維持します。</p></article>
+      <article class="card"><h3>camera previewの表示・非表示</h3><p>opt-inのGPU-backed stage previewを操作します。showを繰り返してもcameraごとにブロック所有leaseは1つです。</p></article>
       <article class="card"><h3>refresh camera devices</h3><p>ブラウザのカメラ一覧を更新し、役割名をdevice IDへ割り当てられるようにします。</p></article>
       <article class="card"><h3>shared camera is running?</h3><p>名前付きストリームが有効かを返します。device ID reporterは選択中の物理カメラを返します。</p></article>
+      <article class="card"><h3>frame入力reporter</h3><p>受信中の幅、高さ、track frame rateを返します。camera停止中または値が不明な場合は0です。</p></article>
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>unsandboxed拡張は`Scratch.vm.runtime.ext_kubohiroyacamerasource`を参照できます。</p>
 <pre><code>const poseLease = await cameraSource.acquireCamera({
@@ -50,7 +52,8 @@ await previewLease.release();
 await poseLease.release();</code></pre>
     <p>各ストリームは最後のleaseが解放されるまで維持されます。同じ<code>cameraId</code>なら1つの物理カメラを共有し、異なるIDなら別カメラを同時利用できます。</p>
     <p><code>preview: true</code>は、そのleaseで専用のGPU-backed stage previewを有効にします。共有video elementを<code>drawImage()</code>、<code>getImageData()</code>、CPU pixel走査なしで<code>texImage2D(video)</code>へ渡します。左右反転はdrawable scaleだけを変更し、WebGPU、WebCodecs、vision consumer向けの<code>frame.element</code>は未加工のままです。</p>
-    <p>この経路は明示的なCPU readbackを避けますが、ブラウザ内部のzero-copyは保証しません。色変換やGPU転送が発生する可能性があります。</p></section>
+    <p>この経路は明示的なCPU readbackを避けますが、ブラウザ内部のzero-copyは保証しません。色変換やGPU転送が発生する可能性があります。</p>
+    <p>ブロック所有previewは、名前付きcameraの停止、作品の停止・再読込、runtime dispose時に解放されます。</p></section>
     <section class="section" id="privacy"><h2>プライバシーと要件</h2><p class="note">カメラ利用にはユーザー許可とHTTPSまたはlocalhostなどの安全なコンテキストが必要です。Camera Sourceはフレームをアップロードせず、画像も保存しません。</p></section>
   </main>
   <footer>Source: <a href="https://github.com/kubohiroya/turbowarp-camera-source">GitHub</a></footer>
