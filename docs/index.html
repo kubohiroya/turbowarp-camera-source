@@ -27,6 +27,7 @@
       <article class="card"><h3>show / hide camera preview</h3><p>Controls the opt-in GPU-backed stage preview. Repeated show calls keep one block-owned lease per camera.</p></article>
       <article class="card"><h3>refresh camera devices</h3><p>Updates the browser camera list so projects can bind role names to device IDs.</p></article>
       <article class="card"><h3>shared camera is running?</h3><p>Reports whether a named stream is active. The device-ID reporter identifies the selected physical camera when available.</p></article>
+      <article class="card"><h3>camera error</h3><p>Reports the latest failure code and message for each named camera, and clears them after a successful start.</p></article>
       <article class="card"><h3>frame input reporters</h3><p>Reports the delivered width, height, and track frame rate. Unavailable values and stopped cameras report zero.</p></article>
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>Unsandboxed extensions can read `Scratch.vm.runtime.ext_kubohiroyacamerasource`.</p>

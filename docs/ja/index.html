@@ -27,6 +27,7 @@
       <article class="card"><h3>camera previewの表示・非表示</h3><p>opt-inのGPU-backed stage previewを操作します。showを繰り返してもcameraごとにブロック所有leaseは1つです。</p></article>
       <article class="card"><h3>refresh camera devices</h3><p>ブラウザのカメラ一覧を更新し、役割名をdevice IDへ割り当てられるようにします。</p></article>
       <article class="card"><h3>shared camera is running?</h3><p>名前付きストリームが有効かを返します。device ID reporterは選択中の物理カメラを返します。</p></article>
+      <article class="card"><h3>camera error</h3><p>名前付きcameraごとの直近の失敗codeとmessageを返し、開始成功後に消去します。</p></article>
       <article class="card"><h3>frame入力reporter</h3><p>受信中の幅、高さ、track frame rateを返します。camera停止中または値が不明な場合は0です。</p></article>
     </div></section>
     <section class="section" id="api"><h2>API capability</h2><p>unsandboxed拡張は`Scratch.vm.runtime.ext_kubohiroyacamerasource`を参照できます。</p>
