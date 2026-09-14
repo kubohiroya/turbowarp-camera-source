@@ -415,7 +415,7 @@
   	}
   	isCameraRunning(args = {}) {
   		const session = this.sessions.get(normalizeId(args.CAMERA_ID));
-  		return Boolean(session?.stream);
+  		return session?.stream ? this.isStreamRunning(session.stream) : false;
   	}
   	cameraErrorCode(args = {}) {
   		return this.cameraFailures.get(normalizeId(args.CAMERA_ID))?.code ?? "";
@@ -571,6 +571,7 @@
   				if (!session.active) throw new Error("Camera acquisition was cancelled.");
   				session.stream = stream;
   				session.video = video;
+  				this.watchStreamEnd(session, stream);
   				this.updateActiveDevice(session);
   				this.cameraFailures.delete(session.cameraId);
   			} catch (error) {
@@ -591,6 +592,16 @@
   		const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
   		this.blockPreviewRevisions.set(cameraId, revision);
   		return revision;
+  	}
+  	isStreamRunning(stream) {
+  		return stream.active !== false && stream.getVideoTracks().some((track) => track.readyState !== "ended");
+  	}
+  	watchStreamEnd(session, stream) {
+  		const handleEnded = () => {
+  			if (this.sessions.get(session.cameraId) !== session || session.stream !== stream) return;
+  			if (!this.isStreamRunning(stream)) this.stopCameraSession(session.cameraId);
+  		};
+  		for (const track of stream.getVideoTracks()) track.addEventListener("ended", handleEnded, { once: true });
   	}
   	updateActiveDevice(session) {
   		const settings = (session.stream?.getVideoTracks()[0] ?? null)?.getSettings();
