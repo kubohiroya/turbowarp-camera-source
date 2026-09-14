@@ -17,15 +17,34 @@ function scratch(runtime: Record<string, unknown> = {}) {
   };
 }
 
-function stream(
-  deviceId: string,
-  settings: Partial<MediaTrackSettings> = {}
-) {
+function stream(deviceId: string, settings: Partial<MediaTrackSettings> = {}) {
   const stop = vi.fn();
+  let active = true;
+  let readyState: MediaStreamTrackState = 'live';
+  let endedListener: EventListener | null = null;
+  const track = {
+    get readyState() {
+      return readyState;
+    },
+    getSettings: () => ({deviceId, ...settings}),
+    stop,
+    addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject | null) => {
+      if (type === 'ended' && typeof listener === 'function') endedListener = listener;
+    })
+  } as unknown as MediaStreamTrack;
   return {
-    getVideoTracks: () => [{getSettings: () => ({deviceId, ...settings})}],
-    getTracks: () => [{stop}]
-  } as unknown as MediaStream & {stop: ReturnType<typeof vi.fn>};
+    get active() {
+      return active;
+    },
+    getVideoTracks: () => [track],
+    getTracks: () => [track],
+    stop,
+    end: () => {
+      active = false;
+      readyState = 'ended';
+      endedListener?.(new Event('ended'));
+    }
+  } as unknown as MediaStream & {stop: ReturnType<typeof vi.fn>; end: () => void};
 }
 
 function video() {
@@ -272,6 +291,45 @@ describe('CameraSourceExtension', () => {
     Object.assign(sourceVideo, {videoWidth: 0, videoHeight: 0});
     expect(extension.cameraFrameWidth({CAMERA_ID: 'pose'})).toBe(1920);
     expect(extension.cameraFrameHeight({CAMERA_ID: 'pose'})).toBe(1080);
+  });
+
+  it('reports an ended video track as stopped and cleans up its preview', async () => {
+    const cameraStream = stream('disconnected-device');
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    await extension.showCameraPreview({CAMERA_ID: 'pose'});
+
+    cameraStream.end();
+
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+    expect(cameraRenderer.destroyDrawable).toHaveBeenCalledTimes(1);
+    expect(cameraStream.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a late ended event from a replaced stream', async () => {
+    const oldStream = stream('old-device');
+    const replacementStream = stream('replacement-device');
+    const getUserMedia = vi.fn()
+      .mockResolvedValueOnce(oldStream)
+      .mockResolvedValueOnce(replacementStream);
+    vi.stubGlobal('navigator', {mediaDevices: {getUserMedia, enumerateDevices: vi.fn()}});
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    extension.stopSharedCamera({CAMERA_ID: 'pose'});
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+
+    oldStream.end();
+
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
+    expect(extension.cameraDeviceIdReporter({CAMERA_ID: 'pose'})).toBe('replacement-device');
   });
 
   it.each(['PROJECT_STOP_ALL', 'PROJECT_LOADED', 'RUNTIME_DISPOSED'])(

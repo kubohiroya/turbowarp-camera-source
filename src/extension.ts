@@ -131,7 +131,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public isCameraRunning(args: {CAMERA_ID?: unknown} = {}): boolean {
     const session = this.sessions.get(normalizeId(args.CAMERA_ID));
-    return Boolean(session?.stream);
+    return session?.stream ? this.isStreamRunning(session.stream) : false;
   }
 
   public cameraErrorCode(args: {CAMERA_ID?: unknown} = {}): string {
@@ -323,6 +323,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         if (!session.active) throw new Error('Camera acquisition was cancelled.');
         session.stream = stream;
         session.video = video;
+        this.watchStreamEnd(session, stream);
         this.updateActiveDevice(session);
         this.cameraFailures.delete(session.cameraId);
       } catch (error) {
@@ -346,6 +347,20 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
     this.blockPreviewRevisions.set(cameraId, revision);
     return revision;
+  }
+
+  private isStreamRunning(stream: MediaStream): boolean {
+    return stream.active !== false && stream.getVideoTracks().some((track) => track.readyState !== 'ended');
+  }
+
+  private watchStreamEnd(session: CameraSession, stream: MediaStream): void {
+    const handleEnded = (): void => {
+      if (this.sessions.get(session.cameraId) !== session || session.stream !== stream) return;
+      if (!this.isStreamRunning(stream)) this.stopCameraSession(session.cameraId);
+    };
+    for (const track of stream.getVideoTracks()) {
+      track.addEventListener('ended', handleEnded, {once: true});
+    }
   }
 
   private updateActiveDevice(session: CameraSession): void {
