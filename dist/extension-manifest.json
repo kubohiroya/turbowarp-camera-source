@@ -38,6 +38,26 @@
       ]
     },
     {
+      "opcode": "cameraError",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraErrorCode",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "cameraFrameHeight",
       "blockType": "REPORTER",
       "arguments": [

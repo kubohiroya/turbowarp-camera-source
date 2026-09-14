@@ -30,6 +30,24 @@
       }
     },
     {
+      "opcode": "cameraErrorCode",
+      "blockType": "REPORTER",
+      "text": "shared camera [CAMERA_ID] error code",
+      "description": "Returns the latest camera failure code, or an empty string after a successful start.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
+      "opcode": "cameraError",
+      "blockType": "REPORTER",
+      "text": "shared camera [CAMERA_ID] error",
+      "description": "Returns the latest camera failure message, or an empty string after a successful start.",
+      "arguments": {
+        "CAMERA_ID": {"type": "STRING", "defaultValue": "default"}
+      }
+    },
+    {
       "opcode": "cameraDeviceIdReporter",
       "blockType": "REPORTER",
       "text": "shared camera [CAMERA_ID] device ID",

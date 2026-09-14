@@ -89,6 +89,26 @@ Reports whether a named shared camera stream is active.
 | Opcode | `isCameraRunning` |
 | `CAMERA_ID` | String, default: `default` |
 
+### `shared camera [CAMERA_ID] error code`
+
+Returns the latest camera failure code, or an empty string after a successful start.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraErrorCode` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `shared camera [CAMERA_ID] error`
+
+Returns the latest camera failure message, or an empty string after a successful start.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraError` |
+| `CAMERA_ID` | String, default: `default` |
+
 ### `shared camera [CAMERA_ID] device ID`
 
 Returns the active device ID for a named shared camera when available.

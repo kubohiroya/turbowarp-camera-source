@@ -129,6 +129,8 @@ describe('CameraSourceExtension', () => {
       'shared camera [CAMERA_ID] is running?'
     );
     expect(extension.isCameraRunning()).toBe(false);
+    expect(extension.cameraErrorCode()).toBe('');
+    expect(extension.cameraError()).toBe('');
     expect(extension.cameraDeviceIdReporter()).toBe('');
     expect(extension.cameraFrameWidth()).toBe(0);
     expect(extension.cameraFrameHeight()).toBe(0);
@@ -227,6 +229,28 @@ describe('CameraSourceExtension', () => {
     expect(cameraStream.getTracks()[0]?.stop).toHaveBeenCalledTimes(1);
     expect(sourceVideo.srcObject).toBeNull();
     expect(extension.isCameraRunning()).toBe(false);
+    expect(extension.cameraErrorCode()).toBe('Error');
+    expect(extension.cameraError()).toBe('playback failed');
+  });
+
+  it('retains a DOM camera failure by camera id and clears it after a successful retry', async () => {
+    const denied = new DOMException('Permission denied', 'NotAllowedError');
+    const getUserMedia = vi.fn()
+      .mockRejectedValueOnce(denied)
+      .mockResolvedValueOnce(stream('pose-device'));
+    vi.stubGlobal('navigator', {mediaDevices: {getUserMedia, enumerateDevices: vi.fn()}});
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+
+    await expect(extension.startSharedCamera({CAMERA_ID: 'pose'})).rejects.toBe(denied);
+    expect(extension.cameraErrorCode({CAMERA_ID: 'pose'})).toBe('NotAllowedError');
+    expect(extension.cameraError({CAMERA_ID: 'pose'})).toBe('Permission denied');
+    expect(extension.cameraErrorCode({CAMERA_ID: 'other'})).toBe('');
+
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    expect(extension.cameraErrorCode({CAMERA_ID: 'pose'})).toBe('');
+    expect(extension.cameraError({CAMERA_ID: 'pose'})).toBe('');
   });
 
   it('reports actual video dimensions and track frame rate', async () => {
