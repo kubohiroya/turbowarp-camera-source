@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.5.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.6.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.5.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.6.0
 ```
 
 ## Quick start
@@ -55,6 +55,8 @@ stop shared camera [pose]
 - `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`: 名前付き共有カメラを開始します。
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
 - `shared camera [CAMERA_ID] is running?`: 指定した共有カメラが起動中かを返します。
+- `shared camera [CAMERA_ID] error code`: 直近の開始失敗コードを返します。開始成功後は空文字列です。
+- `shared camera [CAMERA_ID] error`: 直近の開始失敗メッセージを返します。開始成功後は空文字列です。
 - `shared camera [CAMERA_ID] device ID`: 指定した共有カメラのdevice IDを返します。
 - `show shared camera [CAMERA_ID] preview mirrored [MIRRORED]`: GPU-backed stage previewを表示します。
 - `hide shared camera [CAMERA_ID] preview`: ブロックが所有するpreview leaseだけを解放して非表示にします。
@@ -123,6 +125,9 @@ Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いま�
 `cameraId`は`pose`や`qr`のような作品内の役割名です。`deviceId`を指定すると、その役割をブラウザが公開する特定のカメラデバイスへ割り当てられます。各カメラは最後のleaseが解放されるまで維持されます。
 
 ## 互換性
+
+0.6.0ではcamera IDごとの開始失敗情報を公開し、inactive streamまたは終了したvideo trackを停止状態として
+扱います。既存のcamera ID、lease ownership、preview動作は変更しません。
 
 0.5.0ではGPU-backed previewの表示・非表示・mirror設定と、実際のframe width／height／rateを
 TurboWarpブロックとして公開します。既定動作は変更しません。

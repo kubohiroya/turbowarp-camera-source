@@ -62,6 +62,11 @@ interface BlockPreviewLease {
   readonly mirrored: boolean;
 }
 
+interface CameraFailure {
+  readonly code: string;
+  readonly message: string;
+}
+
 function mediaDevices(): MediaDevices {
   const devices = globalThis.navigator?.mediaDevices;
   if (!devices || typeof devices.getUserMedia !== 'function') {
@@ -94,11 +99,19 @@ function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints
   return {audio: false, video: options.video ?? true};
 }
 
+function cameraFailure(error: unknown): CameraFailure {
+  if (error instanceof Error) {
+    return {code: error.name || 'Error', message: error.message};
+  }
+  return {code: 'Error', message: String(error)};
+}
+
 export class CameraSourceExtension implements TurboWarpExtension {
   private readonly sessions = new Map<string, CameraSession>();
   private readonly blockLeases = new Map<string, CameraLease>();
   private readonly blockPreviewLeases = new Map<string, BlockPreviewLease>();
   private readonly blockPreviewRevisions = new Map<string, number>();
+  private readonly cameraFailures = new Map<string, CameraFailure>();
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
@@ -118,7 +131,15 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public isCameraRunning(args: {CAMERA_ID?: unknown} = {}): boolean {
     const session = this.sessions.get(normalizeId(args.CAMERA_ID));
-    return Boolean(session?.stream);
+    return session?.stream ? this.isStreamRunning(session.stream) : false;
+  }
+
+  public cameraErrorCode(args: {CAMERA_ID?: unknown} = {}): string {
+    return this.cameraFailures.get(normalizeId(args.CAMERA_ID))?.code ?? '';
+  }
+
+  public cameraError(args: {CAMERA_ID?: unknown} = {}): string {
+    return this.cameraFailures.get(normalizeId(args.CAMERA_ID))?.message ?? '';
   }
 
   public cameraDeviceIdReporter(args: {CAMERA_ID?: unknown} = {}): string {
@@ -172,6 +193,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
       session.leases.delete(token);
       session.previewLeases.delete(token);
       if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+      this.cameraFailures.set(cameraId, cameraFailure(error));
       throw error;
     }
     let released = false;
@@ -301,7 +323,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
         if (!session.active) throw new Error('Camera acquisition was cancelled.');
         session.stream = stream;
         session.video = video;
+        this.watchStreamEnd(session, stream);
         this.updateActiveDevice(session);
+        this.cameraFailures.delete(session.cameraId);
       } catch (error) {
         stream.getTracks().forEach((track) => track.stop());
         if (video) video.srcObject = null;
@@ -314,6 +338,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
       if (this.sessions.get(session.cameraId) === session) {
         this.stopCameraSession(session.cameraId);
       }
+      this.cameraFailures.set(session.cameraId, cameraFailure(error));
       throw error;
     }
   }
@@ -322,6 +347,20 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
     this.blockPreviewRevisions.set(cameraId, revision);
     return revision;
+  }
+
+  private isStreamRunning(stream: MediaStream): boolean {
+    return stream.active !== false && stream.getVideoTracks().some((track) => track.readyState !== 'ended');
+  }
+
+  private watchStreamEnd(session: CameraSession, stream: MediaStream): void {
+    const handleEnded = (): void => {
+      if (this.sessions.get(session.cameraId) !== session || session.stream !== stream) return;
+      if (!this.isStreamRunning(stream)) this.stopCameraSession(session.cameraId);
+    };
+    for (const track of stream.getVideoTracks()) {
+      track.addEventListener('ended', handleEnded, {once: true});
+    }
   }
 
   private updateActiveDevice(session: CameraSession): void {

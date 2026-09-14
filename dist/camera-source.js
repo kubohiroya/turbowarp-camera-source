@@ -57,6 +57,26 @@
   			} }
   		},
   		{
+  			"opcode": "cameraErrorCode",
+  			"blockType": "REPORTER",
+  			"text": "shared camera [CAMERA_ID] error code",
+  			"description": "Returns the latest camera failure code, or an empty string after a successful start.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "cameraError",
+  			"blockType": "REPORTER",
+  			"text": "shared camera [CAMERA_ID] error",
+  			"description": "Returns the latest camera failure message, or an empty string after a successful start.",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
   			"opcode": "cameraDeviceIdReporter",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] device ID",
@@ -354,12 +374,23 @@
   		video: options.video ?? true
   	};
   }
+  function cameraFailure(error) {
+  	if (error instanceof Error) return {
+  		code: error.name || "Error",
+  		message: error.message
+  	};
+  	return {
+  		code: "Error",
+  		message: String(error)
+  	};
+  }
   var CameraSourceExtension = class {
   	constructor() {
   		this.sessions = /* @__PURE__ */ new Map();
   		this.blockLeases = /* @__PURE__ */ new Map();
   		this.blockPreviewLeases = /* @__PURE__ */ new Map();
   		this.blockPreviewRevisions = /* @__PURE__ */ new Map();
+  		this.cameraFailures = /* @__PURE__ */ new Map();
   		this.devices = [];
   		this.dispose = () => {
   			this.stopAllCameras();
@@ -384,7 +415,13 @@
   	}
   	isCameraRunning(args = {}) {
   		const session = this.sessions.get(normalizeId(args.CAMERA_ID));
-  		return Boolean(session?.stream);
+  		return session?.stream ? this.isStreamRunning(session.stream) : false;
+  	}
+  	cameraErrorCode(args = {}) {
+  		return this.cameraFailures.get(normalizeId(args.CAMERA_ID))?.code ?? "";
+  	}
+  	cameraError(args = {}) {
+  		return this.cameraFailures.get(normalizeId(args.CAMERA_ID))?.message ?? "";
   	}
   	cameraDeviceIdReporter(args = {}) {
   		return this.sessions.get(normalizeId(args.CAMERA_ID))?.activeDeviceId ?? "";
@@ -432,6 +469,7 @@
   			session.leases.delete(token);
   			session.previewLeases.delete(token);
   			if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+  			this.cameraFailures.set(cameraId, cameraFailure(error));
   			throw error;
   		}
   		let released = false;
@@ -533,7 +571,9 @@
   				if (!session.active) throw new Error("Camera acquisition was cancelled.");
   				session.stream = stream;
   				session.video = video;
+  				this.watchStreamEnd(session, stream);
   				this.updateActiveDevice(session);
+  				this.cameraFailures.delete(session.cameraId);
   			} catch (error) {
   				stream.getTracks().forEach((track) => track.stop());
   				if (video) video.srcObject = null;
@@ -544,6 +584,7 @@
   			await session.startPromise;
   		} catch (error) {
   			if (this.sessions.get(session.cameraId) === session) this.stopCameraSession(session.cameraId);
+  			this.cameraFailures.set(session.cameraId, cameraFailure(error));
   			throw error;
   		}
   	}
@@ -551,6 +592,16 @@
   		const revision = (this.blockPreviewRevisions.get(cameraId) ?? 0) + 1;
   		this.blockPreviewRevisions.set(cameraId, revision);
   		return revision;
+  	}
+  	isStreamRunning(stream) {
+  		return stream.active !== false && stream.getVideoTracks().some((track) => track.readyState !== "ended");
+  	}
+  	watchStreamEnd(session, stream) {
+  		const handleEnded = () => {
+  			if (this.sessions.get(session.cameraId) !== session || session.stream !== stream) return;
+  			if (!this.isStreamRunning(stream)) this.stopCameraSession(session.cameraId);
+  		};
+  		for (const track of stream.getVideoTracks()) track.addEventListener("ended", handleEnded, { once: true });
   	}
   	updateActiveDevice(session) {
   		const settings = (session.stream?.getVideoTracks()[0] ?? null)?.getSettings();
