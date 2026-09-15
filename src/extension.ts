@@ -13,6 +13,14 @@ import {
   type CameraSourceCapabilityV1
 } from './runtime-capability';
 import {toFlip, type Flip} from './flip';
+import {
+  cameraSourceRuntimeKey,
+  type CameraAcquireOptions,
+  type CameraFrameSource,
+  type CameraLease
+} from './runtime';
+
+export type {CameraAcquireOptions, CameraFrameSource, CameraLease} from './runtime';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
@@ -38,40 +46,6 @@ interface BlockDefinition {
   arguments: Record<string, DefinitionArgument>;
 }
 
-export interface CameraAcquireOptions {
-  owner?: string;
-  cameraId?: string;
-  deviceId?: string;
-  video?: MediaTrackConstraints | boolean;
-  /** How this consumer wants its preview shown. Only meaningful with `preview`. */
-  previewFlip?: Flip;
-  preview?: boolean;
-}
-
-export interface CameraFrameSource {
-  readonly kind: 'video';
-  readonly element: HTMLVideoElement;
-  readonly width: number;
-  readonly height: number;
-  /**
-   * How the preview is being shown, which says nothing about the pixels.
-   *
-   * The frames behind it are always the ones the camera captured: showing a preview turned over is
-   * a rendering transform and never reaches them.
-   *
-   * Coordinates taken from a mirrored preview must be turned back before they
-   * are used with these frames. A solve fed the preview's coordinates converges
-   * on a left-right reflected pose and reports a small reprojection error while
-   * doing it.
-   */
-  readonly previewFlip: Flip;
-  readonly deviceId: string;
-}
-
-export interface CameraLease {
-  getFrameSource(): CameraFrameSource;
-  release(): Promise<void>;
-}
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
 const menuDefinitions = definitions.menus as Readonly<Record<string, MenuDefinition>>;
@@ -179,7 +153,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
-    Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
+    Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
     // The flag closes the whole new path, not just the palette. Consumer extensions are the main
     // audience for the capability, so publishing it regardless would leave the path on by default
     // for exactly the callers it is meant to be off for. An absent key is a case every consumer
