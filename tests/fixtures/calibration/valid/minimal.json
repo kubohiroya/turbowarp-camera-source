@@ -1,0 +1,12 @@
+{
+  "schema": "twcs/camera-intrinsics",
+  "version": 1,
+  "profileId": "run-2026-09-15-a",
+  "cameraId": "stage-left",
+  "calibratedAt": "2026-09-15T04:05:06Z",
+  "producer": "operator-supplied JSON",
+  "cameraModel": "pinhole",
+  "image": {"width": 1280, "height": 720, "undistorted": false},
+  "intrinsics": {"fx": 940.25, "fy": 939.5, "cx": 639.5, "cy": 359.5, "skew": 0},
+  "distortion": {"model": "none", "coefficients": []}
+}

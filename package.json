@@ -19,6 +19,7 @@
   },
   "files": [
     "dist/",
+    "schemas/",
     "README.md",
     "README.ja.md",
     "LICENSE"
@@ -54,6 +55,7 @@
     "@eslint/js": "^9.39.5",
     "@kubohiroya/vite-plugin-turbowarp-extension": "0.4.0",
     "@types/node": "^24.13.3",
+    "ajv": "^8.20.0",
     "eslint": "^9.39.5",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.66.0",

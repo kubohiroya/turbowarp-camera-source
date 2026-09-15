@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kubohiroya.github.io/turbowarp-camera-source/schema/camera-intrinsics-v1.json",
+  "title": "Camera intrinsic calibration profile v1",
+  "description": "How one camera projects the world onto its own captured image. Carries no world pose: where a camera stands is solved separately against a shared reference, and mixing the two lets a stale extrinsic be read as a current placement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "profileId",
+    "cameraId",
+    "calibratedAt",
+    "producer",
+    "cameraModel",
+    "image",
+    "intrinsics",
+    "distortion"
+  ],
+  "properties": {
+    "schema": {"const": "twcs/camera-intrinsics"},
+    "version": {"const": 1},
+    "profileId": {
+      "$ref": "#/$defs/identifier",
+      "description": "Identifies this calibration run. A new solve produces a new id."
+    },
+    "cameraId": {
+      "$ref": "#/$defs/identifier",
+      "description": "Operator-assigned camera name such as stage-left. Stable across calibration runs."
+    },
+    "calibratedAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "When the calibration was solved, as an RFC 3339 timestamp in UTC."
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Free text naming whatever produced the profile. Diagnostics only; the contract does not care which extension, tool or person it was."
+    },
+    "cameraModel": {"const": "pinhole"},
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "undistorted"],
+      "description": "The image the calibration was solved against. Always the camera's own capture; preview mirroring is a display choice and never changes the calibration.",
+      "properties": {
+        "width": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "height": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "undistorted": {
+          "type": "boolean",
+          "description": "False for the base contract: the profile describes the raw frame and the consumer applies the distortion model. True states that the images are already corrected, which then forbids leftover coefficients."
+        }
+      }
+    },
+    "intrinsics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fx", "fy", "cx", "cy", "skew"],
+      "description": "Pinhole parameters in pixels of the calibration image, with x to the right and y downward from the top-left corner. Named rather than packed into an array because nine numbers cannot say whether they are row-major or column-major. The equivalent row-major 3x3 matrix is [fx, skew, cx, 0, fy, cy, 0, 0, 1].",
+      "properties": {
+        "fx": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000000},
+        "fy": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000000},
+        "cx": {"type": "number", "minimum": -10000000, "maximum": 10000000},
+        "cy": {"type": "number", "minimum": -10000000, "maximum": 10000000},
+        "skew": {
+          "type": "number",
+          "minimum": -10000000,
+          "maximum": 10000000,
+          "description": "Axis skew. Zero for every square-pixel sensor; kept explicit so it is never assumed."
+        }
+      }
+    },
+    "distortion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "coefficients"],
+      "properties": {
+        "model": {"enum": ["none", "brown-conrady", "kannala-brandt"]},
+        "coefficients": {
+          "type": "array",
+          "items": {"type": "number", "minimum": -10000, "maximum": 10000},
+          "description": "Brown-Conrady carries the OpenCV coefficients in their usual order: k1, k2, p1, p2, optionally k3, and k4 to k6 for the rational model. Kannala-Brandt carries the four fisheye coefficients."
+        }
+      },
+      "allOf": [
+        {
+          "if": {"type": "object", "required": ["model"], "properties": {"model": {"const": "none"}}},
+          "then": {
+            "type": "object",
+            "properties": {"coefficients": {"type": "array", "maxItems": 0}}
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["model"],
+            "properties": {"model": {"const": "brown-conrady"}}
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "coefficients": {
+                "type": "array",
+                "anyOf": [
+                  {"minItems": 4, "maxItems": 4},
+                  {"minItems": 5, "maxItems": 5},
+                  {"minItems": 8, "maxItems": 8}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["model"],
+            "properties": {"model": {"const": "kannala-brandt"}}
+          },
+          "then": {
+            "type": "object",
+            "properties": {"coefficients": {"type": "array", "minItems": 4, "maxItems": 4}}
+          }
+        }
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleCount", "reprojectionErrorPx"],
+      "description": "Optional. Absent means the producer did not report quality, which is not the same as a measured zero.",
+      "properties": {
+        "sampleCount": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "reprojectionErrorPx": {"type": "number", "minimum": 0, "maximum": 10000}
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Hints for recognizing the physical camera again. deviceId is a hint and not an identity: browsers scope it per origin and per profile, so it changes without the camera changing.",
+      "properties": {
+        "label": {"type": "string", "minLength": 1, "maxLength": 256},
+        "deviceId": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": {
+            "type": "object",
+            "required": ["undistorted"],
+            "properties": {"undistorted": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "distortion": {"type": "object", "properties": {"model": {"const": "none"}}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+    }
+  }
+}

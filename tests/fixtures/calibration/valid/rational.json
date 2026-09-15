@@ -1,0 +1,16 @@
+{
+  "schema": "twcs/camera-intrinsics",
+  "version": 1,
+  "profileId": "run-rational",
+  "cameraId": "stage-right",
+  "calibratedAt": "2026-09-15T04:05:06Z",
+  "producer": "chessboard calibration",
+  "cameraModel": "pinhole",
+  "image": {"width": 1920, "height": 1080, "undistorted": false},
+  "intrinsics": {"fx": 1402.0, "fy": 1401.0, "cx": 961.0, "cy": 538.0, "skew": 0.0001},
+  "distortion": {
+    "model": "brown-conrady",
+    "coefficients": [-0.4, 0.2, 0.0001, -0.0002, -0.05, 0.01, -0.002, 0.0003]
+  },
+  "quality": {"sampleCount": 31, "reprojectionErrorPx": 0.41}
+}

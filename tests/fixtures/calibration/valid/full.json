@@ -1,0 +1,17 @@
+{
+  "schema": "twcs/camera-intrinsics",
+  "version": 1,
+  "profileId": "run-2026-09-15-b",
+  "cameraId": "stage-left",
+  "calibratedAt": "2026-09-15T04:05:06.125Z",
+  "producer": "chessboard calibration",
+  "cameraModel": "pinhole",
+  "image": {"width": 1920, "height": 1080, "undistorted": false},
+  "intrinsics": {"fx": 1400.5, "fy": 1399.25, "cx": 959.5, "cy": 539.5, "skew": 0},
+  "distortion": {
+    "model": "brown-conrady",
+    "coefficients": [-0.32115, 0.11042, 0.00021, -0.00034, -0.01877]
+  },
+  "quality": {"sampleCount": 24, "reprojectionErrorPx": 0.284},
+  "device": {"label": "HD Pro Webcam C920", "deviceId": "b1c2d3e4"}
+}
