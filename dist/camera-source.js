@@ -344,6 +344,7 @@
   		height: pixelCount(frame.height),
   		deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? "",
   		previewFlip: frame.previewFlip,
+  		pixelFlip: frame.pixelFlip,
   		...label === void 0 ? {} : { label },
   		...frameRate === void 0 ? {} : { frameRate },
   		...facingMode === void 0 ? {} : { facingMode },
@@ -415,6 +416,8 @@
   */
   function evaluateProfileCompatibility(profile, conditions) {
   	const findings = [imageSizeFinding(profile, conditions)];
+  	if (conditions.pixelFlip !== "none") findings.push(finding("pixel-flip", "mismatched", true, `The delivered frames are flipped (${conditions.pixelFlip}), and a profile describes the camera's own capture.`));
+  	else findings.push(finding("pixel-flip", "matched", true, "The frames are delivered as the camera captured them."));
   	if (profile.image.undistorted) findings.push(finding("undistorted-frames", "unknown", true, "The profile describes already undistorted images. This extension hands over the camera frames as captured and cannot confirm that something upstream corrects them."));
   	if (profile.capture === void 0) findings.push(finding("capture-conditions", "unknown", true, "The profile records no capture conditions, so whether the optics are configured as they were at calibration cannot be decided."));
   	else findings.push(...captureFindings(profile.capture, conditions));
@@ -1484,7 +1487,8 @@
   			width: 0,
   			height: 0,
   			deviceId: "",
-  			previewFlip: "none"
+  			previewFlip: "none",
+  			pixelFlip: "none"
   		};
   		const track = session.stream.getVideoTracks()[0];
   		let settings = {};
@@ -1499,6 +1503,7 @@
   			height: session.video?.videoHeight ?? 0,
   			deviceId: session.activeDeviceId,
   			previewFlip: this.previewFlip(session),
+  			pixelFlip: this.getFrameSource(session).pixelFlip,
   			...device?.label ? { label: device.label } : {}
   		}, settings);
   	}

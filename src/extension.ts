@@ -464,7 +464,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);
     if (!session?.stream) {
-      return {width: 0, height: 0, deviceId: '', previewFlip: 'none'};
+      return {width: 0, height: 0, deviceId: '', previewFlip: 'none', pixelFlip: 'none'};
     }
     const track = session.stream.getVideoTracks()[0];
     let settings: Record<string, unknown> = {};
@@ -480,6 +480,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
         height: session.video?.videoHeight ?? 0,
         deviceId: session.activeDeviceId,
         previewFlip: this.previewFlip(session),
+        // Read from the frame source rather than repeated here, so the two cannot disagree about
+        // what a consumer is actually handed.
+        pixelFlip: this.getFrameSource(session).pixelFlip,
         ...(device?.label ? {label: device.label} : {})
       },
       settings
