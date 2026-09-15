@@ -58,7 +58,7 @@ stop shared camera [pose]
 - `shared camera [CAMERA_ID] error code`: 直近の開始失敗コードを返します。開始成功後は空文字列です。
 - `shared camera [CAMERA_ID] error`: 直近の開始失敗メッセージを返します。開始成功後は空文字列です。
 - `shared camera [CAMERA_ID] device ID`: 指定した共有カメラのdevice IDを返します。
-- `show shared camera [CAMERA_ID] preview mirrored [MIRRORED]`: GPU-backed stage previewを表示します。
+- `show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]`: GPU-backed stage previewを表示します。`none`／`horizontal`／`vertical`／`both`から選び、reporterも渡せます。
 - `hide shared camera [CAMERA_ID] preview`: ブロックが所有するpreview leaseだけを解放して非表示にします。
 - `shared camera [CAMERA_ID] frame width`: 実際のframe幅をpixel単位で返します。
 - `shared camera [CAMERA_ID] frame height`: 実際のframe高さをpixel単位で返します。
@@ -67,6 +67,21 @@ stop shared camera [pose]
 - `camera device count`: 更新済みカメラデバイス数を返します。
 - `camera device ID at [INDEX]`: 1始まりの位置でカメラdevice IDを返します。
 - `camera device label at [INDEX]`: 1始まりの位置でカメララベルを返します。
+
+次の12ブロックは`calibrationProfilesV1`フラグがONのときだけパレットに出ます（既定OFF）。
+
+- `register camera profile [PROFILE_JSON]`: 内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。
+- `forget camera profile for [CAMERA_ID]`: 登録済みプロファイルを破棄します。
+- `camera [CAMERA_ID] is calibrated?`: プロファイルが登録されているかを返します。未登録は正常な状態です。
+- `camera profile JSON for [CAMERA_ID]`: 保存された文書をそのまま返します。表示や書き出し用であって、投影に使う数値ではありません。
+- `camera profile error`: 直近の登録失敗のコードを返します。成功後は空文字列です。
+- `camera profile error detail`: 直近の登録失敗の位置と理由を返します。
+- `camera profile compatibility for [CAMERA_ID]`: `compatible`／`incompatible`／`undetermined`を返します。
+- `camera profile compatibility detail for [CAMERA_ID]`: 判定を決めた項目の理由を返します。
+- `camera profile adaptation for [CAMERA_ID]`: 現在のフレームサイズへ読み替えられたか（`exact`／`scaled`／`unavailable`）を返します。
+- `camera intrinsics JSON for [CAMERA_ID]`: 現在のフレームに適合済みの内部行列を返します。適合していなければ空文字列です。
+- `camera conditions JSON for [CAMERA_ID]`: カメラが今報告している撮影条件を返します。
+- `camera conditions generation for [CAMERA_ID]`: 幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。
 
 ## Runtime API
 
@@ -138,13 +153,22 @@ globalThis.__TWCS_FEATURE_FLAGS__ = {calibrationProfilesV1: true};
 
 **プロファイルを自分でスケールせず、内部行列を要求すること。** 校正時と違う解像度で届く場合、必要な計算は何が起きたかで変わる。単純な縮小なら`fx`・`fy`・`cx`・`cy`を比率倍するが、cropなら焦点距離はそのままで主点が平行移動する。trackの`resizeMode`を見られるのは本拡張だけなので、両者を区別できるのも本拡張だけ。**利用側がそれぞれ推測すれば、それぞれ違う推測をし、同じカメラがどの拡張から尋ねたかで違う幾何を返すことになる。** `camera intrinsics JSON`は現在のフレームに適合済みの数値を返し、cropやアスペクト変更で主点を置けない場合は空文字を返す。
 
-**previewの反転はフレームの反転ではない。** `getFrameSource()`は`pixelFlip`と`previewFlip`を別々に返す。両者は別の事実で、previewの反転は描画時の変換であってフレームには届かないので、previewをどう表示していても`pixelFlip`は`none`。**反転表示したpreview上で拾った座標は、これらのフレームと使う前に戻さなければならない** — previewの座標をそのままsolveへ渡すと、左右反転した姿勢に収束し、しかも再投影誤差は小さいまま出る。`horizontal`は左右反転で、`cv::flip(…, 1)`・ffmpegの`hflip`・CSSの`scaleX(-1)`と同じ。回転は別の関心事なので、同じenumには混ぜていない。
+**previewを反転してもフレームは反転しない。** `getFrameSource()`が返す`previewFlip`は、stageがどう描いているかだけを述べる。その裏にあるフレームは常にカメラが撮ったままである。**反転表示したpreview上で拾った座標は、これらのフレームと使う前に戻さなければならない** — previewの座標をそのままsolveへ渡すと、左右反転した姿勢に収束し、しかも再投影誤差は小さいまま出る。`horizontal`は左右反転で、`cv::flip(…, 1)`・ffmpegの`hflip`・CSSの`scaleX(-1)`と同じ。回転は別の関心事なので、同じenumには混ぜていない。
 
-`show shared camera preview` blockはopcodeも`MIRRORED`引数も維持しているので、既存projectに影響はない。`acquireCamera`は`previewFlip`を受け取るようになり、従来の`mirrored: true`も引き続き受け付ける。
+**契約は書き写さずimportすること。** 型は専用のentry pointとして公開してある。
+
+```ts
+import {readCameraSourceRuntime} from "@kubohiroya/turbowarp-camera-source/runtime";
+import type {CameraFrameSource, CameraLease} from "@kubohiroya/turbowarp-camera-source/runtime";
+```
+
+このmoduleはlogicを持たず拡張本体を引き込まない。手書きの写しは何とも照合されないので、こちらの形が変わっても利用側のリポジトリでは型検査が通り続け、ブラウザで実行したときに壊れる。
 
 **「判定できない」は「適合する」とは別の答え。** 適合性は`compatible`／`incompatible`／`undetermined`の3値で、不明が`compatible`へ格上げされることはない。プロファイルが現在の構成に適合していない限り内部行列は渡さない。渡してしまえば、利用側は別の構成の数値で投影し、**もっともらしく間違った幾何**を得ることになる。
 
 ## 互換性
+
+未リリースの変更は破壊的である。`CameraFrameSource.mirrored`は`previewFlip`へ置き換えた。軸を名指しでき、かつ「描画の話であって画素の話ではない」と言えるためである。previewブロックの`MIRRORED`引数は`PREVIEW_FLIP`へ置き換え、booleanはもう読まない。`acquireCamera`は`previewFlip`を受け取り、`mirrored`は受け付けない。frame sourceのinterfaceを手書きで持っている利用側は、公開した`./runtime`のimportへ移ること。そうしていればこの変更はビルド時に分かった。
 
 0.6.0ではcamera IDごとの開始失敗情報を公開し、inactive streamまたは終了したvideo trackを停止状態として
 扱います。既存のcamera ID、lease ownership、preview動作は変更しません。

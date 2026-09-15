@@ -75,3 +75,44 @@ releases only this facade-owned lease; unrelated processing leases retain owners
 cannot leave camera tracks, textures, skins, or drawables alive. Preview remains opt-in: no renderer
 API is touched until either a runtime consumer requests `preview: true` or a project runs the
 show-preview block.
+
+## Calibration profile contract
+
+This extension owns the contract for intrinsic calibration profiles and produces none of them.
+Chessboard calibration, an operator pasting JSON, a file kept from a previous venue — from here each
+is a producer handing over a document, and the only thing that decides whether it is kept is whether
+it passes validation. Naming a particular extension would undo the split that keeps this package
+free of a solver: the solver carries OpenCV, and `opencv.js` alone is 10.4 MB against this bundle's
+tens of kilobytes. `pnpm run check:dist` fails if a solver's identifiers ever appear in the bundle.
+
+A profile says how a camera projects, never where it stands. The world pose the earlier
+`twrmc/camera-calibration` format carried was the extrinsic of whichever calibration sample happened
+to be last; reading it as a placement in a shared world frame puts a camera somewhere it has never
+been. Documents in that format are still accepted, and that pose is dropped rather than republished.
+
+Three questions are answered separately, because they fail separately.
+
+| Question | Answer |
+|---|---|
+| Does this profile describe this camera as configured now? | `compatible` / `incompatible` / `undetermined` |
+| Can the stored numbers be expressed for this frame size? | `exact` / `scaled` / `unavailable` |
+| May a consumer project with them? | the `usable` intrinsics, or nothing |
+
+`undetermined` never resolves upward into `compatible`, and intrinsics are withheld unless both of
+the first two answers allow it. Handing them over regardless lets a consumer project with numbers
+from another configuration, and the geometry that comes back reads as a slightly different camera
+pose rather than as a mistake.
+
+A camera nobody has calibrated is an ordinary state. `assessProfile` and `profileFor` report it as
+absence, not as a failure: the safe reading of a failure is to stop, which is the wrong response.
+
+The whole surface sits behind a startup-fixed flag and is off by default. Camera acquisition and
+preview are unaffected either way.
+
+## Published runtime contract
+
+`./runtime` is a separate entry point carrying the declarations a sharing consumer needs, and no
+logic. A consumer that re-declares `CameraFrameSource` or `CameraLease` by hand compiles perfectly
+against nothing: when the shape here changes, the copy keeps type-checking in its own repository and
+fails in a browser instead. Importing the published declarations moves that failure to the
+consumer's build, which is the only place it is cheap.
