@@ -23,7 +23,7 @@ function profile(name: string): CameraIntrinsicProfileV1 {
 /** The conditions the `with-capture` fixture was solved under, so tests can vary one member at a time. */
 function matchingConditions(overrides: Record<string, unknown> = {}) {
   return readCameraConditions(
-    {width: 1920, height: 1080, mirrored: false, deviceId: 'b1c2d3e4', label: 'HD Pro Webcam C920'},
+    {width: 1920, height: 1080, previewFlip: 'none', deviceId: 'b1c2d3e4', label: 'HD Pro Webcam C920'},
     {frameRate: 30, facingMode: 'user', resizeMode: 'none', focusMode: 'continuous', ...overrides}
   );
 }
@@ -45,7 +45,7 @@ describe('profile compatibility', () => {
     const conditions = readCameraConditions({
       width: 1280,
       height: 720,
-      mirrored: false,
+      previewFlip: 'none',
       deviceId: 'b1c2d3e4'
     });
     const report = evaluateProfileCompatibility(profile('with-capture.json'), conditions);
@@ -54,7 +54,7 @@ describe('profile compatibility', () => {
   });
 
   it('cannot decide before a frame has arrived', () => {
-    const conditions = readCameraConditions({width: 0, height: 0, mirrored: false, deviceId: ''});
+    const conditions = readCameraConditions({width: 0, height: 0, previewFlip: 'none', deviceId: ''});
     const report = evaluateProfileCompatibility(profile('with-capture.json'), conditions);
     expect(report.state).toBe('undetermined');
     expect(find(report, 'image-size').state).toBe('unknown');
@@ -110,7 +110,7 @@ describe('profile compatibility', () => {
 
   it('ignores preview mirroring, which is a display choice and not a calibration', () => {
     const mirrored = readCameraConditions(
-      {width: 1920, height: 1080, mirrored: true, deviceId: 'b1c2d3e4', label: 'HD Pro Webcam C920'},
+      {width: 1920, height: 1080, previewFlip: 'horizontal', deviceId: 'b1c2d3e4', label: 'HD Pro Webcam C920'},
       {frameRate: 30, facingMode: 'user', resizeMode: 'none', focusMode: 'continuous'}
     );
     const report = evaluateProfileCompatibility(profile('with-capture.json'), mirrored);
@@ -122,7 +122,7 @@ describe('profile compatibility', () => {
     const report = evaluateProfileCompatibility(
       profile('with-capture.json'),
       readCameraConditions(
-        {width: 1920, height: 1080, mirrored: false, deviceId: 'b1c2d3e4', label: 'Integrated Camera'},
+        {width: 1920, height: 1080, previewFlip: 'none', deviceId: 'b1c2d3e4', label: 'Integrated Camera'},
         {frameRate: 30, facingMode: 'user', resizeMode: 'none', focusMode: 'continuous'}
       )
     );
@@ -140,7 +140,7 @@ describe('profile compatibility', () => {
     const renumbered = evaluateProfileCompatibility(
       profile('with-capture.json'),
       readCameraConditions(
-        {width: 1920, height: 1080, mirrored: false, deviceId: 'a-new-id', label: 'HD Pro Webcam C920'},
+        {width: 1920, height: 1080, previewFlip: 'none', deviceId: 'a-new-id', label: 'HD Pro Webcam C920'},
         {frameRate: 30, facingMode: 'user', resizeMode: 'none', focusMode: 'continuous'}
       )
     );
@@ -151,7 +151,7 @@ describe('profile compatibility', () => {
     const conditions = readCameraConditions({
       width: 1920,
       height: 1080,
-      mirrored: false,
+      previewFlip: 'none',
       deviceId: 'b1c2d3e4'
     });
     const report = evaluateProfileCompatibility(profile('undistorted.json'), conditions);
@@ -170,7 +170,7 @@ describe('profile compatibility', () => {
 describe('camera conditions', () => {
   it('takes the frame size from the delivered frame, not from the requested settings', () => {
     const conditions = readCameraConditions(
-      {width: 1280, height: 720, mirrored: false, deviceId: 'x'},
+      {width: 1280, height: 720, previewFlip: 'none', deviceId: 'x'},
       {frameRate: 30}
     );
     expect(conditions.width).toBe(1280);
@@ -179,7 +179,7 @@ describe('camera conditions', () => {
 
   it('leaves a control absent when the device reports nothing usable for it', () => {
     const conditions = readCameraConditions(
-      {width: 640, height: 480, mirrored: false, deviceId: 'x'},
+      {width: 640, height: 480, previewFlip: 'none', deviceId: 'x'},
       {zoom: Number.NaN, focusMode: '   ', frameRate: 0, focusDistance: -1}
     );
     expect(conditions.zoom).toBeUndefined();
@@ -192,7 +192,7 @@ describe('camera conditions', () => {
     const conditions = readCameraConditions({
       width: Number.NaN,
       height: 0,
-      mirrored: false,
+      previewFlip: 'none',
       deviceId: ''
     });
     expect(conditions.width).toBe(0);

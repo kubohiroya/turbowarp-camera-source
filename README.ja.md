@@ -138,6 +138,10 @@ globalThis.__TWCS_FEATURE_FLAGS__ = {calibrationProfilesV1: true};
 
 **プロファイルを自分でスケールせず、内部行列を要求すること。** 校正時と違う解像度で届く場合、必要な計算は何が起きたかで変わる。単純な縮小なら`fx`・`fy`・`cx`・`cy`を比率倍するが、cropなら焦点距離はそのままで主点が平行移動する。trackの`resizeMode`を見られるのは本拡張だけなので、両者を区別できるのも本拡張だけ。**利用側がそれぞれ推測すれば、それぞれ違う推測をし、同じカメラがどの拡張から尋ねたかで違う幾何を返すことになる。** `camera intrinsics JSON`は現在のフレームに適合済みの数値を返し、cropやアスペクト変更で主点を置けない場合は空文字を返す。
 
+**previewの反転はフレームの反転ではない。** `getFrameSource()`は`pixelFlip`と`previewFlip`を別々に返す。両者は別の事実で、previewの反転は描画時の変換であってフレームには届かないので、previewをどう表示していても`pixelFlip`は`none`。**反転表示したpreview上で拾った座標は、これらのフレームと使う前に戻さなければならない** — previewの座標をそのままsolveへ渡すと、左右反転した姿勢に収束し、しかも再投影誤差は小さいまま出る。`horizontal`は左右反転で、`cv::flip(…, 1)`・ffmpegの`hflip`・CSSの`scaleX(-1)`と同じ。回転は別の関心事なので、同じenumには混ぜていない。
+
+`show shared camera preview` blockはopcodeも`MIRRORED`引数も維持しているので、既存projectに影響はない。`acquireCamera`は`previewFlip`を受け取るようになり、従来の`mirrored: true`も引き続き受け付ける。
+
 **「判定できない」は「適合する」とは別の答え。** 適合性は`compatible`／`incompatible`／`undetermined`の3値で、不明が`compatible`へ格上げされることはない。プロファイルが現在の構成に適合していない限り内部行列は渡さない。渡してしまえば、利用側は別の構成の数値で投影し、**もっともらしく間違った幾何**を得ることになる。
 
 ## 互換性

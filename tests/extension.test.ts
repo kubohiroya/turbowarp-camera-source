@@ -448,6 +448,11 @@ describe('CameraSourceExtension', () => {
     const skin = cameraRenderer._allSkins[0];
     expect(skin).toBeDefined();
     expect(lease.getFrameSource().element).toBe(sourceVideo);
+    // The preview is mirrored; the frames are not. A consumer that read the
+    // first fact as the second would hand flipped coordinates to a solve and
+    // get back a left-right reflected pose with a small reprojection error.
+    expect(lease.getFrameSource().previewFlip).toBe('horizontal');
+    expect(lease.getFrameSource().pixelFlip).toBe('none');
     expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [-50, 50]);
     expect(cameraRenderer.markSkinAsPrivate).toHaveBeenCalledWith(0);
     expect(cameraRenderer.markDrawableAsNoninteractive).toHaveBeenCalledWith(10);

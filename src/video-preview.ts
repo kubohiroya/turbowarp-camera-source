@@ -1,3 +1,5 @@
+import {flipsHorizontally, flipsVertically, type Flip} from './flip';
+
 const videoLayer = 'video';
 const haveCurrentData = 2;
 
@@ -47,7 +49,7 @@ export interface CameraRenderer {
 
 export interface VideoPreview {
   dispose(): void;
-  setMirrored(mirrored: boolean): void;
+  setFlip(flip: Flip): void;
 }
 
 type FrameCallback = (metricsChanged: boolean) => void;
@@ -206,7 +208,7 @@ function assertRenderer(renderer: CameraRenderer | undefined): asserts renderer 
 export function createVideoPreview(
   renderer: CameraRenderer | undefined,
   video: HTMLVideoElement,
-  mirrored: boolean,
+  flip: Flip,
   requestRedraw: () => void
 ): VideoPreview {
   assertRenderer(renderer);
@@ -214,16 +216,19 @@ export function createVideoPreview(
   const skinId = renderer._nextSkinId++;
   let drawableId: number | undefined;
   let disposed = false;
-  let previewMirrored = mirrored;
+  let previewFlip = flip;
   let lastLayout = '';
 
   const updateLayout = (): void => {
     if (drawableId === undefined || video.videoWidth === 0 || video.videoHeight === 0) return;
     const [stageWidth, stageHeight] = renderer.getNativeSize();
-    const layout = [video.videoWidth, video.videoHeight, stageWidth, stageHeight, previewMirrored].join(':');
+    const layout = [video.videoWidth, video.videoHeight, stageWidth, stageHeight, previewFlip].join(':');
     if (layout === lastLayout) return;
     const scale = Math.max(stageWidth / video.videoWidth, stageHeight / video.videoHeight) * 100;
-    renderer.updateDrawableScale(drawableId, [previewMirrored ? -scale : scale, scale]);
+    renderer.updateDrawableScale(drawableId, [
+      flipsHorizontally(previewFlip) ? -scale : scale,
+      flipsVertically(previewFlip) ? -scale : scale
+    ]);
     lastLayout = layout;
   };
 
@@ -254,9 +259,9 @@ export function createVideoPreview(
   }
 
   return Object.freeze({
-    setMirrored: (nextMirrored: boolean) => {
-      if (disposed || previewMirrored === nextMirrored) return;
-      previewMirrored = nextMirrored;
+    setFlip: (nextFlip: Flip) => {
+      if (disposed || previewFlip === nextFlip) return;
+      previewFlip = nextFlip;
       updateLayout();
       requestRedraw();
     },

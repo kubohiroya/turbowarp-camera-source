@@ -1,3 +1,4 @@
+import type {Flip} from '../flip.js';
 /**
  * What the running camera reports about how it is capturing right now.
  *
@@ -23,7 +24,7 @@ export interface CameraConditions {
    * never takes part in a compatibility decision — it is carried so that a caller rendering the
    * frame knows what the operator is looking at.
    */
-  readonly mirrored: boolean;
+  readonly previewFlip: Flip;
   readonly label?: string;
   readonly frameRate?: number;
   readonly facingMode?: string;
@@ -47,7 +48,7 @@ export interface TrackSettingsLike {
 export interface FrameGeometry {
   readonly width: number;
   readonly height: number;
-  readonly mirrored: boolean;
+  readonly previewFlip: Flip;
   readonly deviceId: string;
   readonly label?: string;
 }
@@ -92,7 +93,7 @@ export function readCameraConditions(
     width: pixelCount(frame.width),
     height: pixelCount(frame.height),
     deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? '',
-    mirrored: frame.mirrored,
+    previewFlip: frame.previewFlip,
     ...(label === undefined ? {} : {label}),
     ...(frameRate === undefined ? {} : {frameRate}),
     ...(facingMode === undefined ? {} : {facingMode}),
