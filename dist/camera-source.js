@@ -1184,15 +1184,18 @@
   		this.devices = [];
   		this.dispose = () => {
   			this.stopAllCameras();
+  			const runtime = Scratch.vm.runtime;
+  			if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[runtimeCapabilityKey];
   			Scratch.vm.runtime.off?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
   			Scratch.vm.runtime.off?.("PROJECT_LOADED", this.handleProjectBoundary);
   			Scratch.vm.runtime.off?.("RUNTIME_DISPOSED", this.dispose);
   		};
   		this.handleProjectBoundary = () => {
   			this.stopAllCameras();
+  			this.profileError = void 0;
   		};
   		Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
-  		Scratch.vm.runtime[runtimeCapabilityKey] = createRuntimeCapability({
+  		this.capability = this.calibrationEnabled ? createRuntimeCapability({
   			registerProfile: (document) => this.profiles.register(document),
   			forgetProfile: (cameraId) => this.profiles.forget(cameraId),
   			profileFor: (cameraId) => this.profiles.get(cameraId),
@@ -1209,7 +1212,8 @@
   			},
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
   			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-  		});
+  		}) : void 0;
+  		if (this.capability) Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
   		Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
