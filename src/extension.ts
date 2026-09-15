@@ -1,5 +1,12 @@
+import {featureFlags} from '../config/feature-flags';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
+import {readCameraConditions, type CameraConditions} from './calibration/conditions';
+import {decisiveFindings} from './calibration/compatibility';
+import {CameraProfileRegistry} from './calibration/registry';
+import {serializeCameraIntrinsicProfile} from './calibration/profile';
+import type {ProfileError} from './calibration/types';
+import {createRuntimeCapability, runtimeCapabilityKey} from './runtime-capability';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
@@ -12,6 +19,7 @@ interface DefinitionArgument {
 
 interface BlockDefinition {
   opcode: string;
+  feature?: 'calibrationProfilesV1';
   blockType: BlockTypeName;
   text: string;
   description: string;
@@ -112,10 +120,27 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly blockPreviewLeases = new Map<string, BlockPreviewLease>();
   private readonly blockPreviewRevisions = new Map<string, number>();
   private readonly cameraFailures = new Map<string, CameraFailure>();
+  private readonly profiles = new CameraProfileRegistry();
+  private readonly generations = new Map<string, number>();
+  private readonly lastConditions = new Map<string, string>();
+  private readonly calibrationEnabled = featureFlags.calibrationProfilesV1;
+  private profileError: ProfileError | undefined;
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
     Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
+    Scratch.vm.runtime[runtimeCapabilityKey] = createRuntimeCapability({
+      registerProfile: (document) => this.profiles.register(document),
+      forgetProfile: (cameraId) => this.profiles.forget(cameraId),
+      profileFor: (cameraId) => this.profiles.get(cameraId),
+      calibratedCameras: () => this.profiles.cameraIds(),
+      assessProfile: (cameraId) => {
+        const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+        return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
+      },
+      conditionsFor: (cameraId) => this.conditionsOf(cameraId),
+      conditionsGeneration: (cameraId) => this.generationOf(cameraId)
+    });
     Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
@@ -125,7 +150,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
     return {
       id: extensionConfig.id,
       name: Scratch.translate(definitions.extensionName),
-      blocks: blockDefinitions.map((block) => this.toScratchBlock(block))
+      blocks: blockDefinitions
+        .filter((block) => block.feature === undefined || this.calibrationEnabled)
+        .map((block) => this.toScratchBlock(block))
     };
   }
 
@@ -288,6 +315,154 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly handleProjectBoundary = (): void => {
     this.stopAllCameras();
   };
+
+  public registerCameraProfile(args: {PROFILE_JSON?: unknown} = {}): void {
+    const text = Scratch.Cast.toString(args.PROFILE_JSON ?? '');
+    let document: unknown;
+    try {
+      document = JSON.parse(text);
+    } catch {
+      this.profileError = {
+        code: 'not-an-object',
+        path: '',
+        message: 'The profile is not valid JSON.'
+      };
+      return;
+    }
+    const result = this.profiles.register(document);
+    this.profileError = result.ok ? undefined : result.error;
+  }
+
+  public forgetCameraProfile(args: {CAMERA_ID?: unknown} = {}): void {
+    this.profiles.forget(normalizeId(args.CAMERA_ID));
+  }
+
+  public cameraProfileRegistered(args: {CAMERA_ID?: unknown} = {}): boolean {
+    return this.profiles.has(normalizeId(args.CAMERA_ID));
+  }
+
+  public cameraProfileJson(args: {CAMERA_ID?: unknown} = {}): string {
+    const profile = this.profiles.get(normalizeId(args.CAMERA_ID));
+    return profile ? serializeCameraIntrinsicProfile(profile) : '';
+  }
+
+  public cameraProfileError(): string {
+    return this.profileError?.code ?? '';
+  }
+
+  public cameraProfileErrorDetail(): string {
+    if (!this.profileError) return '';
+    const {path, message} = this.profileError;
+    return path ? `${path}: ${message}` : message;
+  }
+
+  public cameraProfileCompatibility(args: {CAMERA_ID?: unknown} = {}): string {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    return result.ok ? result.assessment.compatibility.state : '';
+  }
+
+  public cameraProfileCompatibilityDetail(args: {CAMERA_ID?: unknown} = {}): string {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    if (!result.ok) return '';
+    const findings = decisiveFindings(result.assessment.compatibility);
+    if (findings.length === 0) return 'The profile matches the camera as configured.';
+    return findings.map((entry) => entry.detail).join(' ');
+  }
+
+  public cameraProfileAdaptation(args: {CAMERA_ID?: unknown} = {}): string {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    return result.ok ? result.assessment.adaptation.state : '';
+  }
+
+  public cameraProfileIntrinsicsJson(args: {CAMERA_ID?: unknown} = {}): string {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    if (!result.ok) return '';
+    const {adaptation, compatibility} = result.assessment;
+    // Intrinsics are withheld unless the profile actually fits the camera as it
+    // is configured now. Handing them over regardless would let a consumer
+    // project with numbers from a different configuration and get plausible,
+    // wrong geometry back.
+    if (compatibility.state !== 'compatible' || adaptation.intrinsics === undefined) return '';
+    return JSON.stringify({
+      ...adaptation.intrinsics,
+      width: adaptation.width,
+      height: adaptation.height,
+      scale: adaptation.scale,
+      adaptation: adaptation.state
+    });
+  }
+
+  public cameraConditionsJson(args: {CAMERA_ID?: unknown} = {}): string {
+    return JSON.stringify(this.conditionsOf(normalizeId(args.CAMERA_ID)));
+  }
+
+  public cameraConditionsGeneration(args: {CAMERA_ID?: unknown} = {}): number {
+    return this.generationOf(normalizeId(args.CAMERA_ID));
+  }
+
+  /** What the track reports about itself right now. Read only. */
+  private conditionsOf(cameraId: string): CameraConditions {
+    const id = normalizeId(cameraId);
+    const session = this.sessions.get(id);
+    if (!session?.stream) {
+      return {width: 0, height: 0, deviceId: '', mirrored: false};
+    }
+    const track = session.stream.getVideoTracks()[0];
+    let settings: Record<string, unknown> = {};
+    try {
+      settings = (track?.getSettings() ?? {}) as unknown as Record<string, unknown>;
+    } catch {
+      settings = {};
+    }
+    const device = this.devices.find((entry) => entry.deviceId === session.activeDeviceId);
+    return readCameraConditions(
+      {
+        width: session.video?.videoWidth ?? 0,
+        height: session.video?.videoHeight ?? 0,
+        deviceId: session.activeDeviceId,
+        mirrored: session.mirrored,
+        ...(device?.label ? {label: device.label} : {})
+      },
+      settings
+    );
+  }
+
+  /**
+   * A counter that moves when the geometry does.
+   *
+   * Derived by comparing the members that affect projection, so it advances on
+   * a resolution change or a zoom and stays put for a frame rate change. A
+   * consumer holding a placement solved from these conditions compares one
+   * number rather than re-checking each of them.
+   */
+  private generationOf(cameraId: string): number {
+    const id = normalizeId(cameraId);
+    const conditions = this.conditionsOf(id);
+    const signature = JSON.stringify([
+      conditions.width,
+      conditions.height,
+      conditions.resizeMode ?? null,
+      conditions.zoom ?? null,
+      conditions.focusMode ?? null,
+      conditions.focusDistance ?? null,
+      conditions.deviceId
+    ]);
+    const previous = this.lastConditions.get(id);
+    if (previous === undefined) {
+      this.lastConditions.set(id, signature);
+      this.generations.set(id, 0);
+      return 0;
+    }
+    if (previous === signature) return this.generations.get(id) ?? 0;
+    const next = (this.generations.get(id) ?? 0) + 1;
+    this.lastConditions.set(id, signature);
+    this.generations.set(id, next);
+    return next;
+  }
 
   private session(cameraId: string): CameraSession {
     const existing = this.sessions.get(cameraId);

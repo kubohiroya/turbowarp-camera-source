@@ -208,6 +208,124 @@ Returns the one-based camera device label at the requested index when the browse
 | Opcode | `cameraDeviceLabelAt` |
 | `INDEX` | String, default: `1` |
 
+### `register camera profile [PROFILE_JSON]`
+
+Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `registerCameraProfile` |
+| `PROFILE_JSON` | String, default: `{}` |
+
+### `forget camera profile for [CAMERA_ID]`
+
+Removes the stored calibration profile for one camera.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `forgetCameraProfile` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera [CAMERA_ID] is calibrated?`
+
+Reports whether a calibration profile is stored for the camera. An uncalibrated camera is an ordinary state and not an error.
+
+| Property | Value |
+|---|---|
+| Type | Boolean |
+| Opcode | `cameraProfileRegistered` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile JSON for [CAMERA_ID]`
+
+Returns the stored profile as JSON, or an empty string when the camera has none.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileJson` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile error`
+
+Returns the code of the last rejected profile document, or an empty string when the last one was accepted.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileError` |
+
+### `camera profile error detail`
+
+Returns why the last profile document was rejected, naming the member at fault.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileErrorDetail` |
+
+### `camera profile compatibility for [CAMERA_ID]`
+
+Returns compatible, incompatible, undetermined, or an empty string when the camera has no profile. Undetermined is a distinct answer from compatible and never resolves upward into it.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileCompatibility` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile compatibility detail for [CAMERA_ID]`
+
+Returns the findings that decided the verdict, so an operator sees the one thing that has to change.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileCompatibilityDetail` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile adaptation for [CAMERA_ID]`
+
+Returns exact, scaled, or unavailable. A frame size that differs by a pure scale can be projected with scaled intrinsics; a crop or an aspect change cannot, because the principal point cannot be placed.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileAdaptation` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera intrinsics JSON for [CAMERA_ID]`
+
+Returns the intrinsics to project the current frames with, already adapted to the frame size, or an empty string when they cannot be established. Consumers use this rather than scaling a profile themselves, because only this extension can tell a scale from a crop.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileIntrinsicsJson` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera conditions JSON for [CAMERA_ID]`
+
+Returns what the track reports about itself: frame size, resize mode, zoom, focus and frame rate. Read only; this extension never changes a shared camera configuration.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraConditionsJson` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera conditions generation for [CAMERA_ID]`
+
+Returns a number that increases whenever something affecting the geometry changes. A consumer holding a derived result compares this instead of re-checking every condition.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraConditionsGeneration` |
+| `CAMERA_ID` | String, default: `default` |
+
 <!-- END GENERATED BLOCKS -->
 
 ## Runtime API
@@ -270,6 +388,30 @@ or a CPU canvas, for example with `GPUQueue.copyExternalImageToTexture()` or a s
 The display path avoids explicit CPU readback, but it does not promise end-to-end zero-copy:
 browser-internal color conversion and GPU transfer may still occur. The preview is private and
 noninteractive; it is intended for display, not Scratch touching or color-sensing queries.
+
+### Calibration profiles
+
+This extension owns the contract for intrinsic calibration profiles but never produces one. Chessboard calibration, an operator pasting JSON, and any future calibrator are all just producers of a document that passes validation, and nothing here can tell them apart.
+
+The surface is behind a startup-fixed flag in `config/feature-flags.ts`, **off by default**. Camera acquisition and preview are untouched by it either way:
+
+```js
+globalThis.__TWCS_FEATURE_FLAGS__ = {calibrationProfilesV1: true};
+```
+
+A versioned capability is published for other extensions:
+
+```js
+const calibration = Scratch.vm.runtime.kubohiroyaCameraSourceCapability.requireVersion(1);
+calibration.registerProfile(document);
+const assessment = calibration.assessProfile("pose");
+```
+
+**A profile says how a camera projects, never where it stands.** Camera pose in a shared world frame belongs to whichever extension solves placement; mixing the two into one document is what made the earlier `twrmc/camera-calibration` format unusable outside the application it came from. Legacy documents can be read, but their pose is dropped rather than republished as a placement.
+
+**Ask for intrinsics rather than scaling a profile yourself.** When the camera delivers a size the calibration was not solved at, the arithmetic depends on what happened: a pure downscale multiplies `fx`, `fy`, `cx` and `cy`, while a crop leaves the focal lengths alone and shifts the principal point instead. Only this extension sees the track's `resizeMode`, so only it can tell the two apart — and if every consumer guesses, they guess differently and the same camera yields different geometry depending on which extension asked. `camera intrinsics JSON` returns numbers already adapted to the current frame, or an empty string when the difference is a crop or an aspect change and the principal point cannot be placed.
+
+**"Cannot tell" is a distinct answer from "fits".** Compatibility is `compatible`, `incompatible` or `undetermined`, and unknown never resolves upward. Intrinsics are withheld unless the profile actually fits the camera as configured now: handing them over regardless would let a consumer project with numbers from a different configuration and get plausible, wrong geometry back.
 
 ## Compatibility
 

@@ -3,6 +3,26 @@
   "id": "kubohiroyacamerasource",
   "blocks": [
     {
+      "opcode": "cameraConditionsGeneration",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraConditionsJson",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "cameraDeviceCount",
       "blockType": "REPORTER",
       "arguments": []
@@ -88,6 +108,86 @@
       ]
     },
     {
+      "opcode": "cameraProfileAdaptation",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraProfileCompatibility",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraProfileCompatibilityDetail",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraProfileError",
+      "blockType": "REPORTER",
+      "arguments": []
+    },
+    {
+      "opcode": "cameraProfileErrorDetail",
+      "blockType": "REPORTER",
+      "arguments": []
+    },
+    {
+      "opcode": "cameraProfileIntrinsicsJson",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraProfileJson",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "cameraProfileRegistered",
+      "blockType": "BOOLEAN",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "forgetCameraProfile",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "hideCameraPreview",
       "blockType": "COMMAND",
       "arguments": [
@@ -111,6 +211,16 @@
       "opcode": "refreshCameraDevices",
       "blockType": "COMMAND",
       "arguments": []
+    },
+    {
+      "opcode": "registerCameraProfile",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "PROFILE_JSON",
+          "type": "STRING"
+        }
+      ]
     },
     {
       "opcode": "showCameraPreview",
