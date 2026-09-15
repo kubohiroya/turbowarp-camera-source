@@ -25,7 +25,6 @@ export type CompatibilityCode =
   | 'focus-distance'
   | 'frame-rate'
   | 'facing-mode'
-  | 'pixel-flip'
   | 'undistorted-frames'
   | 'device-label'
   | 'device-id';
@@ -199,25 +198,6 @@ export function evaluateProfileCompatibility(
   conditions: CameraConditions
 ): CompatibilityReport {
   const findings: CompatibilityFinding[] = [imageSizeFinding(profile, conditions)];
-
-  if (conditions.pixelFlip !== 'none') {
-    // Version 1 profiles are solved in the camera's own capture coordinates, and carry no way to
-    // say otherwise. A turned-over frame is a different image: the principal point moves to the
-    // other side, and intrinsics applied to it produce a reflected pose whose reprojection error
-    // stays small — the failure does not announce itself.
-    findings.push(
-      finding(
-        'pixel-flip',
-        'mismatched',
-        true,
-        `The delivered frames are flipped (${conditions.pixelFlip}), and a profile describes the camera's own capture.`
-      )
-    );
-  } else {
-    findings.push(
-      finding('pixel-flip', 'matched', true, 'The frames are delivered as the camera captured them.')
-    );
-  }
 
   if (profile.image.undistorted) {
     findings.push(

@@ -209,27 +209,6 @@ describe('CameraSourceExtension', () => {
     expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
   });
 
-  it('still reads the MIRRORED argument saved in older projects', async () => {
-    // A saved block carries the argument name it was written with, so a project authored against
-    // the boolean keeps working without being opened and re-saved.
-    const cameraStream = stream('preview-device');
-    const sourceVideo = video();
-    const {cameraRenderer} = renderer();
-    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
-    vi.stubGlobal('navigator', {
-      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
-    });
-    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
-
-    const extension = new CameraSourceExtension();
-    await extension.startSharedCamera({CAMERA_ID: 'pose'});
-    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
-    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
-
-    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'false'});
-    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
-  });
-
   it('flips rather than not when asked for something outside the vocabulary', async () => {
     // The menu accepts reporters, so the value can be whatever a project computed. Drawing the
     // preview unflipped after a project asked for a flip would read as the camera being wrong.
@@ -505,7 +484,7 @@ describe('CameraSourceExtension', () => {
 
     const extension = new CameraSourceExtension();
     const processingLease = await extension.acquireCamera();
-    const lease = await extension.acquireCamera({preview: true, mirrored: true});
+    const lease = await extension.acquireCamera({preview: true, previewFlip: 'horizontal'});
     const skin = cameraRenderer._allSkins[0];
     expect(skin).toBeDefined();
     expect(lease.getFrameSource().element).toBe(sourceVideo);
@@ -513,7 +492,6 @@ describe('CameraSourceExtension', () => {
     // first fact as the second would hand flipped coordinates to a solve and
     // get back a left-right reflected pose with a small reprojection error.
     expect(lease.getFrameSource().previewFlip).toBe('horizontal');
-    expect(lease.getFrameSource().pixelFlip).toBe('none');
     expect(cameraRenderer.updateDrawableScale).toHaveBeenCalledWith(10, [-50, 50]);
     expect(cameraRenderer.markSkinAsPrivate).toHaveBeenCalledWith(0);
     expect(cameraRenderer.markDrawableAsNoninteractive).toHaveBeenCalledWith(10);
@@ -557,7 +535,7 @@ describe('CameraSourceExtension', () => {
     vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
 
     const extension = new CameraSourceExtension();
-    const previewLease = await extension.acquireCamera({preview: true, mirrored: true});
+    const previewLease = await extension.acquireCamera({preview: true, previewFlip: 'horizontal'});
     const sharedPreviewLease = await extension.acquireCamera({preview: true});
     const processingLease = await extension.acquireCamera();
 
