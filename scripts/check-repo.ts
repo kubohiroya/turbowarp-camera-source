@@ -111,7 +111,7 @@ if (policy.profile !== "capability-extension") {
 if (policy.packageName !== manifest.name) {
   throw new Error("repo-policy.json packageName must match package.json name.");
 }
-if (manifest.version !== "0.6.0") {
+if (manifest.version !== "0.7.0") {
   throw new Error("package.json version must be 0.6.0.");
 }
 if (manifest.license !== policy.license) {
@@ -154,7 +154,7 @@ requireText(
 );
 
 const cdnUrl =
-  "https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.6.0/dist/camera-source.js";
+  "https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.7.0/dist/camera-source.js";
 requireText(readme, cdnUrl, "README.md");
 requireText(japaneseReadme, cdnUrl, "README.ja.md");
 
