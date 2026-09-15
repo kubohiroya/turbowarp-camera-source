@@ -267,6 +267,56 @@ describe('withholding intrinsics that do not fit', () => {
   });
 });
 
+describe('reusing an assessment', () => {
+  async function enabledExtension(): Promise<new () => unknown> {
+    vi.resetModules();
+    (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'] = {
+      calibrationProfilesV1: true
+    };
+    const module = await import('../src/extension.js');
+    return module.CameraSourceExtension;
+  }
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'];
+    vi.resetModules();
+  });
+
+  it('answers with the same view while nothing it depends on has changed', async () => {
+    const Extension = await enabledExtension();
+    const extension = new Extension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
+    const source = document('full.json');
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+    const cameraId = source.cameraId as string;
+
+    // These reporters are read from blocks a project can evaluate on every frame, and judging
+    // compatibility builds a finding per compared member. The conditions are still read each time;
+    // it is the derivation that is reused.
+    const capability = runtime[runtimeCapabilityKey] as {
+      assessProfile(cameraId: string): {view?: unknown};
+    };
+    const first = capability.assessProfile(cameraId).view;
+    expect(capability.assessProfile(cameraId).view).toBe(first);
+  });
+
+  it('derives again once the profile is replaced', async () => {
+    const Extension = await enabledExtension();
+    const extension = new Extension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
+    const source = document('full.json');
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+    const cameraId = source.cameraId as string;
+    const capability = runtime[runtimeCapabilityKey] as {
+      assessProfile(cameraId: string): {view?: unknown};
+    };
+    const first = capability.assessProfile(cameraId).view;
+
+    // Registered again under the same id: a document may differ in every member but the name, so
+    // the reuse is keyed on the stored object rather than on its id.
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+    expect(capability.assessProfile(cameraId).view).not.toBe(first);
+  });
+});
+
 describe('state that crosses a project boundary', () => {
   it('keeps profiles and drops the error that named the last attempt', () => {
     const extension = new CameraSourceExtension();

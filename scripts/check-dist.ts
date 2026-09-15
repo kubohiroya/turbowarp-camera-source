@@ -53,13 +53,19 @@ for (const identifier of forbiddenIdentifiers) {
 /**
  * An upper bound on the published bundle, in bytes.
  *
- * Not a target: the point is that crossing it has to be a decision somebody makes rather than
- * something that happens. Raising this number is fine when the reason is understood and recorded;
- * what is not fine is a dependency arriving unnoticed in an extension chosen partly for its size.
+ * The failure this guards against is a runtime dependency arriving unnoticed in an extension that
+ * projects partly choose for its size. That kind of arrival is tens or hundreds of kilobytes at
+ * once, not a few hundred bytes at a time, so the bound sits far enough above ordinary feature work
+ * to stay quiet and still catch it.
  *
- * At the time of writing the bundle is 63,698 B with no runtime dependencies.
+ * A bound set just above the current size would fire on the next feature instead, and a number that
+ * has to be nudged every time stops being read: it would be raised by reflex, which is the one
+ * outcome that makes the check worthless. The exact size is recorded on every run and in the
+ * committed `dist`, so growth is visible whether or not this fires.
+ *
+ * At the time of writing the bundle is roughly 67 kB with no runtime dependencies.
  */
-const maximumBundleBytes = 73_728;
+const maximumBundleBytes = 98_304;
 const bundleBytes = Buffer.byteLength(bundle);
 
 if (bundleBytes > maximumBundleBytes) {

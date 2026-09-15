@@ -1248,6 +1248,7 @@
   		this.profiles = new CameraProfileRegistry();
   		this.generations = /* @__PURE__ */ new Map();
   		this.lastConditions = /* @__PURE__ */ new Map();
+  		this.assessments = /* @__PURE__ */ new Map();
   		this.calibrationEnabled = featureFlags.calibrationProfilesV1;
   		this.devices = [];
   		this.dispose = () => {
@@ -1269,7 +1270,7 @@
   			profileFor: (cameraId) => this.profiles.get(cameraId),
   			calibratedCameras: () => this.profiles.cameraIds(),
   			assessProfile: (cameraId) => {
-  				const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  				const result = this.assessmentOf(cameraId);
   				return result.ok ? {
   					ok: true,
   					view: result.assessment
@@ -1455,12 +1456,12 @@
   	}
   	cameraProfileCompatibility(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		return result.ok ? result.assessment.compatibility.state : "";
   	}
   	cameraProfileCompatibilityDetail(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		if (!result.ok) return "";
   		const findings = decisiveFindings(result.assessment.compatibility);
   		if (findings.length === 0) return "The profile matches the camera as configured.";
@@ -1468,7 +1469,7 @@
   	}
   	cameraProfileAdaptation(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		return result.ok ? result.assessment.adaptation.state : "";
   	}
   	cameraProfileIntrinsicsJson(args = {}) {
@@ -1485,7 +1486,7 @@
   	/** What the track reports about itself right now. Read only. */
   	intrinsicsOf(cameraId) {
   		const id = normalizeId(cameraId);
-  		const result = this.profiles.assess(id, this.conditionsOf(id));
+  		const result = this.assessmentOf(id);
   		return result.ok ? result.assessment.usable : void 0;
   	}
   	conditionsOf(cameraId) {
@@ -1523,18 +1524,54 @@
   	* consumer holding a placement solved from these conditions compares one
   	* number rather than re-checking each of them.
   	*/
-  	generationOf(cameraId) {
-  		const id = normalizeId(cameraId);
-  		const conditions = this.conditionsOf(id);
-  		const signature = JSON.stringify([
+  	/**
+  	* The conditions that decide geometry, as one comparable string.
+  	*
+  	* The preview flip is not among them. It changes how the stage draws the frame and nothing about
+  	* how the lens projects, so folding it in would advance the generation and invalidate consumers'
+  	* work every time an operator toggled a mirror. The pixel flip is among them for the opposite
+  	* reason: it describes the image itself.
+  	*/
+  	conditionsSignature(conditions) {
+  		return JSON.stringify([
   			conditions.width,
   			conditions.height,
+  			conditions.pixelFlip,
   			conditions.resizeMode ?? null,
   			conditions.zoom ?? null,
   			conditions.focusMode ?? null,
   			conditions.focusDistance ?? null,
   			conditions.deviceId
   		]);
+  	}
+  	/**
+  	* The assessment for a camera, reusing the last one while nothing it depends on has changed.
+  	*
+  	* The conditions are read on every call, so this cannot answer with a stale view of the camera.
+  	* What is skipped is the derivation: judging compatibility builds a finding for every member it
+  	* compares, each with its own sentence, and these reporters are read from blocks that a project
+  	* can evaluate on every frame. Reusing the result while the inputs are identical keeps that off
+  	* the frame budget without putting a staleness window in its place.
+  	*/
+  	assessmentOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const conditions = this.conditionsOf(id);
+  		const signature = this.conditionsSignature(conditions);
+  		const profile = this.profiles.get(id);
+  		const cached = this.assessments.get(id);
+  		if (cached && cached.signature === signature && cached.profile === profile) return cached.result;
+  		const result = this.profiles.assess(id, conditions);
+  		this.assessments.set(id, {
+  			signature,
+  			profile,
+  			result
+  		});
+  		return result;
+  	}
+  	generationOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const conditions = this.conditionsOf(id);
+  		const signature = this.conditionsSignature(conditions);
   		const previous = this.lastConditions.get(id);
   		if (previous === void 0) {
   			this.lastConditions.set(id, signature);
@@ -1667,6 +1704,7 @@
   		this.sessions.delete(cameraId);
   		this.blockLeases.delete(cameraId);
   		this.blockPreviewLeases.delete(cameraId);
+  		this.assessments.delete(cameraId);
   	}
   	toScratchBlock(block) {
   		return {
