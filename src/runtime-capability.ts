@@ -8,11 +8,7 @@
 import type {ProfileAdaptation, UsableIntrinsics} from './calibration/adaptation.js';
 import type {CompatibilityReport} from './calibration/compatibility.js';
 import type {CameraConditions} from './calibration/conditions.js';
-import type {
-  CameraIntrinsicProfileV1,
-  ProfileError,
-  ProfileResult
-} from './calibration/types.js';
+import type {CameraIntrinsicProfileV1, ProfileResult} from './calibration/types.js';
 
 export const runtimeCapabilityKey = 'kubohiroyaCameraSourceCapability';
 export const runtimeCapabilityVersion = 1 as const;
@@ -41,10 +37,15 @@ export interface CameraSourceCapabilityV1 {
   forgetProfile(cameraId: string): boolean;
   profileFor(cameraId: string): CameraIntrinsicProfileV1 | undefined;
   calibratedCameras(): string[];
-  /** The profile judged against how the camera is configured right now. */
-  assessProfile(
-    cameraId: string
-  ): {ok: true; view: CameraProfileView} | {ok: false; error: ProfileError};
+  /**
+   * The profile judged against how the camera is configured right now.
+   *
+   * Absent when the camera has never been calibrated. That is an ordinary state and not a failure:
+   * reporting it as one would leave every consumer deciding which failures are real, and the safe
+   * reading of a failure is to stop, which is the wrong response to "nobody has calibrated this
+   * camera yet".
+   */
+  assessProfile(cameraId: string): CameraProfileView | undefined;
   /**
    * The intrinsics to project the current frames with, or undefined when there are none to use.
    *

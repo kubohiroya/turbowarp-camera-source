@@ -48,10 +48,10 @@ describe('the profile registry', () => {
   });
 
   it('treats an uncalibrated camera as an ordinary state', () => {
+    // Absent, the way `get` reports it. Not an error: the safe reading of an error is to stop, and
+    // stopping is the wrong response to nobody having calibrated this camera yet.
     const registry = new CameraProfileRegistry();
-    const result = registry.assess('never-calibrated', conditions(1280, 720));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.message).toMatch(/No calibration profile/);
+    expect(registry.assess('never-calibrated', conditions(1280, 720))).toBeUndefined();
   });
 
   it('judges a stored profile against the camera as configured now', () => {
@@ -60,10 +60,8 @@ describe('the profile registry', () => {
     registry.register(source);
     const image = source.image as {width: number; height: number};
     const assessment = registry.assess(source.cameraId as string, conditions(image.width, image.height));
-    expect(assessment.ok).toBe(true);
-    if (!assessment.ok) return;
-    expect(assessment.assessment.adaptation.state).toBe('exact');
-    expect(assessment.assessment.compatibility.state).toBeDefined();
+    expect(assessment?.adaptation.state).toBe('exact');
+    expect(assessment?.compatibility.state).toBeDefined();
   });
 
   it('forgets a profile on request', () => {

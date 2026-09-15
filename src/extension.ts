@@ -4,7 +4,7 @@ import definitions from './block-definitions.json';
 import type {UsableIntrinsics} from './calibration/adaptation';
 import {readCameraConditions, type CameraConditions} from './calibration/conditions';
 import {decisiveFindings} from './calibration/compatibility';
-import {CameraProfileRegistry, type AssessmentResult} from './calibration/registry';
+import {CameraProfileRegistry, type ProfileAssessment} from './calibration/registry';
 import {serializeCameraIntrinsicProfile} from './calibration/profile';
 import type {CameraIntrinsicProfileV1, ProfileError} from './calibration/types';
 import {
@@ -143,7 +143,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     {
       readonly signature: string;
       readonly profile: CameraIntrinsicProfileV1 | undefined;
-      readonly result: AssessmentResult;
+      readonly assessment: ProfileAssessment | undefined;
     }
   >();
   private readonly calibrationEnabled = featureFlags.calibrationProfilesV1;
@@ -165,8 +165,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
           profileFor: (cameraId) => this.profiles.get(cameraId),
           calibratedCameras: () => this.profiles.cameraIds(),
           assessProfile: (cameraId) => {
-            const result = this.assessmentOf(cameraId);
-            return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
+            return this.assessmentOf(cameraId);
           },
           intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
           conditionsFor: (cameraId) => this.conditionsOf(cameraId),
@@ -414,23 +413,21 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraProfileCompatibility(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.assessmentOf(cameraId);
-    return result.ok ? result.assessment.compatibility.state : '';
+    return this.assessmentOf(cameraId)?.compatibility.state ?? '';
   }
 
   public cameraProfileCompatibilityDetail(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.assessmentOf(cameraId);
-    if (!result.ok) return '';
-    const findings = decisiveFindings(result.assessment.compatibility);
+    const assessment = this.assessmentOf(cameraId);
+    if (assessment === undefined) return '';
+    const findings = decisiveFindings(assessment.compatibility);
     if (findings.length === 0) return 'The profile matches the camera as configured.';
     return findings.map((entry) => entry.detail).join(' ');
   }
 
   public cameraProfileAdaptation(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.assessmentOf(cameraId);
-    return result.ok ? result.assessment.adaptation.state : '';
+    return this.assessmentOf(cameraId)?.adaptation.state ?? '';
   }
 
   public cameraProfileIntrinsicsJson(args: {CAMERA_ID?: unknown} = {}): string {
@@ -452,8 +449,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   /** What the track reports about itself right now. Read only. */
   private intrinsicsOf(cameraId: string): UsableIntrinsics | undefined {
     const id = normalizeId(cameraId);
-    const result = this.assessmentOf(id);
-    return result.ok ? result.assessment.usable : undefined;
+    return this.assessmentOf(id)?.usable;
   }
 
   private conditionsOf(cameraId: string): CameraConditions {
@@ -518,7 +514,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
    * can evaluate on every frame. Reusing the result while the inputs are identical keeps that off
    * the frame budget without putting a staleness window in its place.
    */
-  private assessmentOf(cameraId: string): AssessmentResult {
+  private assessmentOf(cameraId: string): ProfileAssessment | undefined {
     const id = normalizeId(cameraId);
     const conditions = this.conditionsOf(id);
     const signature = this.conditionsSignature(conditions);
@@ -527,11 +523,11 @@ export class CameraSourceExtension implements TurboWarpExtension {
     // Profile identity, not profileId: registering again replaces the stored object, and a document
     // re-registered under the same id may differ in every other member.
     if (cached && cached.signature === signature && cached.profile === profile) {
-      return cached.result;
+      return cached.assessment;
     }
-    const result = this.profiles.assess(id, conditions);
-    this.assessments.set(id, {signature, profile, result});
-    return result;
+    const assessment = this.profiles.assess(id, conditions);
+    this.assessments.set(id, {signature, profile, assessment});
+    return assessment;
   }
 
   private generationOf(cameraId: string): number {

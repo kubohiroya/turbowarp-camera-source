@@ -954,30 +954,19 @@
   	/**
   	* The profile for a camera, judged against how that camera is configured now.
   	*
-  	* A missing profile is not an error: a camera that has never been calibrated
-  	* is an ordinary state, and callers that need one say so themselves.
+  	* Absent when the camera has never been calibrated. Callers that need one say so themselves.
   	*/
   	assess(cameraId, conditions) {
   		const profile = this.get(cameraId);
-  		if (!profile) return {
-  			ok: false,
-  			error: {
-  				code: "missing-field",
-  				path: "cameraId",
-  				message: `No calibration profile is registered for camera ${cameraId}.`
-  			}
-  		};
+  		if (!profile) return void 0;
   		const compatibility = evaluateProfileCompatibility(profile, conditions);
   		const adaptation = adaptProfileToConditions(profile, conditions);
   		const usable = usableIntrinsics(compatibility, adaptation);
   		return {
-  			ok: true,
-  			assessment: {
-  				profile,
-  				compatibility,
-  				adaptation,
-  				...usable === void 0 ? {} : { usable }
-  			}
+  			profile,
+  			compatibility,
+  			adaptation,
+  			...usable === void 0 ? {} : { usable }
   		};
   	}
   };
@@ -1288,14 +1277,7 @@
   			profileFor: (cameraId) => this.profiles.get(cameraId),
   			calibratedCameras: () => this.profiles.cameraIds(),
   			assessProfile: (cameraId) => {
-  				const result = this.assessmentOf(cameraId);
-  				return result.ok ? {
-  					ok: true,
-  					view: result.assessment
-  				} : {
-  					ok: false,
-  					error: result.error
-  				};
+  				return this.assessmentOf(cameraId);
   			},
   			intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
@@ -1478,21 +1460,19 @@
   	}
   	cameraProfileCompatibility(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.assessmentOf(cameraId);
-  		return result.ok ? result.assessment.compatibility.state : "";
+  		return this.assessmentOf(cameraId)?.compatibility.state ?? "";
   	}
   	cameraProfileCompatibilityDetail(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.assessmentOf(cameraId);
-  		if (!result.ok) return "";
-  		const findings = decisiveFindings(result.assessment.compatibility);
+  		const assessment = this.assessmentOf(cameraId);
+  		if (assessment === void 0) return "";
+  		const findings = decisiveFindings(assessment.compatibility);
   		if (findings.length === 0) return "The profile matches the camera as configured.";
   		return findings.map((entry) => entry.detail).join(" ");
   	}
   	cameraProfileAdaptation(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.assessmentOf(cameraId);
-  		return result.ok ? result.assessment.adaptation.state : "";
+  		return this.assessmentOf(cameraId)?.adaptation.state ?? "";
   	}
   	cameraProfileIntrinsicsJson(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
@@ -1508,8 +1488,7 @@
   	/** What the track reports about itself right now. Read only. */
   	intrinsicsOf(cameraId) {
   		const id = normalizeId(cameraId);
-  		const result = this.assessmentOf(id);
-  		return result.ok ? result.assessment.usable : void 0;
+  		return this.assessmentOf(id)?.usable;
   	}
   	conditionsOf(cameraId) {
   		const id = normalizeId(cameraId);
@@ -1577,14 +1556,14 @@
   		const signature = this.conditionsSignature(conditions);
   		const profile = this.profiles.get(id);
   		const cached = this.assessments.get(id);
-  		if (cached && cached.signature === signature && cached.profile === profile) return cached.result;
-  		const result = this.profiles.assess(id, conditions);
+  		if (cached && cached.signature === signature && cached.profile === profile) return cached.assessment;
+  		const assessment = this.profiles.assess(id, conditions);
   		this.assessments.set(id, {
   			signature,
   			profile,
-  			result
+  			assessment
   		});
-  		return result;
+  		return assessment;
   	}
   	generationOf(cameraId) {
   		const id = normalizeId(cameraId);
