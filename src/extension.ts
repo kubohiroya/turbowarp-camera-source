@@ -21,6 +21,12 @@ type ArgumentTypeName = 'STRING';
 interface DefinitionArgument {
   type: ArgumentTypeName;
   defaultValue: string;
+  menu?: string;
+}
+
+interface MenuDefinition {
+  acceptReporters: boolean;
+  items: readonly string[];
 }
 
 interface BlockDefinition {
@@ -76,6 +82,7 @@ export interface CameraLease {
 }
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
+const menuDefinitions = definitions.menus as Readonly<Record<string, MenuDefinition>>;
 
 /**
  * Camera Source hands over the frames the camera produced.
@@ -141,7 +148,27 @@ function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints
   return {audio: false, video: options.video ?? true};
 }
 
-/** The preview flip a consumer asked for, accepting the older boolean. */
+/**
+ * The flip a `show preview` block asked for.
+ *
+ * The argument used to be `MIRRORED`, a boolean that could only say left-right and could not say
+ * whether it meant the pixels or the drawing. Projects built against that argument are already
+ * saved, and a saved block carries the argument name it was written with, so the old name is still
+ * read when the new one is absent. Its `true` means the one flip it could express.
+ *
+ * The menu accepts reporters, so the value can arrive as any string a project computed. Anything
+ * outside the vocabulary falls back to horizontal rather than silently drawing the preview
+ * unflipped: a project that asked for a flip and got none would look like the camera was wrong.
+ */
+function requestedPreviewFlip(args: {PREVIEW_FLIP?: unknown; MIRRORED?: unknown}): Flip {
+  if (args.PREVIEW_FLIP !== undefined) return toFlip(args.PREVIEW_FLIP, 'horizontal');
+  if (args.MIRRORED !== undefined) {
+    return Scratch.Cast.toBoolean(args.MIRRORED) ? 'horizontal' : 'none';
+  }
+  return 'horizontal';
+}
+
+/** The preview flip a consumer asked for through the runtime API, accepting the older boolean. */
 function previewFlipOf(options: CameraAcquireOptions): Flip {
   if (options.previewFlip !== undefined) return toFlip(options.previewFlip);
   return options.mirrored === true ? 'horizontal' : 'none';
@@ -210,7 +237,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
       name: Scratch.translate(definitions.extensionName),
       blocks: blockDefinitions
         .filter((block) => block.feature === undefined || this.calibrationEnabled)
-        .map((block) => this.toScratchBlock(block))
+        .map((block) => this.toScratchBlock(block)),
+      menus: Object.fromEntries(
+        Object.entries(menuDefinitions).map(([id, menu]) => [
+          id,
+          {acceptReporters: menu.acceptReporters, items: [...menu.items]}
+        ])
+      )
     };
   }
 
@@ -301,12 +334,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public async showCameraPreview(
-    args: {CAMERA_ID?: unknown; MIRRORED?: unknown} = {}
+    args: {CAMERA_ID?: unknown; PREVIEW_FLIP?: unknown; MIRRORED?: unknown} = {}
   ): Promise<void> {
     const cameraId = normalizeId(args.CAMERA_ID);
-    // The block keeps its opcode and MIRRORED argument so existing projects
-    // keep working; the boolean is mapped onto the flip vocabulary here.
-    const flip: Flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? 'horizontal' : 'none';
+    const flip = requestedPreviewFlip(args);
     const existing = this.blockPreviewLeases.get(cameraId);
     if (existing?.flip === flip) return;
     const revision = this.nextPreviewBlockRevision(cameraId);
@@ -738,7 +769,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
           name,
           {
             type: Scratch.ArgumentType[argument.type],
-            defaultValue: argument.defaultValue
+            defaultValue: argument.defaultValue,
+            ...(argument.menu === undefined ? {} : {menu: argument.menu})
           }
         ])
       )

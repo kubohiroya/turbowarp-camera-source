@@ -168,13 +168,13 @@ describe('CameraSourceExtension', () => {
 
     const extension = new CameraSourceExtension();
     await extension.startSharedCamera({CAMERA_ID: 'pose'});
-    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
-    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'horizontal'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'horizontal'});
 
     expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);
     expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
 
-    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'false'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'none'});
     expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);
     expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
 
@@ -185,6 +185,67 @@ describe('CameraSourceExtension', () => {
 
     extension.stopSharedCamera({CAMERA_ID: 'pose'});
     expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+  });
+
+  it('lets a project choose any flip, including the ones a boolean could not say', async () => {
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'vertical'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, -75]);
+
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'both'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, -75]);
+
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'none'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
+  });
+
+  it('still reads the MIRRORED argument saved in older projects', async () => {
+    // A saved block carries the argument name it was written with, so a project authored against
+    // the boolean keeps working without being opened and re-saved.
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'true'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
+
+    await extension.showCameraPreview({CAMERA_ID: 'pose', MIRRORED: 'false'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [75, 75]);
+  });
+
+  it('flips rather than not when asked for something outside the vocabulary', async () => {
+    // The menu accepts reporters, so the value can be whatever a project computed. Drawing the
+    // preview unflipped after a project asked for a flip would read as the camera being wrong.
+    const cameraStream = stream('preview-device');
+    const sourceVideo = video();
+    const {cameraRenderer} = renderer();
+    vi.stubGlobal('Scratch', scratch({renderer: cameraRenderer, requestRedraw: vi.fn()}));
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    await extension.startSharedCamera({CAMERA_ID: 'pose'});
+    await extension.showCameraPreview({CAMERA_ID: 'pose', PREVIEW_FLIP: 'sideways'});
+    expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
   });
 
   it('keeps only the latest concurrently requested preview setting', async () => {
@@ -198,8 +259,8 @@ describe('CameraSourceExtension', () => {
 
     const extension = new CameraSourceExtension();
     await Promise.all([
-      extension.showCameraPreview({MIRRORED: 'true'}),
-      extension.showCameraPreview({MIRRORED: 'false'})
+      extension.showCameraPreview({PREVIEW_FLIP: 'horizontal'}),
+      extension.showCameraPreview({PREVIEW_FLIP: 'none'})
     ]);
 
     expect(cameraRenderer.createDrawable).toHaveBeenCalledTimes(1);

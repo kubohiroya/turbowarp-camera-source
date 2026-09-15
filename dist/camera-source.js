@@ -93,16 +93,17 @@
   		{
   			"opcode": "showCameraPreview",
   			"blockType": "COMMAND",
-  			"text": "show shared camera [CAMERA_ID] preview mirrored [MIRRORED]",
-  			"description": "Shows the named shared camera with the GPU-backed stage preview.",
+  			"text": "show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]",
+  			"description": "Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.",
   			"arguments": {
   				"CAMERA_ID": {
   					"type": "STRING",
   					"defaultValue": "default"
   				},
-  				"MIRRORED": {
+  				"PREVIEW_FLIP": {
   					"type": "STRING",
-  					"defaultValue": "true"
+  					"defaultValue": "horizontal",
+  					"menu": "flips"
   				}
   			}
   		},
@@ -306,7 +307,16 @@
   				"defaultValue": "default"
   			} }
   		}
-  	]
+  	],
+  	menus: { "flips": {
+  		"acceptReporters": true,
+  		"items": [
+  			"none",
+  			"horizontal",
+  			"vertical",
+  			"both"
+  		]
+  	} }
   };
   //#endregion
   //#region src/calibration/conditions.ts
@@ -1185,6 +1195,7 @@
   //#endregion
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
+  var menuDefinitions = block_definitions_default.menus;
   /**
   * Camera Source hands over the frames the camera produced.
   *
@@ -1223,7 +1234,24 @@
   		video: options.video ?? true
   	};
   }
-  /** The preview flip a consumer asked for, accepting the older boolean. */
+  /**
+  * The flip a `show preview` block asked for.
+  *
+  * The argument used to be `MIRRORED`, a boolean that could only say left-right and could not say
+  * whether it meant the pixels or the drawing. Projects built against that argument are already
+  * saved, and a saved block carries the argument name it was written with, so the old name is still
+  * read when the new one is absent. Its `true` means the one flip it could express.
+  *
+  * The menu accepts reporters, so the value can arrive as any string a project computed. Anything
+  * outside the vocabulary falls back to horizontal rather than silently drawing the preview
+  * unflipped: a project that asked for a flip and got none would look like the camera was wrong.
+  */
+  function requestedPreviewFlip(args) {
+  	if (args.PREVIEW_FLIP !== void 0) return toFlip(args.PREVIEW_FLIP, "horizontal");
+  	if (args.MIRRORED !== void 0) return Scratch.Cast.toBoolean(args.MIRRORED) ? "horizontal" : "none";
+  	return "horizontal";
+  }
+  /** The preview flip a consumer asked for through the runtime API, accepting the older boolean. */
   function previewFlipOf(options) {
   	if (options.previewFlip !== void 0) return toFlip(options.previewFlip);
   	return options.mirrored === true ? "horizontal" : "none";
@@ -1292,7 +1320,11 @@
   		return {
   			id: extensionConfig.id,
   			name: Scratch.translate(block_definitions_default.extensionName),
-  			blocks: blockDefinitions.filter((block) => block.feature === void 0 || this.calibrationEnabled).map((block) => this.toScratchBlock(block))
+  			blocks: blockDefinitions.filter((block) => block.feature === void 0 || this.calibrationEnabled).map((block) => this.toScratchBlock(block)),
+  			menus: Object.fromEntries(Object.entries(menuDefinitions).map(([id, menu]) => [id, {
+  				acceptReporters: menu.acceptReporters,
+  				items: [...menu.items]
+  			}]))
   		};
   	}
   	isCameraRunning(args = {}) {
@@ -1372,7 +1404,7 @@
   	}
   	async showCameraPreview(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? "horizontal" : "none";
+  		const flip = requestedPreviewFlip(args);
   		if (this.blockPreviewLeases.get(cameraId)?.flip === flip) return;
   		const revision = this.nextPreviewBlockRevision(cameraId);
   		const lease = await this.acquireCamera({
@@ -1713,7 +1745,8 @@
   			text: Scratch.translate(block.text),
   			arguments: Object.fromEntries(Object.entries(block.arguments).map(([name, argument]) => [name, {
   				type: Scratch.ArgumentType[argument.type],
-  				defaultValue: argument.defaultValue
+  				defaultValue: argument.defaultValue,
+  				...argument.menu === void 0 ? {} : { menu: argument.menu }
   			}]))
   		};
   	}

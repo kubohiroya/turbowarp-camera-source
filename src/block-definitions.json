@@ -80,16 +80,17 @@
     {
       "opcode": "showCameraPreview",
       "blockType": "COMMAND",
-      "text": "show shared camera [CAMERA_ID] preview mirrored [MIRRORED]",
-      "description": "Shows the named shared camera with the GPU-backed stage preview.",
+      "text": "show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]",
+      "description": "Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.",
       "arguments": {
         "CAMERA_ID": {
           "type": "STRING",
           "defaultValue": "default"
         },
-        "MIRRORED": {
+        "PREVIEW_FLIP": {
           "type": "STRING",
-          "defaultValue": "true"
+          "defaultValue": "horizontal",
+          "menu": "flips"
         }
       }
     },
@@ -325,5 +326,16 @@
         }
       }
     }
-  ]
+  ],
+  "menus": {
+    "flips": {
+      "acceptReporters": true,
+      "items": [
+        "none",
+        "horizontal",
+        "vertical",
+        "both"
+      ]
+    }
+  }
 }
