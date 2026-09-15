@@ -11,6 +11,7 @@
  * produces a projection that looks reasonable and is wrong.
  */
 import type {
+  CalibrationCapture,
   CalibrationDeviceHint,
   CalibrationQuality,
   CameraDistortion,
@@ -36,10 +37,15 @@ const MAXIMUM_DISTORTION_MAGNITUDE = 1e4;
 const MAXIMUM_SAMPLE_COUNT = 10_000;
 const MAXIMUM_REPROJECTION_ERROR_PX = 1e4;
 const MAXIMUM_TEXT_LENGTH = 256;
+const MAXIMUM_FRAME_RATE = 1000;
+const MAXIMUM_ZOOM = 1000;
+const MAXIMUM_FOCUS_DISTANCE = 1e4;
 const MAXIMUM_SCAN_DEPTH = 16;
 const AFFINE_ROW_TOLERANCE = 1e-6;
 
 const DISTORTION_MODELS: readonly DistortionModel[] = ['none', 'brown-conrady', 'kannala-brandt'];
+const RESIZE_MODES: readonly string[] = ['none', 'crop-and-scale'];
+const FOCUS_MODES: readonly string[] = ['none', 'manual', 'single-shot', 'continuous'];
 
 /**
  * Coefficient counts each model accepts.
@@ -287,6 +293,44 @@ function readDistortion(value: unknown, path: string): CameraDistortion {
   return {model, coefficients};
 }
 
+function requireEnum(value: unknown, path: string, allowed: readonly string[]): string {
+  const text = requireText(value, path);
+  if (!allowed.includes(text)) reject('invalid-value', path, `Expected one of ${allowed.join(', ')}.`);
+  return text;
+}
+
+function readCapture(value: unknown, path: string): CalibrationCapture {
+  const record = requireRecord(value, path);
+  requireExactKeys(
+    record,
+    path,
+    [],
+    ['frameRate', 'facingMode', 'resizeMode', 'zoom', 'focusMode', 'focusDistance']
+  );
+  const read = <T>(name: string, reader: (raw: unknown, at: string) => T): T | undefined =>
+    name in record ? reader(record[name], member(path, name)) : undefined;
+
+  const frameRate = read('frameRate', (raw, at) =>
+    requireBounded(raw, at, Number.MIN_VALUE, MAXIMUM_FRAME_RATE)
+  );
+  const facingMode = read('facingMode', requireText);
+  const resizeMode = read('resizeMode', (raw, at) => requireEnum(raw, at, RESIZE_MODES));
+  const zoom = read('zoom', (raw, at) => requireBounded(raw, at, Number.MIN_VALUE, MAXIMUM_ZOOM));
+  const focusMode = read('focusMode', (raw, at) => requireEnum(raw, at, FOCUS_MODES));
+  const focusDistance = read('focusDistance', (raw, at) =>
+    requireBounded(raw, at, 0, MAXIMUM_FOCUS_DISTANCE)
+  );
+
+  return {
+    ...(frameRate === undefined ? {} : {frameRate}),
+    ...(facingMode === undefined ? {} : {facingMode}),
+    ...(resizeMode === undefined ? {} : {resizeMode}),
+    ...(zoom === undefined ? {} : {zoom}),
+    ...(focusMode === undefined ? {} : {focusMode}),
+    ...(focusDistance === undefined ? {} : {focusDistance})
+  };
+}
+
 function readQuality(value: unknown, path: string): CalibrationQuality {
   const record = requireRecord(value, path);
   requireExactKeys(record, path, ['sampleCount', 'reprojectionErrorPx']);
@@ -338,7 +382,7 @@ function readProfile(input: unknown): CameraIntrinsicProfileV1 {
       'intrinsics',
       'distortion'
     ],
-    ['quality', 'device']
+    ['capture', 'quality', 'device']
   );
 
   const image = readImage(record['image'], 'image');
@@ -351,6 +395,7 @@ function readProfile(input: unknown): CameraIntrinsicProfileV1 {
     );
   }
 
+  const capture = 'capture' in record ? readCapture(record['capture'], 'capture') : undefined;
   const quality = 'quality' in record ? readQuality(record['quality'], 'quality') : undefined;
   const device = 'device' in record ? readDevice(record['device'], 'device') : undefined;
 
@@ -365,6 +410,7 @@ function readProfile(input: unknown): CameraIntrinsicProfileV1 {
     image,
     intrinsics: readIntrinsics(record['intrinsics'], 'intrinsics', image),
     distortion,
+    ...(capture === undefined ? {} : {capture}),
     ...(quality === undefined ? {} : {quality}),
     ...(device === undefined ? {} : {device})
   };
@@ -404,6 +450,20 @@ export function parseCameraIntrinsicProfileJson(text: string): ProfileResult {
  * Stable output means the same profile always produces the same bytes, so a file can be compared or
  * hashed to tell whether two machines really hold the same calibration.
  */
+function orderedCapture(capture: CalibrationCapture): Record<string, number | string> {
+  const members: ReadonlyArray<[string, number | string | undefined]> = [
+    ['frameRate', capture.frameRate],
+    ['facingMode', capture.facingMode],
+    ['resizeMode', capture.resizeMode],
+    ['zoom', capture.zoom],
+    ['focusMode', capture.focusMode],
+    ['focusDistance', capture.focusDistance]
+  ];
+  return Object.fromEntries(
+    members.filter((entry): entry is [string, number | string] => entry[1] !== undefined)
+  );
+}
+
 export function serializeCameraIntrinsicProfile(profile: CameraIntrinsicProfileV1): string {
   const ordered = {
     schema: profile.schema,
@@ -426,6 +486,7 @@ export function serializeCameraIntrinsicProfile(profile: CameraIntrinsicProfileV
       skew: profile.intrinsics.skew
     },
     distortion: {model: profile.distortion.model, coefficients: [...profile.distortion.coefficients]},
+    ...(profile.capture === undefined ? {} : {capture: orderedCapture(profile.capture)}),
     ...(profile.quality === undefined
       ? {}
       : {

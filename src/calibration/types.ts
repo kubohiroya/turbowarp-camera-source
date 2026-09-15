@@ -86,6 +86,28 @@ export interface CalibrationDeviceHint {
   readonly deviceId?: string;
 }
 
+/**
+ * The capture configuration the calibration was solved under.
+ *
+ * Optional as a whole, and optional member by member, but the difference between the two matters.
+ * When the block is absent nothing was recorded and compatibility cannot be decided. When it is
+ * present, a member that is absent means the device reported no such control at calibration time,
+ * which is something a later check can compare against.
+ *
+ * `frameRate` and `facingMode` are recorded for the operator; neither changes how the lens projects,
+ * so neither decides compatibility.
+ */
+export interface CalibrationCapture {
+  readonly frameRate?: number;
+  readonly facingMode?: string;
+  /** `none` or `crop-and-scale`. Cropping changes the effective intrinsics at the same resolution. */
+  readonly resizeMode?: string;
+  readonly zoom?: number;
+  /** `none`, `manual`, `single-shot` or `continuous`. */
+  readonly focusMode?: string;
+  readonly focusDistance?: number;
+}
+
 export interface CameraIntrinsicProfileV1 {
   readonly schema: 'twcs/camera-intrinsics';
   readonly version: 1;
@@ -101,6 +123,7 @@ export interface CameraIntrinsicProfileV1 {
   readonly image: CalibrationImage;
   readonly intrinsics: CameraIntrinsics;
   readonly distortion: CameraDistortion;
+  readonly capture?: CalibrationCapture;
   readonly quality?: CalibrationQuality;
   readonly device?: CalibrationDeviceHint;
 }

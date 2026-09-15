@@ -33,7 +33,9 @@ const expectedRejections: Readonly<Record<string, {code: ProfileErrorCode; path:
   'principal-point-out-of-frame.json': {code: 'out-of-range', path: 'intrinsics.cx'},
   'quality-without-samples.json': {code: 'out-of-range', path: 'quality.sampleCount'},
   'undistorted-with-distortion.json': {code: 'inconsistent-profile', path: 'distortion.model'},
+  'unknown-capture-member.json': {code: 'unexpected-field', path: 'capture.exposureMode'},
   'unknown-distortion-model.json': {code: 'invalid-distortion', path: 'distortion.model'},
+  'unknown-resize-mode.json': {code: 'invalid-value', path: 'capture.resizeMode'},
   'unknown-member.json': {code: 'unexpected-field', path: 'worldFromCameraMatrix'},
   'wrong-schema.json': {code: 'unsupported-schema', path: 'schema'},
   'wrong-version.json': {code: 'unsupported-version', path: 'version'},
@@ -66,6 +68,20 @@ describe('camera intrinsic profiles', () => {
     if (!again.ok) throw new Error(again.error.message);
     expect(again.profile).toEqual(parsed.profile);
     expect(serializeCameraIntrinsicProfile(again.profile)).toBe(text);
+  });
+
+  it('keeps a recorded capture block through a round trip', () => {
+    const parsed = parseCameraIntrinsicProfile(read('valid', 'with-capture.json'));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+    expect(parsed.profile.capture).toEqual({
+      frameRate: 30,
+      facingMode: 'user',
+      resizeMode: 'none',
+      focusMode: 'continuous'
+    });
+    const again = parseCameraIntrinsicProfileJson(serializeCameraIntrinsicProfile(parsed.profile));
+    if (!again.ok) throw new Error(again.error.message);
+    expect(again.profile).toEqual(parsed.profile);
   });
 
   it('leaves unknown quality unknown rather than reporting a measured zero', () => {
