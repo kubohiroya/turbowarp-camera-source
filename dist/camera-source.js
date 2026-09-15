@@ -1027,6 +1027,15 @@
   	return flip === "vertical" || flip === "both";
   }
   //#endregion
+  //#region src/runtime.ts
+  /**
+  * Where the extension instance puts itself on the VM runtime.
+  *
+  * Present as soon as the extension is registered. Absent means Camera Source is not loaded, which a
+  * consumer has to handle whatever else it does.
+  */
+  var cameraSourceRuntimeKey = "ext_kubohiroyacamerasource";
+  //#endregion
   //#region src/video-preview.ts
   var videoLayer = "video";
   var haveCurrentData = 2;
@@ -1272,7 +1281,7 @@
   			this.stopAllCameras();
   			this.profileError = void 0;
   		};
-  		Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
+  		Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
   		this.capability = this.calibrationEnabled ? createRuntimeCapability({
   			registerProfile: (document) => this.profiles.register(document),
   			forgetProfile: (cameraId) => this.profiles.forget(cameraId),

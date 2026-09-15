@@ -1,21 +1,19 @@
 /**
- * Which way an image has been turned over.
+ * Helpers over the published `Flip` vocabulary.
  *
- * `mirrored: boolean` could not say which axis, and a boolean on a frame source
- * could not say whether it described the pixels or the way they were being
- * shown. Those are different facts with different consequences: a consumer that
- * reads a display choice as a pixel state feeds flipped coordinates into a
- * solve, and the pose it gets back is a left-right reflection whose
- * reprojection error stays small.
+ * The type itself lives in the runtime contract, because consumers read it off a frame source and
+ * should not be re-declaring it. What stays here is the reasoning a caller needs and the small
+ * operations the extension performs on it.
  *
- * `horizontal` is the left-right mirror, matching `cv::flip` with a flip code of
- * 1, ffmpeg's `hflip` and CSS `scaleX(-1)`.
- *
- * Rotation is deliberately not folded in here. A portrait capture is a rotation
- * and not a flip, and once both exist their order matters; an enum that mixed
- * them could not express which was applied first.
+ * The vocabulary replaced a `mirrored: boolean`, which could not say which axis, and on a frame
+ * source could not say whether it described the pixels or the way they were being shown. Those are
+ * different facts with different consequences: a consumer that reads a display choice as a pixel
+ * state feeds flipped coordinates into a solve, and the pose it gets back is a left-right
+ * reflection whose reprojection error stays small.
  */
-export type Flip = 'none' | 'horizontal' | 'vertical' | 'both';
+import type {Flip} from './runtime';
+
+export type {Flip};
 
 export const FLIPS: readonly Flip[] = ['none', 'horizontal', 'vertical', 'both'];
 
