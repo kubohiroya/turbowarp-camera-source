@@ -468,7 +468,7 @@
   		} catch (error) {
   			session.leases.delete(token);
   			session.previewLeases.delete(token);
-  			if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+  			this.stopWhenUnused(session);
   			this.cameraFailures.set(cameraId, cameraFailure(error));
   			throw error;
   		}
@@ -484,7 +484,7 @@
   					session.preview?.dispose();
   					session.preview = null;
   				} else session.preview?.setMirrored(this.previewMirrored(session));
-  				if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+  				this.stopWhenUnused(session);
   			}
   		});
   	}
@@ -629,6 +629,10 @@
   			mirrored: session.mirrored,
   			deviceId: session.activeDeviceId
   		});
+  	}
+  	stopWhenUnused(session) {
+  		if (this.sessions.get(session.cameraId) !== session) return;
+  		if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
   	}
   	stopCameraSession(cameraId) {
   		const session = this.sessions.get(cameraId);

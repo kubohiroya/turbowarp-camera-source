@@ -192,7 +192,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     } catch (error) {
       session.leases.delete(token);
       session.previewLeases.delete(token);
-      if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+      this.stopWhenUnused(session);
       this.cameraFailures.set(cameraId, cameraFailure(error));
       throw error;
     }
@@ -210,7 +210,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         } else {
           session.preview?.setMirrored(this.previewMirrored(session));
         }
-        if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
+        this.stopWhenUnused(session);
       }
     });
   }
@@ -404,6 +404,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
       mirrored: session.mirrored,
       deviceId: session.activeDeviceId
     });
+  }
+
+  private stopWhenUnused(session: CameraSession): void {
+    // A lease released after its session was replaced must not stop the
+    // session that now owns the camera id.
+    if (this.sessions.get(session.cameraId) !== session) return;
+    if (session.leases.size === 0) this.stopCameraSession(session.cameraId);
   }
 
   private stopCameraSession(cameraId: string): void {
