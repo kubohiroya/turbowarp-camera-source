@@ -42,7 +42,6 @@ interface BlockDefinition {
   feature?: 'calibrationProfilesV1';
   blockType: BlockTypeName;
   text: string;
-  description: string;
   arguments: Record<string, DefinitionArgument>;
 }
 
