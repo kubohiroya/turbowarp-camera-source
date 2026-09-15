@@ -1,0 +1,12 @@
+{
+  "schema": "twcs/camera-intrinsics",
+  "version": 1,
+  "profileId": "run-fisheye",
+  "cameraId": "ceiling",
+  "calibratedAt": "2026-09-15T04:05:06Z",
+  "producer": "chessboard calibration",
+  "cameraModel": "pinhole",
+  "image": {"width": 1280, "height": 1280, "undistorted": false},
+  "intrinsics": {"fx": 420.5, "fy": 420.1, "cx": 639.5, "cy": 639.5, "skew": 0},
+  "distortion": {"model": "kannala-brandt", "coefficients": [0.021, -0.004, 0.0009, -0.0001]}
+}

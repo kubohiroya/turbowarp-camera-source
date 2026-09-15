@@ -1,0 +1,13 @@
+{
+  "schema": "twrmc/camera-calibration",
+  "version": 1,
+  "calibrationId": "venue-a-run-4",
+  "cameraId": "stage-right",
+  "imageWidth": 1280,
+  "imageHeight": 720,
+  "intrinsicMatrix": [940.25, 0, 639.5, 0, 939.5, 359.5, 0, 0, 1],
+  "distortionCoefficients": [],
+  "worldFromCameraMatrix": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  "worldUnit": "meter",
+  "calibratedAt": "2026-09-14T11:22:33Z"
+}
