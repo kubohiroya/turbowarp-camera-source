@@ -499,6 +499,29 @@
   		skew: intrinsics.skew
   	};
   }
+  /**
+  * The intrinsics to use, if there are any.
+  *
+  * Both conditions have to hold, and they are different questions. Compatibility asks whether this
+  * profile describes this camera as it is configured now; adaptation asks whether the numbers can be
+  * expressed for the frame size in front of us. A profile can fit the camera and still have no usable
+  * form — a crop, say — and it can adapt cleanly while belonging to a different camera entirely.
+  *
+  * Returning undefined rather than the stored numbers is the whole point. Intrinsics from another
+  * configuration do not fail visibly: they project, and the geometry that comes back looks like a
+  * slightly different camera pose rather than like a mistake.
+  */
+  function usableIntrinsics(compatibility, adaptation) {
+  	if (compatibility.state !== "compatible") return void 0;
+  	if (adaptation.intrinsics === void 0) return void 0;
+  	return {
+  		...adaptation.intrinsics,
+  		width: adaptation.width,
+  		height: adaptation.height,
+  		scale: adaptation.scale,
+  		adaptation: adaptation.state
+  	};
+  }
   //#endregion
   //#region src/calibration/profile.ts
   var CAMERA_INTRINSIC_PROFILE_SCHEMA = "twcs/camera-intrinsics";
@@ -934,12 +957,16 @@
   				message: `No calibration profile is registered for camera ${cameraId}.`
   			}
   		};
+  		const compatibility = evaluateProfileCompatibility(profile, conditions);
+  		const adaptation = adaptProfileToConditions(profile, conditions);
+  		const usable = usableIntrinsics(compatibility, adaptation);
   		return {
   			ok: true,
   			assessment: {
   				profile,
-  				compatibility: evaluateProfileCompatibility(profile, conditions),
-  				adaptation: adaptProfileToConditions(profile, conditions)
+  				compatibility,
+  				adaptation,
+  				...usable === void 0 ? {} : { usable }
   			}
   		};
   	}
@@ -959,6 +986,7 @@
   		profileFor: (cameraId) => host.profileFor(cameraId),
   		calibratedCameras: () => host.calibratedCameras(),
   		assessProfile: (cameraId) => host.assessProfile(cameraId),
+  		intrinsicsFor: (cameraId) => host.intrinsicsFor(cameraId),
   		conditionsFor: (cameraId) => host.conditionsFor(cameraId),
   		conditionsGeneration: (cameraId) => host.conditionsGeneration(cameraId)
   	};
@@ -1239,6 +1267,7 @@
   					error: result.error
   				};
   			},
+  			intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
   			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
   		}) : void 0;
@@ -1433,17 +1462,8 @@
   	}
   	cameraProfileIntrinsicsJson(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
-  		if (!result.ok) return "";
-  		const { adaptation, compatibility } = result.assessment;
-  		if (compatibility.state !== "compatible" || adaptation.intrinsics === void 0) return "";
-  		return JSON.stringify({
-  			...adaptation.intrinsics,
-  			width: adaptation.width,
-  			height: adaptation.height,
-  			scale: adaptation.scale,
-  			adaptation: adaptation.state
-  		});
+  		const usable = this.intrinsicsOf(cameraId);
+  		return usable === void 0 ? "" : JSON.stringify(usable);
   	}
   	cameraConditionsJson(args = {}) {
   		return JSON.stringify(this.conditionsOf(normalizeId(args.CAMERA_ID)));
@@ -1452,6 +1472,11 @@
   		return this.generationOf(normalizeId(args.CAMERA_ID));
   	}
   	/** What the track reports about itself right now. Read only. */
+  	intrinsicsOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const result = this.profiles.assess(id, this.conditionsOf(id));
+  		return result.ok ? result.assessment.usable : void 0;
+  	}
   	conditionsOf(cameraId) {
   		const id = normalizeId(cameraId);
   		const session = this.sessions.get(id);
