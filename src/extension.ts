@@ -6,7 +6,11 @@ import {decisiveFindings} from './calibration/compatibility';
 import {CameraProfileRegistry} from './calibration/registry';
 import {serializeCameraIntrinsicProfile} from './calibration/profile';
 import type {ProfileError} from './calibration/types';
-import {createRuntimeCapability, runtimeCapabilityKey} from './runtime-capability';
+import {
+  createRuntimeCapability,
+  runtimeCapabilityKey,
+  type CameraSourceCapabilityV1
+} from './runtime-capability';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
@@ -124,23 +128,32 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly generations = new Map<string, number>();
   private readonly lastConditions = new Map<string, string>();
   private readonly calibrationEnabled = featureFlags.calibrationProfilesV1;
+  /** The object published on the runtime, kept so disposal can withdraw exactly what it published. */
+  private readonly capability: CameraSourceCapabilityV1 | undefined;
   private profileError: ProfileError | undefined;
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
     Scratch.vm.runtime.ext_kubohiroyacamerasource = this;
-    Scratch.vm.runtime[runtimeCapabilityKey] = createRuntimeCapability({
-      registerProfile: (document) => this.profiles.register(document),
-      forgetProfile: (cameraId) => this.profiles.forget(cameraId),
-      profileFor: (cameraId) => this.profiles.get(cameraId),
-      calibratedCameras: () => this.profiles.cameraIds(),
-      assessProfile: (cameraId) => {
-        const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
-        return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
-      },
-      conditionsFor: (cameraId) => this.conditionsOf(cameraId),
-      conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-    });
+    // The flag closes the whole new path, not just the palette. Consumer extensions are the main
+    // audience for the capability, so publishing it regardless would leave the path on by default
+    // for exactly the callers it is meant to be off for. An absent key is a case every consumer
+    // already handles: it is what they see when Camera Source is not loaded at all.
+    this.capability = this.calibrationEnabled
+      ? createRuntimeCapability({
+          registerProfile: (document) => this.profiles.register(document),
+          forgetProfile: (cameraId) => this.profiles.forget(cameraId),
+          profileFor: (cameraId) => this.profiles.get(cameraId),
+          calibratedCameras: () => this.profiles.cameraIds(),
+          assessProfile: (cameraId) => {
+            const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+            return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
+          },
+          conditionsFor: (cameraId) => this.conditionsOf(cameraId),
+          conditionsGeneration: (cameraId) => this.generationOf(cameraId)
+        })
+      : undefined;
+    if (this.capability) Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
     Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
@@ -307,6 +320,11 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public readonly dispose = (): void => {
     this.stopAllCameras();
+    // Only withdraw the capability if it is still the one this instance published. A reloaded
+    // project builds a new extension before the old one is disposed, and deleting the key blindly
+    // would take the new instance's capability away from every consumer.
+    const runtime = Scratch.vm.runtime;
+    if (runtime[runtimeCapabilityKey] === this.capability) delete runtime[runtimeCapabilityKey];
     Scratch.vm.runtime.off?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.off?.('PROJECT_LOADED', this.handleProjectBoundary);
     Scratch.vm.runtime.off?.('RUNTIME_DISPOSED', this.dispose);
@@ -314,6 +332,18 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   private readonly handleProjectBoundary = (): void => {
     this.stopAllCameras();
+    // Profiles survive: one describes a camera and a lens, neither of which belongs to the project
+    // that happened to register it, and making an operator import the file again on every load
+    // would be the kind of friction that gets worked around rather than followed.
+    //
+    // The error does not survive. It names what the last register call did, and once the project
+    // that made that call is gone there is nothing left for it to be about; a stale message under
+    // `camera profile error` reads as a fresh failure of whatever loaded next.
+    //
+    // The condition generations stay as they are. A consumer compares the integer to decide whether
+    // what it derived from a profile is still good, and that question does not change because a
+    // project boundary went past.
+    this.profileError = undefined;
   };
 
   public registerCameraProfile(args: {PROFILE_JSON?: unknown} = {}): void {
