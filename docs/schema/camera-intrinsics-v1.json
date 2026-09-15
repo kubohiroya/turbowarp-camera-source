@@ -18,8 +18,12 @@
     "distortion"
   ],
   "properties": {
-    "schema": {"const": "twcs/camera-intrinsics"},
-    "version": {"const": 1},
+    "schema": {
+      "const": "twcs/camera-intrinsics"
+    },
+    "version": {
+      "const": 1
+    },
     "profileId": {
       "$ref": "#/$defs/identifier",
       "description": "Identifies this calibration run. A new solve produces a new id."
@@ -39,15 +43,29 @@
       "maxLength": 256,
       "description": "Free text naming whatever produced the profile. Diagnostics only; the contract does not care which extension, tool or person it was."
     },
-    "cameraModel": {"const": "pinhole"},
+    "cameraModel": {
+      "const": "pinhole"
+    },
     "image": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["width", "height", "undistorted"],
+      "required": [
+        "width",
+        "height",
+        "undistorted"
+      ],
       "description": "The image the calibration was solved against. Always the camera's own capture; preview mirroring is a display choice and never changes the calibration.",
       "properties": {
-        "width": {"type": "integer", "minimum": 1, "maximum": 16384},
-        "height": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
         "undistorted": {
           "type": "boolean",
           "description": "False for the base contract: the profile describes the raw frame and the consumer applies the distortion model. True states that the images are already corrected, which then forbids leftover coefficients."
@@ -57,13 +75,35 @@
     "intrinsics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fx", "fy", "cx", "cy", "skew"],
+      "required": [
+        "fx",
+        "fy",
+        "cx",
+        "cy",
+        "skew"
+      ],
       "description": "Pinhole parameters in pixels of the calibration image, with x to the right and y downward from the top-left corner. Named rather than packed into an array because nine numbers cannot say whether they are row-major or column-major. The equivalent row-major 3x3 matrix is [fx, skew, cx, 0, fy, cy, 0, 0, 1].",
       "properties": {
-        "fx": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000000},
-        "fy": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000000},
-        "cx": {"type": "number", "minimum": -10000000, "maximum": 10000000},
-        "cy": {"type": "number", "minimum": -10000000, "maximum": 10000000},
+        "fx": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "fy": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
+        },
+        "cx": {
+          "type": "number",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
+        "cy": {
+          "type": "number",
+          "minimum": -10000000,
+          "maximum": 10000000
+        },
         "skew": {
           "type": "number",
           "minimum": -10000000,
@@ -75,28 +115,62 @@
     "distortion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "coefficients"],
+      "required": [
+        "model",
+        "coefficients"
+      ],
       "properties": {
-        "model": {"enum": ["none", "brown-conrady", "kannala-brandt"]},
+        "model": {
+          "enum": [
+            "none",
+            "brown-conrady",
+            "kannala-brandt"
+          ]
+        },
         "coefficients": {
           "type": "array",
-          "items": {"type": "number", "minimum": -10000, "maximum": 10000},
+          "items": {
+            "type": "number",
+            "minimum": -10000,
+            "maximum": 10000
+          },
           "description": "Brown-Conrady carries the OpenCV coefficients in their usual order: k1, k2, p1, p2, optionally k3, and k4 to k6 for the rational model. Kannala-Brandt carries the four fisheye coefficients."
         }
       },
       "allOf": [
         {
-          "if": {"type": "object", "required": ["model"], "properties": {"model": {"const": "none"}}},
+          "if": {
+            "type": "object",
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "const": "none"
+              }
+            }
+          },
           "then": {
             "type": "object",
-            "properties": {"coefficients": {"type": "array", "maxItems": 0}}
+            "properties": {
+              "coefficients": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
           }
         },
         {
           "if": {
             "type": "object",
-            "required": ["model"],
-            "properties": {"model": {"const": "brown-conrady"}}
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "const": "brown-conrady"
+              }
+            }
           },
           "then": {
             "type": "object",
@@ -104,9 +178,18 @@
               "coefficients": {
                 "type": "array",
                 "anyOf": [
-                  {"minItems": 4, "maxItems": 4},
-                  {"minItems": 5, "maxItems": 5},
-                  {"minItems": 8, "maxItems": 8}
+                  {
+                    "minItems": 4,
+                    "maxItems": 4
+                  },
+                  {
+                    "minItems": 5,
+                    "maxItems": 5
+                  },
+                  {
+                    "minItems": 8,
+                    "maxItems": 8
+                  }
                 ]
               }
             }
@@ -115,24 +198,89 @@
         {
           "if": {
             "type": "object",
-            "required": ["model"],
-            "properties": {"model": {"const": "kannala-brandt"}}
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "const": "kannala-brandt"
+              }
+            }
           },
           "then": {
             "type": "object",
-            "properties": {"coefficients": {"type": "array", "minItems": 4, "maxItems": 4}}
+            "properties": {
+              "coefficients": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4
+              }
+            }
           }
         }
       ]
     },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The capture configuration the calibration was solved under. Optional as a whole, and optional member by member, but the difference matters: an absent block means nothing was recorded and compatibility cannot be decided, while an absent member inside a present block means the device reported no such control at calibration time. frameRate and facingMode are recorded for the operator and do not decide compatibility, because neither changes how the lens projects.",
+      "properties": {
+        "frameRate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        },
+        "facingMode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resizeMode": {
+          "enum": [
+            "none",
+            "crop-and-scale"
+          ],
+          "description": "Cropping changes the effective intrinsics at the same resolution."
+        },
+        "zoom": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        },
+        "focusMode": {
+          "enum": [
+            "none",
+            "manual",
+            "single-shot",
+            "continuous"
+          ]
+        },
+        "focusDistance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      }
+    },
     "quality": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sampleCount", "reprojectionErrorPx"],
+      "required": [
+        "sampleCount",
+        "reprojectionErrorPx"
+      ],
       "description": "Optional. Absent means the producer did not report quality, which is not the same as a measured zero.",
       "properties": {
-        "sampleCount": {"type": "integer", "minimum": 1, "maximum": 10000},
-        "reprojectionErrorPx": {"type": "number", "minimum": 0, "maximum": 10000}
+        "sampleCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "reprojectionErrorPx": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        }
       }
     },
     "device": {
@@ -140,8 +288,16 @@
       "additionalProperties": false,
       "description": "Hints for recognizing the physical camera again. deviceId is a hint and not an identity: browsers scope it per origin and per profile, so it changes without the camera changing.",
       "properties": {
-        "label": {"type": "string", "minLength": 1, "maxLength": 256},
-        "deviceId": {"type": "string", "minLength": 1, "maxLength": 256}
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "deviceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
       }
     }
   },
@@ -149,19 +305,34 @@
     {
       "if": {
         "type": "object",
-        "required": ["image"],
+        "required": [
+          "image"
+        ],
         "properties": {
           "image": {
             "type": "object",
-            "required": ["undistorted"],
-            "properties": {"undistorted": {"const": true}}
+            "required": [
+              "undistorted"
+            ],
+            "properties": {
+              "undistorted": {
+                "const": true
+              }
+            }
           }
         }
       },
       "then": {
         "type": "object",
         "properties": {
-          "distortion": {"type": "object", "properties": {"model": {"const": "none"}}}
+          "distortion": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "const": "none"
+              }
+            }
+          }
         }
       }
     }
