@@ -21,6 +21,12 @@ type ArgumentTypeName = 'STRING';
 interface DefinitionArgument {
   type: ArgumentTypeName;
   defaultValue: string;
+  menu?: string;
+}
+
+interface MenuDefinition {
+  acceptReporters: boolean;
+  items: readonly string[];
 }
 
 interface BlockDefinition {
@@ -39,8 +45,6 @@ export interface CameraAcquireOptions {
   video?: MediaTrackConstraints | boolean;
   /** How this consumer wants its preview shown. Only meaningful with `preview`. */
   previewFlip?: Flip;
-  /** @deprecated Pass `previewFlip: 'horizontal'` instead. */
-  mirrored?: boolean;
   preview?: boolean;
 }
 
@@ -50,16 +54,10 @@ export interface CameraFrameSource {
   readonly width: number;
   readonly height: number;
   /**
-   * How the pixels of `element` are turned over.
-   *
-   * Always `none`: mirroring a preview is a rendering transform and never
-   * reaches the frames. Recorded explicitly so a consumer reads the fact rather
-   * than inferring it, and so the day something does deliver flipped pixels
-   * there is somewhere to say so.
-   */
-  readonly pixelFlip: Flip;
-  /**
    * How the preview is being shown, which says nothing about the pixels.
+   *
+   * The frames behind it are always the ones the camera captured: showing a preview turned over is
+   * a rendering transform and never reaches them.
    *
    * Coordinates taken from a mirrored preview must be turned back before they
    * are used with these frames. A solve fed the preview's coordinates converges
@@ -76,15 +74,8 @@ export interface CameraLease {
 }
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
+const menuDefinitions = definitions.menus as Readonly<Record<string, MenuDefinition>>;
 
-/**
- * Camera Source hands over the frames the camera produced.
- *
- * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
- * touched. Stated once so the frame source and the calibration conditions cannot come to describe
- * the delivered image differently.
- */
-const deliveredPixelFlip: Flip = 'none';
 const defaultCameraId = 'default';
 
 interface CameraSession {
@@ -141,10 +132,20 @@ function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints
   return {audio: false, video: options.video ?? true};
 }
 
-/** The preview flip a consumer asked for, accepting the older boolean. */
+/**
+ * The flip a `show preview` block asked for.
+ *
+ * The menu accepts reporters, so the value can arrive as any string a project computed. Anything
+ * outside the vocabulary falls back to horizontal rather than silently drawing the preview
+ * unflipped: a project that asked for a flip and got none would look like the camera was wrong.
+ */
+function requestedPreviewFlip(args: {PREVIEW_FLIP?: unknown}): Flip {
+  return toFlip(args.PREVIEW_FLIP, 'horizontal');
+}
+
+/** The preview flip a consumer asked for through the runtime API. */
 function previewFlipOf(options: CameraAcquireOptions): Flip {
-  if (options.previewFlip !== undefined) return toFlip(options.previewFlip);
-  return options.mirrored === true ? 'horizontal' : 'none';
+  return toFlip(options.previewFlip);
 }
 
 function cameraFailure(error: unknown): CameraFailure {
@@ -210,7 +211,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
       name: Scratch.translate(definitions.extensionName),
       blocks: blockDefinitions
         .filter((block) => block.feature === undefined || this.calibrationEnabled)
-        .map((block) => this.toScratchBlock(block))
+        .map((block) => this.toScratchBlock(block)),
+      menus: Object.fromEntries(
+        Object.entries(menuDefinitions).map(([id, menu]) => [
+          id,
+          {acceptReporters: menu.acceptReporters, items: [...menu.items]}
+        ])
+      )
     };
   }
 
@@ -301,12 +308,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public async showCameraPreview(
-    args: {CAMERA_ID?: unknown; MIRRORED?: unknown} = {}
+    args: {CAMERA_ID?: unknown; PREVIEW_FLIP?: unknown} = {}
   ): Promise<void> {
     const cameraId = normalizeId(args.CAMERA_ID);
-    // The block keeps its opcode and MIRRORED argument so existing projects
-    // keep working; the boolean is mapped onto the flip vocabulary here.
-    const flip: Flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? 'horizontal' : 'none';
+    const flip = requestedPreviewFlip(args);
     const existing = this.blockPreviewLeases.get(cameraId);
     if (existing?.flip === flip) return;
     const revision = this.nextPreviewBlockRevision(cameraId);
@@ -481,7 +486,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);
     if (!session?.stream) {
-      return {width: 0, height: 0, deviceId: '', previewFlip: 'none', pixelFlip: deliveredPixelFlip};
+      return {width: 0, height: 0, deviceId: '', previewFlip: 'none'};
     }
     const track = session.stream.getVideoTracks()[0];
     let settings: Record<string, unknown> = {};
@@ -497,7 +502,6 @@ export class CameraSourceExtension implements TurboWarpExtension {
         height: session.video?.videoHeight ?? 0,
         deviceId: session.activeDeviceId,
         previewFlip: this.previewFlip(session),
-        pixelFlip: deliveredPixelFlip,
         ...(device?.label ? {label: device.label} : {})
       },
       settings
@@ -517,14 +521,12 @@ export class CameraSourceExtension implements TurboWarpExtension {
    *
    * The preview flip is not among them. It changes how the stage draws the frame and nothing about
    * how the lens projects, so folding it in would advance the generation and invalidate consumers'
-   * work every time an operator toggled a mirror. The pixel flip is among them for the opposite
-   * reason: it describes the image itself.
+   * work every time an operator turned the preview over.
    */
   private conditionsSignature(conditions: CameraConditions): string {
     return JSON.stringify([
       conditions.width,
       conditions.height,
-      conditions.pixelFlip,
       conditions.resizeMode ?? null,
       conditions.zoom ?? null,
       conditions.focusMode ?? null,
@@ -694,7 +696,6 @@ export class CameraSourceExtension implements TurboWarpExtension {
       element: session.video,
       width: session.video.videoWidth,
       height: session.video.videoHeight,
-      pixelFlip: deliveredPixelFlip,
       previewFlip: this.previewFlip(session),
       deviceId: session.activeDeviceId
     });
@@ -738,7 +739,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
           name,
           {
             type: Scratch.ArgumentType[argument.type],
-            defaultValue: argument.defaultValue
+            defaultValue: argument.defaultValue,
+            ...(argument.menu === undefined ? {} : {menu: argument.menu})
           }
         ])
       )

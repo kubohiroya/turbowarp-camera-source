@@ -119,16 +119,16 @@ Returns the active device ID for a named shared camera when available.
 | Opcode | `cameraDeviceIdReporter` |
 | `CAMERA_ID` | String, default: `default` |
 
-### `show shared camera [CAMERA_ID] preview mirrored [MIRRORED]`
+### `show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]`
 
-Shows the named shared camera with the GPU-backed stage preview.
+Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.
 
 | Property | Value |
 |---|---|
 | Type | Command |
 | Opcode | `showCameraPreview` |
 | `CAMERA_ID` | String, default: `default` |
-| `MIRRORED` | String, default: `true` |
+| `PREVIEW_FLIP` | String, default: `horizontal` |
 
 ### `hide shared camera [CAMERA_ID] preview`
 

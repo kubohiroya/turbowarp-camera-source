@@ -93,16 +93,17 @@
   		{
   			"opcode": "showCameraPreview",
   			"blockType": "COMMAND",
-  			"text": "show shared camera [CAMERA_ID] preview mirrored [MIRRORED]",
-  			"description": "Shows the named shared camera with the GPU-backed stage preview.",
+  			"text": "show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]",
+  			"description": "Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.",
   			"arguments": {
   				"CAMERA_ID": {
   					"type": "STRING",
   					"defaultValue": "default"
   				},
-  				"MIRRORED": {
+  				"PREVIEW_FLIP": {
   					"type": "STRING",
-  					"defaultValue": "true"
+  					"defaultValue": "horizontal",
+  					"menu": "flips"
   				}
   			}
   		},
@@ -306,7 +307,16 @@
   				"defaultValue": "default"
   			} }
   		}
-  	]
+  	],
+  	menus: { "flips": {
+  		"acceptReporters": true,
+  		"items": [
+  			"none",
+  			"horizontal",
+  			"vertical",
+  			"both"
+  		]
+  	} }
   };
   //#endregion
   //#region src/calibration/conditions.ts
@@ -344,7 +354,6 @@
   		height: pixelCount(frame.height),
   		deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? "",
   		previewFlip: frame.previewFlip,
-  		pixelFlip: frame.pixelFlip,
   		...label === void 0 ? {} : { label },
   		...frameRate === void 0 ? {} : { frameRate },
   		...facingMode === void 0 ? {} : { facingMode },
@@ -416,8 +425,6 @@
   */
   function evaluateProfileCompatibility(profile, conditions) {
   	const findings = [imageSizeFinding(profile, conditions)];
-  	if (conditions.pixelFlip !== "none") findings.push(finding("pixel-flip", "mismatched", true, `The delivered frames are flipped (${conditions.pixelFlip}), and a profile describes the camera's own capture.`));
-  	else findings.push(finding("pixel-flip", "matched", true, "The frames are delivered as the camera captured them."));
   	if (profile.image.undistorted) findings.push(finding("undistorted-frames", "unknown", true, "The profile describes already undistorted images. This extension hands over the camera frames as captured and cannot confirm that something upstream corrects them."));
   	if (profile.capture === void 0) findings.push(finding("capture-conditions", "unknown", true, "The profile records no capture conditions, so whether the optics are configured as they were at calibration cannot be decided."));
   	else findings.push(...captureFindings(profile.capture, conditions));
@@ -1185,14 +1192,7 @@
   //#endregion
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
-  /**
-  * Camera Source hands over the frames the camera produced.
-  *
-  * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
-  * touched. Stated once so the frame source and the calibration conditions cannot come to describe
-  * the delivered image differently.
-  */
-  var deliveredPixelFlip = "none";
+  var menuDefinitions = block_definitions_default.menus;
   var defaultCameraId = "default";
   function mediaDevices() {
   	const devices = globalThis.navigator?.mediaDevices;
@@ -1223,10 +1223,19 @@
   		video: options.video ?? true
   	};
   }
-  /** The preview flip a consumer asked for, accepting the older boolean. */
+  /**
+  * The flip a `show preview` block asked for.
+  *
+  * The menu accepts reporters, so the value can arrive as any string a project computed. Anything
+  * outside the vocabulary falls back to horizontal rather than silently drawing the preview
+  * unflipped: a project that asked for a flip and got none would look like the camera was wrong.
+  */
+  function requestedPreviewFlip(args) {
+  	return toFlip(args.PREVIEW_FLIP, "horizontal");
+  }
+  /** The preview flip a consumer asked for through the runtime API. */
   function previewFlipOf(options) {
-  	if (options.previewFlip !== void 0) return toFlip(options.previewFlip);
-  	return options.mirrored === true ? "horizontal" : "none";
+  	return toFlip(options.previewFlip);
   }
   function cameraFailure(error) {
   	if (error instanceof Error) return {
@@ -1292,7 +1301,11 @@
   		return {
   			id: extensionConfig.id,
   			name: Scratch.translate(block_definitions_default.extensionName),
-  			blocks: blockDefinitions.filter((block) => block.feature === void 0 || this.calibrationEnabled).map((block) => this.toScratchBlock(block))
+  			blocks: blockDefinitions.filter((block) => block.feature === void 0 || this.calibrationEnabled).map((block) => this.toScratchBlock(block)),
+  			menus: Object.fromEntries(Object.entries(menuDefinitions).map(([id, menu]) => [id, {
+  				acceptReporters: menu.acceptReporters,
+  				items: [...menu.items]
+  			}]))
   		};
   	}
   	isCameraRunning(args = {}) {
@@ -1372,7 +1385,7 @@
   	}
   	async showCameraPreview(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? "horizontal" : "none";
+  		const flip = requestedPreviewFlip(args);
   		if (this.blockPreviewLeases.get(cameraId)?.flip === flip) return;
   		const revision = this.nextPreviewBlockRevision(cameraId);
   		const lease = await this.acquireCamera({
@@ -1496,8 +1509,7 @@
   			width: 0,
   			height: 0,
   			deviceId: "",
-  			previewFlip: "none",
-  			pixelFlip: deliveredPixelFlip
+  			previewFlip: "none"
   		};
   		const track = session.stream.getVideoTracks()[0];
   		let settings = {};
@@ -1512,7 +1524,6 @@
   			height: session.video?.videoHeight ?? 0,
   			deviceId: session.activeDeviceId,
   			previewFlip: this.previewFlip(session),
-  			pixelFlip: deliveredPixelFlip,
   			...device?.label ? { label: device.label } : {}
   		}, settings);
   	}
@@ -1529,14 +1540,12 @@
   	*
   	* The preview flip is not among them. It changes how the stage draws the frame and nothing about
   	* how the lens projects, so folding it in would advance the generation and invalidate consumers'
-  	* work every time an operator toggled a mirror. The pixel flip is among them for the opposite
-  	* reason: it describes the image itself.
+  	* work every time an operator turned the preview over.
   	*/
   	conditionsSignature(conditions) {
   		return JSON.stringify([
   			conditions.width,
   			conditions.height,
-  			conditions.pixelFlip,
   			conditions.resizeMode ?? null,
   			conditions.zoom ?? null,
   			conditions.focusMode ?? null,
@@ -1677,7 +1686,6 @@
   			element: session.video,
   			width: session.video.videoWidth,
   			height: session.video.videoHeight,
-  			pixelFlip: deliveredPixelFlip,
   			previewFlip: this.previewFlip(session),
   			deviceId: session.activeDeviceId
   		});
@@ -1713,7 +1721,8 @@
   			text: Scratch.translate(block.text),
   			arguments: Object.fromEntries(Object.entries(block.arguments).map(([name, argument]) => [name, {
   				type: Scratch.ArgumentType[argument.type],
-  				defaultValue: argument.defaultValue
+  				defaultValue: argument.defaultValue,
+  				...argument.menu === void 0 ? {} : { menu: argument.menu }
   			}]))
   		};
   	}

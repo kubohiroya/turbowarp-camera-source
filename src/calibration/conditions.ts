@@ -25,14 +25,6 @@ export interface CameraConditions {
    * frame knows what the operator is looking at.
    */
   readonly previewFlip: Flip;
-  /**
-   * How the delivered pixels are turned over.
-   *
-   * Unlike the preview flip this is a fact about the image a consumer is handed, so it does take
-   * part in a compatibility decision: a profile is solved in the camera's own capture coordinates,
-   * and a frame that has been turned over is not that image.
-   */
-  readonly pixelFlip: Flip;
   readonly label?: string;
   readonly frameRate?: number;
   readonly facingMode?: string;
@@ -57,8 +49,6 @@ export interface FrameGeometry {
   readonly width: number;
   readonly height: number;
   readonly previewFlip: Flip;
-  /** How the delivered pixels are turned over, if at all. */
-  readonly pixelFlip: Flip;
   readonly deviceId: string;
   readonly label?: string;
 }
@@ -104,7 +94,6 @@ export function readCameraConditions(
     height: pixelCount(frame.height),
     deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? '',
     previewFlip: frame.previewFlip,
-    pixelFlip: frame.pixelFlip,
     ...(label === undefined ? {} : {label}),
     ...(frameRate === undefined ? {} : {frameRate}),
     ...(facingMode === undefined ? {} : {facingMode}),

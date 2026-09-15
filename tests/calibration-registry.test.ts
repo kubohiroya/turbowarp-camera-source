@@ -11,7 +11,7 @@ function document(name: string): Record<string, unknown> {
 }
 
 function conditions(width: number, height: number): CameraConditions {
-  return {width, height, deviceId: 'device-1', previewFlip: 'none', pixelFlip: 'none'};
+  return {width, height, deviceId: 'device-1', previewFlip: 'none'};
 }
 
 describe('the profile registry', () => {

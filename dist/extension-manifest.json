@@ -231,8 +231,9 @@
           "type": "STRING"
         },
         {
-          "id": "MIRRORED",
-          "type": "STRING"
+          "id": "PREVIEW_FLIP",
+          "type": "STRING",
+          "menu": "flips"
         }
       ]
     },
@@ -261,5 +262,10 @@
       ]
     }
   ],
-  "menus": []
+  "menus": [
+    {
+      "id": "flips",
+      "acceptReporters": true
+    }
+  ]
 }
