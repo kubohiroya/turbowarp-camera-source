@@ -171,13 +171,17 @@ describe('the runtime capability', () => {
     expect(capability.calibratedCameras()).toEqual([source.cameraId]);
   });
 
-  it('reports a missing profile as a refusal rather than an empty one', async () => {
+  it('reports an uncalibrated camera as absent rather than as a failure', async () => {
+    // The safe reading of a failure is to stop, which is the wrong response to nobody having
+    // calibrated this camera yet. Absence is reported the way `profileFor` reports it.
     const Extension = await enabledExtension();
     new Extension();
     const capability = runtime[runtimeCapabilityKey] as {
-      assessProfile(cameraId: string): {ok: boolean};
+      assessProfile(cameraId: string): unknown;
+      profileFor(cameraId: string): unknown;
     };
-    expect(capability.assessProfile('ghost').ok).toBe(false);
+    expect(capability.assessProfile('ghost')).toBeUndefined();
+    expect(capability.profileFor('ghost')).toBeUndefined();
   });
 
   it('withdraws only the capability it published', async () => {
@@ -234,14 +238,14 @@ describe('withholding intrinsics that do not fit', () => {
 
     const capability = runtime[runtimeCapabilityKey] as {
       intrinsicsFor(cameraId: string): unknown;
-      assessProfile(cameraId: string): {ok: boolean; view?: {usable?: unknown; profile: unknown}};
+      assessProfile(cameraId: string): {usable?: unknown; profile: unknown} | undefined;
     };
     const assessed = capability.assessProfile(cameraId);
 
     // No frame has arrived, so compatibility cannot be settled and nothing may be used.
     expect(extension.cameraProfileIntrinsicsJson({CAMERA_ID: cameraId})).toBe('');
     expect(capability.intrinsicsFor(cameraId)).toBeUndefined();
-    expect(assessed.view?.usable).toBeUndefined();
+    expect(assessed?.usable).toBeUndefined();
   });
 
   it('still shows the stored profile so an operator can see why', async () => {
@@ -255,15 +259,13 @@ describe('withholding intrinsics that do not fit', () => {
     // Refusing to hand over usable numbers must not also hide what is held: the document and the
     // reasons are what an operator needs to act on.
     const capability = runtime[runtimeCapabilityKey] as {
-      assessProfile(cameraId: string): {
-        ok: boolean;
-        view?: {profile: {profileId: string}; compatibility: {state: string}};
-      };
+      assessProfile(
+        cameraId: string
+      ): {profile: {profileId: string}; compatibility: {state: string}} | undefined;
     };
     const assessed = capability.assessProfile(source.cameraId as string);
-    expect(assessed.ok).toBe(true);
-    expect(assessed.view?.profile.profileId).toBe(source.profileId);
-    expect(assessed.view?.compatibility.state).toBe('undetermined');
+    expect(assessed?.profile.profileId).toBe(source.profileId);
+    expect(assessed?.compatibility.state).toBe('undetermined');
   });
 });
 
@@ -293,10 +295,11 @@ describe('reusing an assessment', () => {
     // compatibility builds a finding per compared member. The conditions are still read each time;
     // it is the derivation that is reused.
     const capability = runtime[runtimeCapabilityKey] as {
-      assessProfile(cameraId: string): {view?: unknown};
+      assessProfile(cameraId: string): unknown;
     };
-    const first = capability.assessProfile(cameraId).view;
-    expect(capability.assessProfile(cameraId).view).toBe(first);
+    const first = capability.assessProfile(cameraId);
+    expect(first).toBeDefined();
+    expect(capability.assessProfile(cameraId)).toBe(first);
   });
 
   it('derives again once the profile is replaced', async () => {
@@ -306,14 +309,15 @@ describe('reusing an assessment', () => {
     extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
     const cameraId = source.cameraId as string;
     const capability = runtime[runtimeCapabilityKey] as {
-      assessProfile(cameraId: string): {view?: unknown};
+      assessProfile(cameraId: string): unknown;
     };
-    const first = capability.assessProfile(cameraId).view;
+    const first = capability.assessProfile(cameraId);
+    expect(first).toBeDefined();
 
     // Registered again under the same id: a document may differ in every member but the name, so
     // the reuse is keyed on the stored object rather than on its id.
     extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
-    expect(capability.assessProfile(cameraId).view).not.toBe(first);
+    expect(capability.assessProfile(cameraId)).not.toBe(first);
   });
 });
 

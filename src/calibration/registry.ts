@@ -19,7 +19,7 @@ import {
 import {evaluateProfileCompatibility, type CompatibilityReport} from './compatibility.js';
 import type {CameraConditions} from './conditions.js';
 import {parseCameraIntrinsicProfile} from './profile.js';
-import type {CameraIntrinsicProfileV1, ProfileError, ProfileResult} from './types.js';
+import type {CameraIntrinsicProfileV1, ProfileResult} from './types.js';
 
 export interface ProfileAssessment {
   /** The document as stored, for showing and re-exporting. Not a licence to project with it. */
@@ -35,9 +35,6 @@ export interface ProfileAssessment {
   readonly usable?: UsableIntrinsics;
 }
 
-export type AssessmentResult =
-  | {readonly ok: true; readonly assessment: ProfileAssessment}
-  | {readonly ok: false; readonly error: ProfileError};
 
 export class CameraProfileRegistry {
   private readonly profiles = new Map<string, CameraIntrinsicProfileV1>();
@@ -78,32 +75,22 @@ export class CameraProfileRegistry {
   /**
    * The profile for a camera, judged against how that camera is configured now.
    *
-   * A missing profile is not an error: a camera that has never been calibrated
-   * is an ordinary state, and callers that need one say so themselves.
+   * Absent when the camera has never been calibrated. Callers that need one say so themselves.
    */
-  public assess(cameraId: string, conditions: CameraConditions): AssessmentResult {
+  public assess(cameraId: string, conditions: CameraConditions): ProfileAssessment | undefined {
     const profile = this.get(cameraId);
-    if (!profile) {
-      return {
-        ok: false,
-        error: {
-          code: 'missing-field',
-          path: 'cameraId',
-          message: `No calibration profile is registered for camera ${cameraId}.`
-        }
-      };
-    }
+    // A camera nobody has calibrated is an ordinary state, not a failure, so it is reported the way
+    // `get` reports it rather than as an error. Wrapping it in one would make every consumer decide
+    // which failures are real, and the safe reading of an error is to stop — which is wrong here.
+    if (!profile) return undefined;
     const compatibility = evaluateProfileCompatibility(profile, conditions);
     const adaptation = adaptProfileToConditions(profile, conditions);
     const usable = usableIntrinsics(compatibility, adaptation);
     return {
-      ok: true,
-      assessment: {
-        profile,
-        compatibility,
-        adaptation,
-        ...(usable === undefined ? {} : {usable})
-      }
+      profile,
+      compatibility,
+      adaptation,
+      ...(usable === undefined ? {} : {usable})
     };
   }
 }
