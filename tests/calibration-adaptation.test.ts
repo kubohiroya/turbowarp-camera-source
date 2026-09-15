@@ -16,7 +16,7 @@ function profile(name: string): CameraIntrinsicProfileV1 {
 }
 
 function conditions(width: number, height: number, extra: Partial<CameraConditions> = {}): CameraConditions {
-  return {width, height, deviceId: 'device-1', previewFlip: 'none', ...extra};
+  return {width, height, deviceId: 'device-1', previewFlip: 'none', pixelFlip: 'none', ...extra};
 }
 
 describe('adapting a profile to the frame it meets', () => {

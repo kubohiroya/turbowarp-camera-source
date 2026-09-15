@@ -1,11 +1,12 @@
 import {featureFlags} from '../config/feature-flags';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
+import type {UsableIntrinsics} from './calibration/adaptation';
 import {readCameraConditions, type CameraConditions} from './calibration/conditions';
 import {decisiveFindings} from './calibration/compatibility';
-import {CameraProfileRegistry} from './calibration/registry';
+import {CameraProfileRegistry, type AssessmentResult} from './calibration/registry';
 import {serializeCameraIntrinsicProfile} from './calibration/profile';
-import type {ProfileError} from './calibration/types';
+import type {CameraIntrinsicProfileV1, ProfileError} from './calibration/types';
 import {
   createRuntimeCapability,
   runtimeCapabilityKey,
@@ -75,6 +76,15 @@ export interface CameraLease {
 }
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
+
+/**
+ * Camera Source hands over the frames the camera produced.
+ *
+ * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
+ * touched. Stated once so the frame source and the calibration conditions cannot come to describe
+ * the delivered image differently.
+ */
+const deliveredPixelFlip: Flip = 'none';
 const defaultCameraId = 'default';
 
 interface CameraSession {
@@ -153,6 +163,14 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly profiles = new CameraProfileRegistry();
   private readonly generations = new Map<string, number>();
   private readonly lastConditions = new Map<string, string>();
+  private readonly assessments = new Map<
+    string,
+    {
+      readonly signature: string;
+      readonly profile: CameraIntrinsicProfileV1 | undefined;
+      readonly result: AssessmentResult;
+    }
+  >();
   private readonly calibrationEnabled = featureFlags.calibrationProfilesV1;
   /** The object published on the runtime, kept so disposal can withdraw exactly what it published. */
   private readonly capability: CameraSourceCapabilityV1 | undefined;
@@ -172,9 +190,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
           profileFor: (cameraId) => this.profiles.get(cameraId),
           calibratedCameras: () => this.profiles.cameraIds(),
           assessProfile: (cameraId) => {
-            const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+            const result = this.assessmentOf(cameraId);
             return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
           },
+          intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
           conditionsFor: (cameraId) => this.conditionsOf(cameraId),
           conditionsGeneration: (cameraId) => this.generationOf(cameraId)
         })
@@ -416,13 +435,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraProfileCompatibility(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    const result = this.assessmentOf(cameraId);
     return result.ok ? result.assessment.compatibility.state : '';
   }
 
   public cameraProfileCompatibilityDetail(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    const result = this.assessmentOf(cameraId);
     if (!result.ok) return '';
     const findings = decisiveFindings(result.assessment.compatibility);
     if (findings.length === 0) return 'The profile matches the camera as configured.';
@@ -431,27 +450,16 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraProfileAdaptation(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+    const result = this.assessmentOf(cameraId);
     return result.ok ? result.assessment.adaptation.state : '';
   }
 
   public cameraProfileIntrinsicsJson(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
-    if (!result.ok) return '';
-    const {adaptation, compatibility} = result.assessment;
-    // Intrinsics are withheld unless the profile actually fits the camera as it
-    // is configured now. Handing them over regardless would let a consumer
-    // project with numbers from a different configuration and get plausible,
-    // wrong geometry back.
-    if (compatibility.state !== 'compatible' || adaptation.intrinsics === undefined) return '';
-    return JSON.stringify({
-      ...adaptation.intrinsics,
-      width: adaptation.width,
-      height: adaptation.height,
-      scale: adaptation.scale,
-      adaptation: adaptation.state
-    });
+    // Withholding intrinsics that do not fit is decided once, in the assessment, so this surface
+    // and the runtime capability cannot drift into answering the question differently.
+    const usable = this.intrinsicsOf(cameraId);
+    return usable === undefined ? '' : JSON.stringify(usable);
   }
 
   public cameraConditionsJson(args: {CAMERA_ID?: unknown} = {}): string {
@@ -463,11 +471,17 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   /** What the track reports about itself right now. Read only. */
+  private intrinsicsOf(cameraId: string): UsableIntrinsics | undefined {
+    const id = normalizeId(cameraId);
+    const result = this.assessmentOf(id);
+    return result.ok ? result.assessment.usable : undefined;
+  }
+
   private conditionsOf(cameraId: string): CameraConditions {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);
     if (!session?.stream) {
-      return {width: 0, height: 0, deviceId: '', previewFlip: 'none'};
+      return {width: 0, height: 0, deviceId: '', previewFlip: 'none', pixelFlip: deliveredPixelFlip};
     }
     const track = session.stream.getVideoTracks()[0];
     let settings: Record<string, unknown> = {};
@@ -483,6 +497,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         height: session.video?.videoHeight ?? 0,
         deviceId: session.activeDeviceId,
         previewFlip: this.previewFlip(session),
+        pixelFlip: deliveredPixelFlip,
         ...(device?.label ? {label: device.label} : {})
       },
       settings
@@ -497,18 +512,56 @@ export class CameraSourceExtension implements TurboWarpExtension {
    * consumer holding a placement solved from these conditions compares one
    * number rather than re-checking each of them.
    */
-  private generationOf(cameraId: string): number {
-    const id = normalizeId(cameraId);
-    const conditions = this.conditionsOf(id);
-    const signature = JSON.stringify([
+  /**
+   * The conditions that decide geometry, as one comparable string.
+   *
+   * The preview flip is not among them. It changes how the stage draws the frame and nothing about
+   * how the lens projects, so folding it in would advance the generation and invalidate consumers'
+   * work every time an operator toggled a mirror. The pixel flip is among them for the opposite
+   * reason: it describes the image itself.
+   */
+  private conditionsSignature(conditions: CameraConditions): string {
+    return JSON.stringify([
       conditions.width,
       conditions.height,
+      conditions.pixelFlip,
       conditions.resizeMode ?? null,
       conditions.zoom ?? null,
       conditions.focusMode ?? null,
       conditions.focusDistance ?? null,
       conditions.deviceId
     ]);
+  }
+
+  /**
+   * The assessment for a camera, reusing the last one while nothing it depends on has changed.
+   *
+   * The conditions are read on every call, so this cannot answer with a stale view of the camera.
+   * What is skipped is the derivation: judging compatibility builds a finding for every member it
+   * compares, each with its own sentence, and these reporters are read from blocks that a project
+   * can evaluate on every frame. Reusing the result while the inputs are identical keeps that off
+   * the frame budget without putting a staleness window in its place.
+   */
+  private assessmentOf(cameraId: string): AssessmentResult {
+    const id = normalizeId(cameraId);
+    const conditions = this.conditionsOf(id);
+    const signature = this.conditionsSignature(conditions);
+    const profile = this.profiles.get(id);
+    const cached = this.assessments.get(id);
+    // Profile identity, not profileId: registering again replaces the stored object, and a document
+    // re-registered under the same id may differ in every other member.
+    if (cached && cached.signature === signature && cached.profile === profile) {
+      return cached.result;
+    }
+    const result = this.profiles.assess(id, conditions);
+    this.assessments.set(id, {signature, profile, result});
+    return result;
+  }
+
+  private generationOf(cameraId: string): number {
+    const id = normalizeId(cameraId);
+    const conditions = this.conditionsOf(id);
+    const signature = this.conditionsSignature(conditions);
     const previous = this.lastConditions.get(id);
     if (previous === undefined) {
       this.lastConditions.set(id, signature);
@@ -641,8 +694,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
       element: session.video,
       width: session.video.videoWidth,
       height: session.video.videoHeight,
-      // The element's pixels are never turned over; only the preview is.
-      pixelFlip: 'none',
+      pixelFlip: deliveredPixelFlip,
       previewFlip: this.previewFlip(session),
       deviceId: session.activeDeviceId
     });
@@ -673,6 +725,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.sessions.delete(cameraId);
     this.blockLeases.delete(cameraId);
     this.blockPreviewLeases.delete(cameraId);
+    this.assessments.delete(cameraId);
   }
 
   private toScratchBlock(block: BlockDefinition): Record<string, unknown> {

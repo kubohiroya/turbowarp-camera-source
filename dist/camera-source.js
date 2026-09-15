@@ -344,6 +344,7 @@
   		height: pixelCount(frame.height),
   		deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? "",
   		previewFlip: frame.previewFlip,
+  		pixelFlip: frame.pixelFlip,
   		...label === void 0 ? {} : { label },
   		...frameRate === void 0 ? {} : { frameRate },
   		...facingMode === void 0 ? {} : { facingMode },
@@ -415,6 +416,8 @@
   */
   function evaluateProfileCompatibility(profile, conditions) {
   	const findings = [imageSizeFinding(profile, conditions)];
+  	if (conditions.pixelFlip !== "none") findings.push(finding("pixel-flip", "mismatched", true, `The delivered frames are flipped (${conditions.pixelFlip}), and a profile describes the camera's own capture.`));
+  	else findings.push(finding("pixel-flip", "matched", true, "The frames are delivered as the camera captured them."));
   	if (profile.image.undistorted) findings.push(finding("undistorted-frames", "unknown", true, "The profile describes already undistorted images. This extension hands over the camera frames as captured and cannot confirm that something upstream corrects them."));
   	if (profile.capture === void 0) findings.push(finding("capture-conditions", "unknown", true, "The profile records no capture conditions, so whether the optics are configured as they were at calibration cannot be decided."));
   	else findings.push(...captureFindings(profile.capture, conditions));
@@ -497,6 +500,29 @@
   		cx: intrinsics.cx * scale,
   		cy: intrinsics.cy * scale,
   		skew: intrinsics.skew
+  	};
+  }
+  /**
+  * The intrinsics to use, if there are any.
+  *
+  * Both conditions have to hold, and they are different questions. Compatibility asks whether this
+  * profile describes this camera as it is configured now; adaptation asks whether the numbers can be
+  * expressed for the frame size in front of us. A profile can fit the camera and still have no usable
+  * form — a crop, say — and it can adapt cleanly while belonging to a different camera entirely.
+  *
+  * Returning undefined rather than the stored numbers is the whole point. Intrinsics from another
+  * configuration do not fail visibly: they project, and the geometry that comes back looks like a
+  * slightly different camera pose rather than like a mistake.
+  */
+  function usableIntrinsics(compatibility, adaptation) {
+  	if (compatibility.state !== "compatible") return void 0;
+  	if (adaptation.intrinsics === void 0) return void 0;
+  	return {
+  		...adaptation.intrinsics,
+  		width: adaptation.width,
+  		height: adaptation.height,
+  		scale: adaptation.scale,
+  		adaptation: adaptation.state
   	};
   }
   //#endregion
@@ -934,12 +960,16 @@
   				message: `No calibration profile is registered for camera ${cameraId}.`
   			}
   		};
+  		const compatibility = evaluateProfileCompatibility(profile, conditions);
+  		const adaptation = adaptProfileToConditions(profile, conditions);
+  		const usable = usableIntrinsics(compatibility, adaptation);
   		return {
   			ok: true,
   			assessment: {
   				profile,
-  				compatibility: evaluateProfileCompatibility(profile, conditions),
-  				adaptation: adaptProfileToConditions(profile, conditions)
+  				compatibility,
+  				adaptation,
+  				...usable === void 0 ? {} : { usable }
   			}
   		};
   	}
@@ -959,6 +989,7 @@
   		profileFor: (cameraId) => host.profileFor(cameraId),
   		calibratedCameras: () => host.calibratedCameras(),
   		assessProfile: (cameraId) => host.assessProfile(cameraId),
+  		intrinsicsFor: (cameraId) => host.intrinsicsFor(cameraId),
   		conditionsFor: (cameraId) => host.conditionsFor(cameraId),
   		conditionsGeneration: (cameraId) => host.conditionsGeneration(cameraId)
   	};
@@ -1154,6 +1185,14 @@
   //#endregion
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
+  /**
+  * Camera Source hands over the frames the camera produced.
+  *
+  * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
+  * touched. Stated once so the frame source and the calibration conditions cannot come to describe
+  * the delivered image differently.
+  */
+  var deliveredPixelFlip = "none";
   var defaultCameraId = "default";
   function mediaDevices() {
   	const devices = globalThis.navigator?.mediaDevices;
@@ -1209,6 +1248,7 @@
   		this.profiles = new CameraProfileRegistry();
   		this.generations = /* @__PURE__ */ new Map();
   		this.lastConditions = /* @__PURE__ */ new Map();
+  		this.assessments = /* @__PURE__ */ new Map();
   		this.calibrationEnabled = featureFlags.calibrationProfilesV1;
   		this.devices = [];
   		this.dispose = () => {
@@ -1230,7 +1270,7 @@
   			profileFor: (cameraId) => this.profiles.get(cameraId),
   			calibratedCameras: () => this.profiles.cameraIds(),
   			assessProfile: (cameraId) => {
-  				const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  				const result = this.assessmentOf(cameraId);
   				return result.ok ? {
   					ok: true,
   					view: result.assessment
@@ -1239,6 +1279,7 @@
   					error: result.error
   				};
   			},
+  			intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
   			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
   		}) : void 0;
@@ -1415,12 +1456,12 @@
   	}
   	cameraProfileCompatibility(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		return result.ok ? result.assessment.compatibility.state : "";
   	}
   	cameraProfileCompatibilityDetail(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		if (!result.ok) return "";
   		const findings = decisiveFindings(result.assessment.compatibility);
   		if (findings.length === 0) return "The profile matches the camera as configured.";
@@ -1428,22 +1469,13 @@
   	}
   	cameraProfileAdaptation(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
+  		const result = this.assessmentOf(cameraId);
   		return result.ok ? result.assessment.adaptation.state : "";
   	}
   	cameraProfileIntrinsicsJson(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
-  		if (!result.ok) return "";
-  		const { adaptation, compatibility } = result.assessment;
-  		if (compatibility.state !== "compatible" || adaptation.intrinsics === void 0) return "";
-  		return JSON.stringify({
-  			...adaptation.intrinsics,
-  			width: adaptation.width,
-  			height: adaptation.height,
-  			scale: adaptation.scale,
-  			adaptation: adaptation.state
-  		});
+  		const usable = this.intrinsicsOf(cameraId);
+  		return usable === void 0 ? "" : JSON.stringify(usable);
   	}
   	cameraConditionsJson(args = {}) {
   		return JSON.stringify(this.conditionsOf(normalizeId(args.CAMERA_ID)));
@@ -1452,6 +1484,11 @@
   		return this.generationOf(normalizeId(args.CAMERA_ID));
   	}
   	/** What the track reports about itself right now. Read only. */
+  	intrinsicsOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const result = this.assessmentOf(id);
+  		return result.ok ? result.assessment.usable : void 0;
+  	}
   	conditionsOf(cameraId) {
   		const id = normalizeId(cameraId);
   		const session = this.sessions.get(id);
@@ -1459,7 +1496,8 @@
   			width: 0,
   			height: 0,
   			deviceId: "",
-  			previewFlip: "none"
+  			previewFlip: "none",
+  			pixelFlip: deliveredPixelFlip
   		};
   		const track = session.stream.getVideoTracks()[0];
   		let settings = {};
@@ -1474,6 +1512,7 @@
   			height: session.video?.videoHeight ?? 0,
   			deviceId: session.activeDeviceId,
   			previewFlip: this.previewFlip(session),
+  			pixelFlip: deliveredPixelFlip,
   			...device?.label ? { label: device.label } : {}
   		}, settings);
   	}
@@ -1485,18 +1524,54 @@
   	* consumer holding a placement solved from these conditions compares one
   	* number rather than re-checking each of them.
   	*/
-  	generationOf(cameraId) {
-  		const id = normalizeId(cameraId);
-  		const conditions = this.conditionsOf(id);
-  		const signature = JSON.stringify([
+  	/**
+  	* The conditions that decide geometry, as one comparable string.
+  	*
+  	* The preview flip is not among them. It changes how the stage draws the frame and nothing about
+  	* how the lens projects, so folding it in would advance the generation and invalidate consumers'
+  	* work every time an operator toggled a mirror. The pixel flip is among them for the opposite
+  	* reason: it describes the image itself.
+  	*/
+  	conditionsSignature(conditions) {
+  		return JSON.stringify([
   			conditions.width,
   			conditions.height,
+  			conditions.pixelFlip,
   			conditions.resizeMode ?? null,
   			conditions.zoom ?? null,
   			conditions.focusMode ?? null,
   			conditions.focusDistance ?? null,
   			conditions.deviceId
   		]);
+  	}
+  	/**
+  	* The assessment for a camera, reusing the last one while nothing it depends on has changed.
+  	*
+  	* The conditions are read on every call, so this cannot answer with a stale view of the camera.
+  	* What is skipped is the derivation: judging compatibility builds a finding for every member it
+  	* compares, each with its own sentence, and these reporters are read from blocks that a project
+  	* can evaluate on every frame. Reusing the result while the inputs are identical keeps that off
+  	* the frame budget without putting a staleness window in its place.
+  	*/
+  	assessmentOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const conditions = this.conditionsOf(id);
+  		const signature = this.conditionsSignature(conditions);
+  		const profile = this.profiles.get(id);
+  		const cached = this.assessments.get(id);
+  		if (cached && cached.signature === signature && cached.profile === profile) return cached.result;
+  		const result = this.profiles.assess(id, conditions);
+  		this.assessments.set(id, {
+  			signature,
+  			profile,
+  			result
+  		});
+  		return result;
+  	}
+  	generationOf(cameraId) {
+  		const id = normalizeId(cameraId);
+  		const conditions = this.conditionsOf(id);
+  		const signature = this.conditionsSignature(conditions);
   		const previous = this.lastConditions.get(id);
   		if (previous === void 0) {
   			this.lastConditions.set(id, signature);
@@ -1602,7 +1677,7 @@
   			element: session.video,
   			width: session.video.videoWidth,
   			height: session.video.videoHeight,
-  			pixelFlip: "none",
+  			pixelFlip: deliveredPixelFlip,
   			previewFlip: this.previewFlip(session),
   			deviceId: session.activeDeviceId
   		});
@@ -1629,6 +1704,7 @@
   		this.sessions.delete(cameraId);
   		this.blockLeases.delete(cameraId);
   		this.blockPreviewLeases.delete(cameraId);
+  		this.assessments.delete(cameraId);
   	}
   	toScratchBlock(block) {
   		return {

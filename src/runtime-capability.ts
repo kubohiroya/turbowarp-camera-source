@@ -5,7 +5,7 @@
  * so a consumer states the contract it was written against and is refused
  * clearly instead of finding a method missing at the worst moment.
  */
-import type {ProfileAdaptation} from './calibration/adaptation.js';
+import type {ProfileAdaptation, UsableIntrinsics} from './calibration/adaptation.js';
 import type {CompatibilityReport} from './calibration/compatibility.js';
 import type {CameraConditions} from './calibration/conditions.js';
 import type {
@@ -18,9 +18,19 @@ export const runtimeCapabilityKey = 'kubohiroyaCameraSourceCapability';
 export const runtimeCapabilityVersion = 1 as const;
 
 export interface CameraProfileView {
+  /** The document as stored. For showing an operator or writing back out, not for projecting with. */
   readonly profile: CameraIntrinsicProfileV1;
   readonly compatibility: CompatibilityReport;
+  /** How the stored numbers would be re-expressed for this frame size, whether or not they may be used. */
   readonly adaptation: ProfileAdaptation;
+  /**
+   * The numbers that may be used, absent when none may be.
+   *
+   * A consumer that reaches for `profile.intrinsics` or `adaptation.intrinsics` instead is reading
+   * past the question of whether this calibration belongs to this camera, and the wrong answer does
+   * not look wrong: it projects, and returns geometry that reads as a slightly different pose.
+   */
+  readonly usable?: UsableIntrinsics;
 }
 
 export interface CameraSourceCapabilityV1 {
@@ -35,6 +45,13 @@ export interface CameraSourceCapabilityV1 {
   assessProfile(
     cameraId: string
   ): {ok: true; view: CameraProfileView} | {ok: false; error: ProfileError};
+  /**
+   * The intrinsics to project the current frames with, or undefined when there are none to use.
+   *
+   * The short way to ask the only question a consumer usually has. `assessProfile` answers the same
+   * thing in its `usable` member, alongside the reasons.
+   */
+  intrinsicsFor(cameraId: string): UsableIntrinsics | undefined;
   /**
    * What the track reports about itself, read only.
    *
@@ -70,6 +87,7 @@ export function createRuntimeCapability(
     profileFor: (cameraId) => host.profileFor(cameraId),
     calibratedCameras: () => host.calibratedCameras(),
     assessProfile: (cameraId) => host.assessProfile(cameraId),
+    intrinsicsFor: (cameraId) => host.intrinsicsFor(cameraId),
     conditionsFor: (cameraId) => host.conditionsFor(cameraId),
     conditionsGeneration: (cameraId) => host.conditionsGeneration(cameraId)
   };
