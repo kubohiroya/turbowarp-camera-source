@@ -1,0 +1,113 @@
+{
+  "formatVersion": 1,
+  "blocks": {
+    "startSharedCamera": {
+      "en": "Starts or keeps a named shared MediaDevices camera stream.",
+      "ja": "名前付き共有カメラを開始します。"
+    },
+    "stopSharedCamera": {
+      "en": "Stops a named shared camera stream and releases its tracks.",
+      "ja": "名前付き共有カメラを停止し、MediaStreamTrackを解放します。"
+    },
+    "isCameraRunning": {
+      "en": "Reports whether a named shared camera stream is active.",
+      "ja": "指定した共有カメラが起動中かを返します。"
+    },
+    "cameraErrorCode": {
+      "en": "Returns the latest camera failure code, or an empty string after a successful start.",
+      "ja": "直近の開始失敗コードを返します。開始成功後は空文字列です。"
+    },
+    "cameraError": {
+      "en": "Returns the latest camera failure message, or an empty string after a successful start.",
+      "ja": "直近の開始失敗メッセージを返します。開始成功後は空文字列です。"
+    },
+    "cameraDeviceIdReporter": {
+      "en": "Returns the active device ID for a named shared camera when available.",
+      "ja": "指定した共有カメラのdevice IDを返します。"
+    },
+    "showCameraPreview": {
+      "en": "Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.",
+      "ja": "GPU-backed stage previewを表示します。`none`／`horizontal`／`vertical`／`both`から選び、reporterも渡せます。"
+    },
+    "hideCameraPreview": {
+      "en": "Hides the block-owned preview without stopping leases owned by other consumers.",
+      "ja": "ブロックが所有するpreview leaseだけを解放して非表示にします。"
+    },
+    "cameraFrameWidth": {
+      "en": "Returns the active video frame width in pixels, or zero while the camera is not running.",
+      "ja": "実際のframe幅をpixel単位で返します。"
+    },
+    "cameraFrameHeight": {
+      "en": "Returns the active video frame height in pixels, or zero while the camera is not running.",
+      "ja": "実際のframe高さをpixel単位で返します。"
+    },
+    "cameraFrameRate": {
+      "en": "Returns the active video track frame rate, or zero when it is unavailable.",
+      "ja": "有効なvideo trackのframe rateを返します。"
+    },
+    "refreshCameraDevices": {
+      "en": "Refreshes the browser camera device list.",
+      "ja": "カメラデバイス一覧を更新します。"
+    },
+    "cameraDeviceCount": {
+      "en": "Returns the number of known camera devices after refresh.",
+      "ja": "更新済みカメラデバイス数を返します。"
+    },
+    "cameraDeviceIdAt": {
+      "en": "Returns the one-based camera device ID at the requested index.",
+      "ja": "1始まりの位置でカメラdevice IDを返します。"
+    },
+    "cameraDeviceLabelAt": {
+      "en": "Returns the one-based camera device label at the requested index when the browser exposes it.",
+      "ja": "1始まりの位置でカメララベルを返します。"
+    },
+    "registerCameraProfile": {
+      "en": "Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.",
+      "ja": "内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。"
+    },
+    "forgetCameraProfile": {
+      "en": "Removes the stored calibration profile for one camera.",
+      "ja": "登録済みプロファイルを破棄します。"
+    },
+    "cameraProfileRegistered": {
+      "en": "Reports whether a calibration profile is stored for the camera. An uncalibrated camera is an ordinary state and not an error.",
+      "ja": "プロファイルが登録されているかを返します。未登録は正常な状態です。"
+    },
+    "cameraProfileJson": {
+      "en": "Returns the stored profile as JSON, or an empty string when the camera has none.",
+      "ja": "保存された文書をそのまま返します。表示や書き出し用であって、投影に使う数値ではありません。"
+    },
+    "cameraProfileError": {
+      "en": "Returns the code of the last rejected profile document, or an empty string when the last one was accepted.",
+      "ja": "直近の登録失敗のコードを返します。成功後は空文字列です。"
+    },
+    "cameraProfileErrorDetail": {
+      "en": "Returns why the last profile document was rejected, naming the member at fault.",
+      "ja": "直近の登録失敗の位置と理由を返します。"
+    },
+    "cameraProfileCompatibility": {
+      "en": "Returns compatible, incompatible, undetermined, or an empty string when the camera has no profile. Undetermined is a distinct answer from compatible and never resolves upward into it.",
+      "ja": "`compatible`／`incompatible`／`undetermined`を返します。"
+    },
+    "cameraProfileCompatibilityDetail": {
+      "en": "Returns the findings that decided the verdict, so an operator sees the one thing that has to change.",
+      "ja": "判定を決めた項目の理由を返します。"
+    },
+    "cameraProfileAdaptation": {
+      "en": "Returns exact, scaled, or unavailable. A frame size that differs by a pure scale can be projected with scaled intrinsics; a crop or an aspect change cannot, because the principal point cannot be placed.",
+      "ja": "現在のフレームサイズへ読み替えられたか（`exact`／`scaled`／`unavailable`）を返します。"
+    },
+    "cameraProfileIntrinsicsJson": {
+      "en": "Returns the intrinsics to project the current frames with, already adapted to the frame size, or an empty string when they cannot be established. Consumers use this rather than scaling a profile themselves, because only this extension can tell a scale from a crop.",
+      "ja": "現在のフレームに適合済みの内部行列を返します。適合していなければ空文字列です。"
+    },
+    "cameraConditionsJson": {
+      "en": "Returns what the track reports about itself: frame size, resize mode, zoom, focus and frame rate. Read only; this extension never changes a shared camera configuration.",
+      "ja": "カメラが今報告している撮影条件を返します。"
+    },
+    "cameraConditionsGeneration": {
+      "en": "Returns a number that increases whenever something affecting the geometry changes. A consumer holding a derived result compares this instead of re-checking every condition.",
+      "ja": "幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。"
+    }
+  }
+}

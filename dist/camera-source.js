@@ -28,7 +28,6 @@
   			"opcode": "startSharedCamera",
   			"blockType": "COMMAND",
   			"text": "start shared camera [CAMERA_ID] with device ID [DEVICE_ID]",
-  			"description": "Starts or keeps a named shared MediaDevices camera stream.",
   			"arguments": {
   				"CAMERA_ID": {
   					"type": "STRING",
@@ -44,7 +43,6 @@
   			"opcode": "stopSharedCamera",
   			"blockType": "COMMAND",
   			"text": "stop shared camera [CAMERA_ID]",
-  			"description": "Stops a named shared camera stream and releases its tracks.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -54,7 +52,6 @@
   			"opcode": "isCameraRunning",
   			"blockType": "BOOLEAN",
   			"text": "shared camera [CAMERA_ID] is running?",
-  			"description": "Reports whether a named shared camera stream is active.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -64,7 +61,6 @@
   			"opcode": "cameraErrorCode",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] error code",
-  			"description": "Returns the latest camera failure code, or an empty string after a successful start.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -74,7 +70,6 @@
   			"opcode": "cameraError",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] error",
-  			"description": "Returns the latest camera failure message, or an empty string after a successful start.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -84,7 +79,6 @@
   			"opcode": "cameraDeviceIdReporter",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] device ID",
-  			"description": "Returns the active device ID for a named shared camera when available.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -94,7 +88,6 @@
   			"opcode": "showCameraPreview",
   			"blockType": "COMMAND",
   			"text": "show shared camera [CAMERA_ID] preview flipped [PREVIEW_FLIP]",
-  			"description": "Draws the named camera on the stage, turned over as asked. The flip is how the preview is drawn and never changes the frames a consumer is handed.",
   			"arguments": {
   				"CAMERA_ID": {
   					"type": "STRING",
@@ -111,7 +104,6 @@
   			"opcode": "hideCameraPreview",
   			"blockType": "COMMAND",
   			"text": "hide shared camera [CAMERA_ID] preview",
-  			"description": "Hides the block-owned preview without stopping leases owned by other consumers.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -121,7 +113,6 @@
   			"opcode": "cameraFrameWidth",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] frame width",
-  			"description": "Returns the active video frame width in pixels, or zero while the camera is not running.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -131,7 +122,6 @@
   			"opcode": "cameraFrameHeight",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] frame height",
-  			"description": "Returns the active video frame height in pixels, or zero while the camera is not running.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -141,7 +131,6 @@
   			"opcode": "cameraFrameRate",
   			"blockType": "REPORTER",
   			"text": "shared camera [CAMERA_ID] frame rate",
-  			"description": "Returns the active video track frame rate, or zero when it is unavailable.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -151,21 +140,18 @@
   			"opcode": "refreshCameraDevices",
   			"blockType": "COMMAND",
   			"text": "refresh camera devices",
-  			"description": "Refreshes the browser camera device list.",
   			"arguments": {}
   		},
   		{
   			"opcode": "cameraDeviceCount",
   			"blockType": "REPORTER",
   			"text": "camera device count",
-  			"description": "Returns the number of known camera devices after refresh.",
   			"arguments": {}
   		},
   		{
   			"opcode": "cameraDeviceIdAt",
   			"blockType": "REPORTER",
   			"text": "camera device ID at [INDEX]",
-  			"description": "Returns the one-based camera device ID at the requested index.",
   			"arguments": { "INDEX": {
   				"type": "STRING",
   				"defaultValue": "1"
@@ -175,7 +161,6 @@
   			"opcode": "cameraDeviceLabelAt",
   			"blockType": "REPORTER",
   			"text": "camera device label at [INDEX]",
-  			"description": "Returns the one-based camera device label at the requested index when the browser exposes it.",
   			"arguments": { "INDEX": {
   				"type": "STRING",
   				"defaultValue": "1"
@@ -186,7 +171,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "COMMAND",
   			"text": "register camera profile [PROFILE_JSON]",
-  			"description": "Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.",
   			"arguments": { "PROFILE_JSON": {
   				"type": "STRING",
   				"defaultValue": "{}"
@@ -197,7 +181,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "COMMAND",
   			"text": "forget camera profile for [CAMERA_ID]",
-  			"description": "Removes the stored calibration profile for one camera.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -208,7 +191,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "BOOLEAN",
   			"text": "camera [CAMERA_ID] is calibrated?",
-  			"description": "Reports whether a calibration profile is stored for the camera. An uncalibrated camera is an ordinary state and not an error.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -219,7 +201,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile JSON for [CAMERA_ID]",
-  			"description": "Returns the stored profile as JSON, or an empty string when the camera has none.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -230,7 +211,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile error",
-  			"description": "Returns the code of the last rejected profile document, or an empty string when the last one was accepted.",
   			"arguments": {}
   		},
   		{
@@ -238,7 +218,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile error detail",
-  			"description": "Returns why the last profile document was rejected, naming the member at fault.",
   			"arguments": {}
   		},
   		{
@@ -246,7 +225,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile compatibility for [CAMERA_ID]",
-  			"description": "Returns compatible, incompatible, undetermined, or an empty string when the camera has no profile. Undetermined is a distinct answer from compatible and never resolves upward into it.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -257,7 +235,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile compatibility detail for [CAMERA_ID]",
-  			"description": "Returns the findings that decided the verdict, so an operator sees the one thing that has to change.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -268,7 +245,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile adaptation for [CAMERA_ID]",
-  			"description": "Returns exact, scaled, or unavailable. A frame size that differs by a pure scale can be projected with scaled intrinsics; a crop or an aspect change cannot, because the principal point cannot be placed.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -279,7 +255,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera intrinsics JSON for [CAMERA_ID]",
-  			"description": "Returns the intrinsics to project the current frames with, already adapted to the frame size, or an empty string when they cannot be established. Consumers use this rather than scaling a profile themselves, because only this extension can tell a scale from a crop.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -290,7 +265,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera conditions JSON for [CAMERA_ID]",
-  			"description": "Returns what the track reports about itself: frame size, resize mode, zoom, focus and frame rate. Read only; this extension never changes a shared camera configuration.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"
@@ -301,7 +275,6 @@
   			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera conditions generation for [CAMERA_ID]",
-  			"description": "Returns a number that increases whenever something affecting the geometry changes. A consumer holding a derived result compares this instead of re-checking every condition.",
   			"arguments": { "CAMERA_ID": {
   				"type": "STRING",
   				"defaultValue": "default"

@@ -52,6 +52,8 @@ stop shared camera [pose]
 
 ## ブロック一覧
 
+<!-- BEGIN GENERATED BLOCKS -->
+
 - `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`: 名前付き共有カメラを開始します。
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
 - `shared camera [CAMERA_ID] is running?`: 指定した共有カメラが起動中かを返します。
@@ -82,6 +84,8 @@ stop shared camera [pose]
 - `camera intrinsics JSON for [CAMERA_ID]`: 現在のフレームに適合済みの内部行列を返します。適合していなければ空文字列です。
 - `camera conditions JSON for [CAMERA_ID]`: カメラが今報告している撮影条件を返します。
 - `camera conditions generation for [CAMERA_ID]`: 幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。
+
+<!-- END GENERATED BLOCKS -->
 
 ## Runtime API
 
