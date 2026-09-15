@@ -76,6 +76,15 @@ export interface CameraLease {
 }
 
 const blockDefinitions = definitions.blocks as readonly BlockDefinition[];
+
+/**
+ * Camera Source hands over the frames the camera produced.
+ *
+ * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
+ * touched. Stated once so the frame source and the calibration conditions cannot come to describe
+ * the delivered image differently.
+ */
+const deliveredPixelFlip: Flip = 'none';
 const defaultCameraId = 'default';
 
 interface CameraSession {
@@ -464,7 +473,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);
     if (!session?.stream) {
-      return {width: 0, height: 0, deviceId: '', previewFlip: 'none', pixelFlip: 'none'};
+      return {width: 0, height: 0, deviceId: '', previewFlip: 'none', pixelFlip: deliveredPixelFlip};
     }
     const track = session.stream.getVideoTracks()[0];
     let settings: Record<string, unknown> = {};
@@ -480,9 +489,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         height: session.video?.videoHeight ?? 0,
         deviceId: session.activeDeviceId,
         previewFlip: this.previewFlip(session),
-        // Read from the frame source rather than repeated here, so the two cannot disagree about
-        // what a consumer is actually handed.
-        pixelFlip: this.getFrameSource(session).pixelFlip,
+        pixelFlip: deliveredPixelFlip,
         ...(device?.label ? {label: device.label} : {})
       },
       settings
@@ -641,8 +648,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
       element: session.video,
       width: session.video.videoWidth,
       height: session.video.videoHeight,
-      // The element's pixels are never turned over; only the preview is.
-      pixelFlip: 'none',
+      pixelFlip: deliveredPixelFlip,
       previewFlip: this.previewFlip(session),
       deviceId: session.activeDeviceId
     });

@@ -1185,6 +1185,14 @@
   //#endregion
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
+  /**
+  * Camera Source hands over the frames the camera produced.
+  *
+  * Turning the preview over is a drawing choice made per viewer; the pixels behind it are never
+  * touched. Stated once so the frame source and the calibration conditions cannot come to describe
+  * the delivered image differently.
+  */
+  var deliveredPixelFlip = "none";
   var defaultCameraId = "default";
   function mediaDevices() {
   	const devices = globalThis.navigator?.mediaDevices;
@@ -1488,7 +1496,7 @@
   			height: 0,
   			deviceId: "",
   			previewFlip: "none",
-  			pixelFlip: "none"
+  			pixelFlip: deliveredPixelFlip
   		};
   		const track = session.stream.getVideoTracks()[0];
   		let settings = {};
@@ -1503,7 +1511,7 @@
   			height: session.video?.videoHeight ?? 0,
   			deviceId: session.activeDeviceId,
   			previewFlip: this.previewFlip(session),
-  			pixelFlip: this.getFrameSource(session).pixelFlip,
+  			pixelFlip: deliveredPixelFlip,
   			...device?.label ? { label: device.label } : {}
   		}, settings);
   	}
@@ -1632,7 +1640,7 @@
   			element: session.video,
   			width: session.video.videoWidth,
   			height: session.video.videoHeight,
-  			pixelFlip: "none",
+  			pixelFlip: deliveredPixelFlip,
   			previewFlip: this.previewFlip(session),
   			deviceId: session.activeDeviceId
   		});
