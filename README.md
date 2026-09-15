@@ -411,6 +411,10 @@ const assessment = calibration.assessProfile("pose");
 
 **Ask for intrinsics rather than scaling a profile yourself.** When the camera delivers a size the calibration was not solved at, the arithmetic depends on what happened: a pure downscale multiplies `fx`, `fy`, `cx` and `cy`, while a crop leaves the focal lengths alone and shifts the principal point instead. Only this extension sees the track's `resizeMode`, so only it can tell the two apart — and if every consumer guesses, they guess differently and the same camera yields different geometry depending on which extension asked. `camera intrinsics JSON` returns numbers already adapted to the current frame, or an empty string when the difference is a crop or an aspect change and the principal point cannot be placed.
 
+**The preview's mirroring is not the frames'.** `getFrameSource()` reports `pixelFlip` and `previewFlip` separately, because they are different facts: a preview is mirrored by a rendering transform that never reaches the frames, so `pixelFlip` is `none` however the preview is shown. Coordinates picked off a mirrored preview must be turned back before they are used with these frames — a solve fed the preview's coordinates converges on a left-right reflected pose and reports a small reprojection error while doing it. `horizontal` is the left-right mirror, matching `cv::flip(…, 1)`, ffmpeg's `hflip` and CSS `scaleX(-1)`; rotation is a separate concern and is deliberately not folded into the same enum.
+
+The `show shared camera preview` block keeps its opcode and its `MIRRORED` argument, so existing projects are unaffected. `acquireCamera` takes `previewFlip` now, and still accepts the older `mirrored: true`.
+
 **"Cannot tell" is a distinct answer from "fits".** Compatibility is `compatible`, `incompatible` or `undetermined`, and unknown never resolves upward. Intrinsics are withheld unless the profile actually fits the camera as configured now: handing them over regardless would let a consumer project with numbers from a different configuration and get plausible, wrong geometry back.
 
 ## Compatibility

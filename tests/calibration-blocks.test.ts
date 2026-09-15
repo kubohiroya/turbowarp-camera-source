@@ -218,3 +218,4 @@ describe('state that crosses a project boundary', () => {
     expect(extension.cameraProfileRegistered({CAMERA_ID: source.cameraId as string})).toBe(true);
   });
 });
+

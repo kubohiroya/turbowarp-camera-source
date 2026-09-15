@@ -11,6 +11,7 @@ import {
   runtimeCapabilityKey,
   type CameraSourceCapabilityV1
 } from './runtime-capability';
+import {toFlip, type Flip} from './flip';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
@@ -35,6 +36,9 @@ export interface CameraAcquireOptions {
   cameraId?: string;
   deviceId?: string;
   video?: MediaTrackConstraints | boolean;
+  /** How this consumer wants its preview shown. Only meaningful with `preview`. */
+  previewFlip?: Flip;
+  /** @deprecated Pass `previewFlip: 'horizontal'` instead. */
   mirrored?: boolean;
   preview?: boolean;
 }
@@ -44,7 +48,24 @@ export interface CameraFrameSource {
   readonly element: HTMLVideoElement;
   readonly width: number;
   readonly height: number;
-  readonly mirrored: boolean;
+  /**
+   * How the pixels of `element` are turned over.
+   *
+   * Always `none`: mirroring a preview is a rendering transform and never
+   * reaches the frames. Recorded explicitly so a consumer reads the fact rather
+   * than inferring it, and so the day something does deliver flipped pixels
+   * there is somewhere to say so.
+   */
+  readonly pixelFlip: Flip;
+  /**
+   * How the preview is being shown, which says nothing about the pixels.
+   *
+   * Coordinates taken from a mirrored preview must be turned back before they
+   * are used with these frames. A solve fed the preview's coordinates converges
+   * on a left-right reflected pose and reports a small reprojection error while
+   * doing it.
+   */
+  readonly previewFlip: Flip;
   readonly deviceId: string;
 }
 
@@ -59,19 +80,18 @@ const defaultCameraId = 'default';
 interface CameraSession {
   readonly cameraId: string;
   readonly leases: Set<symbol>;
-  readonly previewLeases: Map<symbol, boolean>;
+  readonly previewLeases: Map<symbol, Flip>;
   active: boolean;
   stream: MediaStream | null;
   video: HTMLVideoElement | null;
   preview: VideoPreview | null;
   startPromise: Promise<void> | null;
-  mirrored: boolean;
   activeDeviceId: string;
 }
 
 interface BlockPreviewLease {
   readonly lease: CameraLease;
-  readonly mirrored: boolean;
+  readonly flip: Flip;
 }
 
 interface CameraFailure {
@@ -109,6 +129,12 @@ function videoConstraints(options: CameraAcquireOptions): MediaStreamConstraints
     return {audio: false, video: {deviceId: {exact: options.deviceId}}};
   }
   return {audio: false, video: options.video ?? true};
+}
+
+/** The preview flip a consumer asked for, accepting the older boolean. */
+function previewFlipOf(options: CameraAcquireOptions): Flip {
+  if (options.previewFlip !== undefined) return toFlip(options.previewFlip);
+  return options.mirrored === true ? 'horizontal' : 'none';
 }
 
 function cameraFailure(error: unknown): CameraFailure {
@@ -225,9 +251,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.leases.add(token);
     try {
       if (options.preview === true) {
-        session.previewLeases.set(token, options.mirrored === true);
+        session.previewLeases.set(token, previewFlipOf(options));
         this.ensurePreview(session);
-        session.preview?.setMirrored(this.previewMirrored(session));
+        session.preview?.setFlip(this.previewFlip(session));
       }
     } catch (error) {
       session.leases.delete(token);
@@ -248,7 +274,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
           session.preview?.dispose();
           session.preview = null;
         } else {
-          session.preview?.setMirrored(this.previewMirrored(session));
+          session.preview?.setFlip(this.previewFlip(session));
         }
         this.stopWhenUnused(session);
       }
@@ -259,23 +285,25 @@ export class CameraSourceExtension implements TurboWarpExtension {
     args: {CAMERA_ID?: unknown; MIRRORED?: unknown} = {}
   ): Promise<void> {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const mirrored = Scratch.Cast.toBoolean(args.MIRRORED ?? true);
+    // The block keeps its opcode and MIRRORED argument so existing projects
+    // keep working; the boolean is mapped onto the flip vocabulary here.
+    const flip: Flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? 'horizontal' : 'none';
     const existing = this.blockPreviewLeases.get(cameraId);
-    if (existing?.mirrored === mirrored) return;
+    if (existing?.flip === flip) return;
     const revision = this.nextPreviewBlockRevision(cameraId);
 
     const lease = await this.acquireCamera({
       owner: 'camera-source-preview-block',
       cameraId,
       preview: true,
-      mirrored
+      previewFlip: flip
     });
     if (this.blockPreviewRevisions.get(cameraId) !== revision) {
       await lease.release();
       return;
     }
     const current = this.blockPreviewLeases.get(cameraId);
-    this.blockPreviewLeases.set(cameraId, {lease, mirrored});
+    this.blockPreviewLeases.set(cameraId, {lease, flip});
     await current?.lease.release();
   }
 
@@ -439,7 +467,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);
     if (!session?.stream) {
-      return {width: 0, height: 0, deviceId: '', mirrored: false};
+      return {width: 0, height: 0, deviceId: '', previewFlip: 'none'};
     }
     const track = session.stream.getVideoTracks()[0];
     let settings: Record<string, unknown> = {};
@@ -454,7 +482,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         width: session.video?.videoWidth ?? 0,
         height: session.video?.videoHeight ?? 0,
         deviceId: session.activeDeviceId,
-        mirrored: session.mirrored,
+        previewFlip: this.previewFlip(session),
         ...(device?.label ? {label: device.label} : {})
       },
       settings
@@ -506,7 +534,6 @@ export class CameraSourceExtension implements TurboWarpExtension {
       video: null,
       preview: null,
       startPromise: null,
-      mirrored: false,
       activeDeviceId: ''
     };
     this.sessions.set(cameraId, session);
@@ -514,7 +541,6 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   private async start(session: CameraSession, options: CameraAcquireOptions): Promise<void> {
-    session.mirrored = options.mirrored === true;
     session.startPromise = (async () => {
       const stream = await mediaDevices().getUserMedia(videoConstraints(options));
       let video: HTMLVideoElement | null = null;
@@ -588,13 +614,22 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.preview = createVideoPreview(
       runtime.renderer as CameraRenderer | undefined,
       session.video,
-      this.previewMirrored(session),
+      this.previewFlip(session),
       () => runtime.requestRedraw?.()
     );
   }
 
-  private previewMirrored(session: CameraSession): boolean {
-    return [...session.previewLeases.values()].some(Boolean);
+  /**
+   * How the preview is shown for a camera several consumers may be watching.
+   *
+   * Any consumer asking for a flipped preview flips it for everyone, which is
+   * the same rule the previous boolean followed.
+   */
+  private previewFlip(session: CameraSession): Flip {
+    for (const flip of session.previewLeases.values()) {
+      if (flip !== 'none') return flip;
+    }
+    return 'none';
   }
 
   private getFrameSource(session: CameraSession): CameraFrameSource {
@@ -606,7 +641,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
       element: session.video,
       width: session.video.videoWidth,
       height: session.video.videoHeight,
-      mirrored: session.mirrored,
+      // The element's pixels are never turned over; only the preview is.
+      pixelFlip: 'none',
+      previewFlip: this.previewFlip(session),
       deviceId: session.activeDeviceId
     });
   }

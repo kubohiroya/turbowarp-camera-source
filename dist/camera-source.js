@@ -343,7 +343,7 @@
   		width: pixelCount(frame.width),
   		height: pixelCount(frame.height),
   		deviceId: nonEmptyText(frame.deviceId) ?? nonEmptyText(settings.deviceId) ?? "",
-  		mirrored: frame.mirrored,
+  		previewFlip: frame.previewFlip,
   		...label === void 0 ? {} : { label },
   		...frameRate === void 0 ? {} : { frameRate },
   		...facingMode === void 0 ? {} : { facingMode },
@@ -965,6 +965,30 @@
   	return Object.freeze(capability);
   }
   //#endregion
+  //#region src/flip.ts
+  var FLIPS = [
+  	"none",
+  	"horizontal",
+  	"vertical",
+  	"both"
+  ];
+  function isFlip(value) {
+  	return typeof value === "string" && FLIPS.includes(value);
+  }
+  /** Reads a flip, accepting the boolean the older API used for left-right. */
+  function toFlip(value, fallback = "none") {
+  	if (isFlip(value)) return value;
+  	if (value === true) return "horizontal";
+  	if (value === false) return "none";
+  	return fallback;
+  }
+  function flipsHorizontally(flip) {
+  	return flip === "horizontal" || flip === "both";
+  }
+  function flipsVertically(flip) {
+  	return flip === "vertical" || flip === "both";
+  }
+  //#endregion
   //#region src/video-preview.ts
   var videoLayer = "video";
   var haveCurrentData = 2;
@@ -1058,13 +1082,13 @@
   function assertRenderer(renderer) {
   	if (!renderer || !Array.isArray(renderer._allSkins) || !Number.isInteger(renderer._nextSkinId) || typeof renderer.createDrawable !== "function" || typeof renderer.destroyDrawable !== "function" || typeof renderer.destroySkin !== "function" || typeof renderer.getNativeSize !== "function") throw new Error("Camera preview requires a compatible TurboWarp renderer.");
   }
-  function createVideoPreview(renderer, video, mirrored, requestRedraw) {
+  function createVideoPreview(renderer, video, flip, requestRedraw) {
   	assertRenderer(renderer);
   	const VideoSkin = videoSkinClass(renderer);
   	const skinId = renderer._nextSkinId++;
   	let drawableId;
   	let disposed = false;
-  	let previewMirrored = mirrored;
+  	let previewFlip = flip;
   	let lastLayout = "";
   	const updateLayout = () => {
   		if (drawableId === void 0 || video.videoWidth === 0 || video.videoHeight === 0) return;
@@ -1074,11 +1098,11 @@
   			video.videoHeight,
   			stageWidth,
   			stageHeight,
-  			previewMirrored
+  			previewFlip
   		].join(":");
   		if (layout === lastLayout) return;
   		const scale = Math.max(stageWidth / video.videoWidth, stageHeight / video.videoHeight) * 100;
-  		renderer.updateDrawableScale(drawableId, [previewMirrored ? -scale : scale, scale]);
+  		renderer.updateDrawableScale(drawableId, [flipsHorizontally(previewFlip) ? -scale : scale, flipsVertically(previewFlip) ? -scale : scale]);
   		lastLayout = layout;
   	};
   	const skin = new VideoSkin(skinId, renderer, video, (metricsChanged) => {
@@ -1106,9 +1130,9 @@
   		throw error;
   	}
   	return Object.freeze({
-  		setMirrored: (nextMirrored) => {
-  			if (disposed || previewMirrored === nextMirrored) return;
-  			previewMirrored = nextMirrored;
+  		setFlip: (nextFlip) => {
+  			if (disposed || previewFlip === nextFlip) return;
+  			previewFlip = nextFlip;
   			updateLayout();
   			requestRedraw();
   		},
@@ -1159,6 +1183,11 @@
   		audio: false,
   		video: options.video ?? true
   	};
+  }
+  /** The preview flip a consumer asked for, accepting the older boolean. */
+  function previewFlipOf(options) {
+  	if (options.previewFlip !== void 0) return toFlip(options.previewFlip);
+  	return options.mirrored === true ? "horizontal" : "none";
   }
   function cameraFailure(error) {
   	if (error instanceof Error) return {
@@ -1273,9 +1302,9 @@
   		session.leases.add(token);
   		try {
   			if (options.preview === true) {
-  				session.previewLeases.set(token, options.mirrored === true);
+  				session.previewLeases.set(token, previewFlipOf(options));
   				this.ensurePreview(session);
-  				session.preview?.setMirrored(this.previewMirrored(session));
+  				session.preview?.setFlip(this.previewFlip(session));
   			}
   		} catch (error) {
   			session.leases.delete(token);
@@ -1295,21 +1324,21 @@
   				if (session.previewLeases.size === 0) {
   					session.preview?.dispose();
   					session.preview = null;
-  				} else session.preview?.setMirrored(this.previewMirrored(session));
+  				} else session.preview?.setFlip(this.previewFlip(session));
   				this.stopWhenUnused(session);
   			}
   		});
   	}
   	async showCameraPreview(args = {}) {
   		const cameraId = normalizeId(args.CAMERA_ID);
-  		const mirrored = Scratch.Cast.toBoolean(args.MIRRORED ?? true);
-  		if (this.blockPreviewLeases.get(cameraId)?.mirrored === mirrored) return;
+  		const flip = Scratch.Cast.toBoolean(args.MIRRORED ?? true) ? "horizontal" : "none";
+  		if (this.blockPreviewLeases.get(cameraId)?.flip === flip) return;
   		const revision = this.nextPreviewBlockRevision(cameraId);
   		const lease = await this.acquireCamera({
   			owner: "camera-source-preview-block",
   			cameraId,
   			preview: true,
-  			mirrored
+  			previewFlip: flip
   		});
   		if (this.blockPreviewRevisions.get(cameraId) !== revision) {
   			await lease.release();
@@ -1318,7 +1347,7 @@
   		const current = this.blockPreviewLeases.get(cameraId);
   		this.blockPreviewLeases.set(cameraId, {
   			lease,
-  			mirrored
+  			flip
   		});
   		await current?.lease.release();
   	}
@@ -1430,7 +1459,7 @@
   			width: 0,
   			height: 0,
   			deviceId: "",
-  			mirrored: false
+  			previewFlip: "none"
   		};
   		const track = session.stream.getVideoTracks()[0];
   		let settings = {};
@@ -1444,7 +1473,7 @@
   			width: session.video?.videoWidth ?? 0,
   			height: session.video?.videoHeight ?? 0,
   			deviceId: session.activeDeviceId,
-  			mirrored: session.mirrored,
+  			previewFlip: this.previewFlip(session),
   			...device?.label ? { label: device.label } : {}
   		}, settings);
   	}
@@ -1492,14 +1521,12 @@
   			video: null,
   			preview: null,
   			startPromise: null,
-  			mirrored: false,
   			activeDeviceId: ""
   		};
   		this.sessions.set(cameraId, session);
   		return session;
   	}
   	async start(session, options) {
-  		session.mirrored = options.mirrored === true;
   		session.startPromise = (async () => {
   			const stream = await mediaDevices().getUserMedia(videoConstraints(options));
   			let video = null;
@@ -1556,10 +1583,17 @@
   	ensurePreview(session) {
   		if (session.preview || !session.video) return;
   		const runtime = Scratch.vm.runtime;
-  		session.preview = createVideoPreview(runtime.renderer, session.video, this.previewMirrored(session), () => runtime.requestRedraw?.());
+  		session.preview = createVideoPreview(runtime.renderer, session.video, this.previewFlip(session), () => runtime.requestRedraw?.());
   	}
-  	previewMirrored(session) {
-  		return [...session.previewLeases.values()].some(Boolean);
+  	/**
+  	* How the preview is shown for a camera several consumers may be watching.
+  	*
+  	* Any consumer asking for a flipped preview flips it for everyone, which is
+  	* the same rule the previous boolean followed.
+  	*/
+  	previewFlip(session) {
+  		for (const flip of session.previewLeases.values()) if (flip !== "none") return flip;
+  		return "none";
   	}
   	getFrameSource(session) {
   		if (!session.video || !session.stream) throw new Error("Shared camera is not running.");
@@ -1568,7 +1602,8 @@
   			element: session.video,
   			width: session.video.videoWidth,
   			height: session.video.videoHeight,
-  			mirrored: session.mirrored,
+  			pixelFlip: "none",
+  			previewFlip: this.previewFlip(session),
   			deviceId: session.activeDeviceId
   		});
   	}
