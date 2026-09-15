@@ -351,7 +351,7 @@ const previewLease = await cameraSource.acquireCamera({
   owner: "camera-preview",
   cameraId: "pose",
   preview: true,
-  mirrored: true,
+  previewFlip: "horizontal",
 });
 const frame = qrLease.getFrameSource();
 await previewLease.release();
@@ -364,14 +364,14 @@ the shared `HTMLVideoElement` with `texImage2D(video)` and mirrors by changing t
 X scale. It does not call `drawImage()`, `getImageData()`, or scan frame pixels on the CPU. The option
 defaults to `false`; the preview remains visible until the final preview lease for that camera is
 released.
-If multiple preview leases share a camera, the preview is mirrored while any active preview lease
-requests `mirrored: true`.
+If multiple preview leases share a camera, the preview is turned over while any active preview
+lease asks for a flip.
 
 TurboWarp projects can manage the same display path with the `show shared camera ... preview`
 and `hide shared camera ... preview` blocks. The show block owns exactly one preview lease per
-camera ID. Calling it repeatedly with the same setting is idempotent; changing `MIRRORED` replaces
-that lease without creating another drawable. `MIRRORED` accepts TurboWarp boolean text such as
-`true` and `false`. Hiding the preview releases only the block-owned display lease, so processing
+camera ID. Calling it repeatedly with the same setting is idempotent; changing `PREVIEW_FLIP`
+replaces that lease without creating another drawable. `PREVIEW_FLIP` takes `none`, `horizontal`,
+`vertical` or `both`, and accepts a reporter so a project can hold the choice in a variable. Hiding the preview releases only the block-owned display lease, so processing
 leases held by other blocks or extensions continue running. Stopping the named camera, stopping or
 loading a project, and disposing the runtime release the block-owned camera and preview resources.
 
@@ -411,13 +411,30 @@ const assessment = calibration.assessProfile("pose");
 
 **Ask for intrinsics rather than scaling a profile yourself.** When the camera delivers a size the calibration was not solved at, the arithmetic depends on what happened: a pure downscale multiplies `fx`, `fy`, `cx` and `cy`, while a crop leaves the focal lengths alone and shifts the principal point instead. Only this extension sees the track's `resizeMode`, so only it can tell the two apart — and if every consumer guesses, they guess differently and the same camera yields different geometry depending on which extension asked. `camera intrinsics JSON` returns numbers already adapted to the current frame, or an empty string when the difference is a crop or an aspect change and the principal point cannot be placed.
 
-**The preview's mirroring is not the frames'.** `getFrameSource()` reports `pixelFlip` and `previewFlip` separately, because they are different facts: a preview is mirrored by a rendering transform that never reaches the frames, so `pixelFlip` is `none` however the preview is shown. Coordinates picked off a mirrored preview must be turned back before they are used with these frames — a solve fed the preview's coordinates converges on a left-right reflected pose and reports a small reprojection error while doing it. `horizontal` is the left-right mirror, matching `cv::flip(…, 1)`, ffmpeg's `hflip` and CSS `scaleX(-1)`; rotation is a separate concern and is deliberately not folded into the same enum.
+**Turning the preview over does not turn the frames over.** `getFrameSource()` reports `previewFlip`, which describes how the stage is drawing the image and nothing else; the frames behind it are always the ones the camera captured. Coordinates picked off a flipped preview must be turned back before they are used with these frames — a solve fed the preview's coordinates converges on a left-right reflected pose and reports a small reprojection error while doing it. `horizontal` is the left-right mirror, matching `cv::flip(…, 1)`, ffmpeg's `hflip` and CSS `scaleX(-1)`; rotation is a separate concern and is deliberately not folded into the same enum.
 
-The `show shared camera preview` block keeps its opcode and its `MIRRORED` argument, so existing projects are unaffected. `acquireCamera` takes `previewFlip` now, and still accepts the older `mirrored: true`.
+**Import these declarations rather than re-writing them.** The contract is published as its own
+entry point, so a consumer states what it expects and finds out at build time when that changes.
+
+```ts
+import {readCameraSourceRuntime} from "@kubohiroya/turbowarp-camera-source/runtime";
+import type {CameraFrameSource, CameraLease} from "@kubohiroya/turbowarp-camera-source/runtime";
+```
+
+The module holds no logic and pulls in none of the extension. A hand-written copy of an interface
+compiles perfectly against nothing: when the shape here changes, the copy keeps type-checking in its
+own repository and fails in a browser instead.
 
 **"Cannot tell" is a distinct answer from "fits".** Compatibility is `compatible`, `incompatible` or `undetermined`, and unknown never resolves upward. Intrinsics are withheld unless the profile actually fits the camera as configured now: handing them over regardless would let a consumer project with numbers from a different configuration and get plausible, wrong geometry back.
 
 ## Compatibility
+
+Unreleased changes are breaking. `CameraFrameSource.mirrored` is replaced by `previewFlip`, which
+names the axis and says that it describes the drawing rather than the pixels. The preview block's
+`MIRRORED` argument is replaced by `PREVIEW_FLIP` and the boolean is no longer read. `acquireCamera`
+takes `previewFlip` and no longer accepts `mirrored`. Consumers holding a hand-written copy of the
+frame source interface should move to the published `./runtime` entry point, which would have caught
+this at build time.
 
 Version 0.6.0 exposes per-camera failure details and treats inactive or ended video tracks as
 stopped. Existing camera IDs, lease ownership, and preview behavior remain unchanged.

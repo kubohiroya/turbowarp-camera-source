@@ -18,7 +18,7 @@ import {
 } from './adaptation.js';
 import {evaluateProfileCompatibility, type CompatibilityReport} from './compatibility.js';
 import type {CameraConditions} from './conditions.js';
-import {parseCameraIntrinsicProfile} from './profile.js';
+import {readCameraProfileDocument} from './profile.js';
 import type {CameraIntrinsicProfileV1, ProfileResult} from './types.js';
 
 export interface ProfileAssessment {
@@ -42,11 +42,15 @@ export class CameraProfileRegistry {
   /**
    * Validates a document and, only if it passes, stores it.
    *
+   * Both the current contract and the `twrmc/camera-calibration` file an operator may still be
+   * carrying are accepted; the second is converted on the way in, dropping the world pose it
+   * carried rather than letting a stale extrinsic arrive as a placement.
+   *
    * Nothing is written before the document has been checked. A half-registered
    * profile would be indistinguishable from a good one at the point of use.
    */
   public register(document: unknown): ProfileResult {
-    const result = parseCameraIntrinsicProfile(document);
+    const result = readCameraProfileDocument(document);
     if (!result.ok) return result;
     this.profiles.set(result.profile.cameraId, result.profile);
     return result;

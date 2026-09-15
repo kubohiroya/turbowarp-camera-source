@@ -535,6 +535,8 @@
   //#endregion
   //#region src/calibration/profile.ts
   var CAMERA_INTRINSIC_PROFILE_SCHEMA = "twcs/camera-intrinsics";
+  /** The application-specific format this contract replaces. Read for migration, never written. */
+  var LEGACY_CALIBRATION_SCHEMA = "twrmc/camera-calibration";
   var IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
   var UTC_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
   var MAXIMUM_IMAGE_EDGE = 16384;
@@ -547,6 +549,7 @@
   var MAXIMUM_ZOOM = 1e3;
   var MAXIMUM_FOCUS_DISTANCE = 1e4;
   var MAXIMUM_SCAN_DEPTH = 16;
+  var AFFINE_ROW_TOLERANCE = 1e-6;
   var DISTORTION_MODELS = [
   	"none",
   	"brown-conrady",
@@ -848,6 +851,21 @@
   		throw error;
   	}
   }
+  /**
+  * Reads whichever profile format a document is written in.
+  *
+  * An operator holding a file does not know, and should not have to know, which of two schemas it
+  * uses; they know they calibrated this camera once and kept the result. Dispatching on the document
+  * itself means one entry point accepts both, and the profile that comes out records where it came
+  * from in `producer`, so nothing about the conversion is hidden.
+  *
+  * Only the declared schema decides. A document that says nothing recognizable is refused by the
+  * current parser, which names what it expected.
+  */
+  function readCameraProfileDocument(input) {
+  	if (isRecord(input) && input["schema"] === "twrmc/camera-calibration") return adoptLegacyCameraCalibration(input);
+  	return parseCameraIntrinsicProfile(input);
+  }
   /** Validates a parsed document and returns a normalized profile, or the reason it was refused. */
   function parseCameraIntrinsicProfile(input) {
   	return toResult(() => readProfile(input));
@@ -906,6 +924,78 @@
   	};
   	return `${JSON.stringify(ordered, null, 2)}\n`;
   }
+  function readLegacyMatrixRow(matrix, offset, expected) {
+  	expected.forEach((value, index) => {
+  		const actual = requireFinite(matrix[offset + index], `intrinsicMatrix[${offset + index}]`);
+  		if (Math.abs(actual - value) > AFFINE_ROW_TOLERANCE) reject("inconsistent-profile", `intrinsicMatrix[${offset + index}]`, `Expected ${value} in the intrinsic matrix; the value read as ${actual}.`);
+  	});
+  }
+  /**
+  * Converts a `twrmc/camera-calibration` v1 document into this contract.
+  *
+  * The world pose the old format carried is deliberately dropped. It was the extrinsic of whichever
+  * calibration sample happened to be last, so treating it as a placement in a shared world frame puts
+  * a camera somewhere it has never been. Placement belongs to whoever solves it against a common
+  * reference, and a profile that simply lacks it is honest about what it knows.
+  *
+  * Quality is dropped for the same reason: the old format recorded none, and inventing a sample count
+  * or a reprojection error would turn "unknown" into a measurement.
+  */
+  function adoptLegacyCameraCalibration(input) {
+  	return toResult(() => {
+  		assertNoForbiddenKeys(input, "", 0, /* @__PURE__ */ new WeakSet());
+  		const record = requireRecord(input, "");
+  		requireLiteral(record["schema"], "schema", LEGACY_CALIBRATION_SCHEMA, "unsupported-schema");
+  		requireLiteral(record["version"], "version", 1, "unsupported-version");
+  		requireExactKeys(record, "", [
+  			"schema",
+  			"version",
+  			"calibrationId",
+  			"cameraId",
+  			"imageWidth",
+  			"imageHeight",
+  			"intrinsicMatrix",
+  			"distortionCoefficients",
+  			"calibratedAt"
+  		], ["worldFromCameraMatrix", "worldUnit"]);
+  		const matrix = record["intrinsicMatrix"];
+  		if (!Array.isArray(matrix) || matrix.length !== 9) reject("invalid-value", "intrinsicMatrix", "Expected nine numbers in row-major order.");
+  		readLegacyMatrixRow(matrix, 3, [0]);
+  		readLegacyMatrixRow(matrix, 6, [
+  			0,
+  			0,
+  			1
+  		]);
+  		const rawCoefficients = record["distortionCoefficients"];
+  		if (!Array.isArray(rawCoefficients)) reject("invalid-type", "distortionCoefficients", "Expected an array.");
+  		const model = rawCoefficients.length === 0 ? "none" : "brown-conrady";
+  		return readProfile({
+  			schema: CAMERA_INTRINSIC_PROFILE_SCHEMA,
+  			version: 1,
+  			profileId: record["calibrationId"],
+  			cameraId: record["cameraId"],
+  			calibratedAt: record["calibratedAt"],
+  			producer: `${LEGACY_CALIBRATION_SCHEMA} v1`,
+  			cameraModel: "pinhole",
+  			image: {
+  				width: record["imageWidth"],
+  				height: record["imageHeight"],
+  				undistorted: false
+  			},
+  			intrinsics: {
+  				fx: matrix[0],
+  				fy: matrix[4],
+  				cx: matrix[2],
+  				cy: matrix[5],
+  				skew: matrix[1]
+  			},
+  			distortion: {
+  				model,
+  				coefficients: rawCoefficients
+  			}
+  		});
+  	});
+  }
   //#endregion
   //#region src/calibration/registry.ts
   /**
@@ -927,11 +1017,15 @@
   	/**
   	* Validates a document and, only if it passes, stores it.
   	*
+  	* Both the current contract and the `twrmc/camera-calibration` file an operator may still be
+  	* carrying are accepted; the second is converted on the way in, dropping the world pose it
+  	* carried rather than letting a stale extrinsic arrive as a placement.
+  	*
   	* Nothing is written before the document has been checked. A half-registered
   	* profile would be indistinguishable from a good one at the point of use.
   	*/
   	register(document) {
-  		const result = parseCameraIntrinsicProfile(document);
+  		const result = readCameraProfileDocument(document);
   		if (!result.ok) return result;
   		this.profiles.set(result.profile.cameraId, result.profile);
   		return result;

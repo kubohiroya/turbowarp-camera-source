@@ -109,6 +109,34 @@ describe('the calibration blocks', () => {
   });
 });
 
+describe('a profile file an operator already has', () => {
+  it('registers a twrmc/camera-calibration document through the ordinary block', () => {
+    // The operator knows they calibrated this camera once and kept the result; which of two schemas
+    // the file uses is not something they should have to answer before loading it.
+    const extension = new CameraSourceExtension();
+    const legacy: unknown = JSON.parse(
+      readFileSync(new URL('./fixtures/calibration/legacy/valid.json', import.meta.url), 'utf8')
+    );
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(legacy)});
+
+    expect(extension.cameraProfileError()).toBe('');
+    expect(extension.cameraProfileRegistered({CAMERA_ID: 'stage-left'})).toBe(true);
+
+    const stored = extension.cameraProfileJson({CAMERA_ID: 'stage-left'});
+    expect(stored).toContain('twcs/camera-intrinsics');
+    // The world pose the old format carried was the extrinsic of whichever sample happened to be
+    // last. Carrying it forward would put the camera somewhere it has never been.
+    expect(stored).not.toContain('worldFromCamera');
+    expect(stored).toContain('twrmc/camera-calibration v1');
+  });
+
+  it('still refuses a document written in neither schema', () => {
+    const extension = new CameraSourceExtension();
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify({schema: 'something/else'})});
+    expect(extension.cameraProfileError()).not.toBe('');
+  });
+});
+
 describe('the runtime capability', () => {
   /**
    * The flag set is frozen when `config/feature-flags.ts` is evaluated, so a test that wants the

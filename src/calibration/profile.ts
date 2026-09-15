@@ -425,6 +425,24 @@ function toResult(read: () => CameraIntrinsicProfileV1): ProfileResult {
   }
 }
 
+/**
+ * Reads whichever profile format a document is written in.
+ *
+ * An operator holding a file does not know, and should not have to know, which of two schemas it
+ * uses; they know they calibrated this camera once and kept the result. Dispatching on the document
+ * itself means one entry point accepts both, and the profile that comes out records where it came
+ * from in `producer`, so nothing about the conversion is hidden.
+ *
+ * Only the declared schema decides. A document that says nothing recognizable is refused by the
+ * current parser, which names what it expected.
+ */
+export function readCameraProfileDocument(input: unknown): ProfileResult {
+  if (isRecord(input) && input['schema'] === LEGACY_CALIBRATION_SCHEMA) {
+    return adoptLegacyCameraCalibration(input);
+  }
+  return parseCameraIntrinsicProfile(input);
+}
+
 /** Validates a parsed document and returns a normalized profile, or the reason it was refused. */
 export function parseCameraIntrinsicProfile(input: unknown): ProfileResult {
   return toResult(() => readProfile(input));
