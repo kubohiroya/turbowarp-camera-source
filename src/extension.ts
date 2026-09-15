@@ -1,6 +1,7 @@
 import {featureFlags} from '../config/feature-flags';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
+import type {UsableIntrinsics} from './calibration/adaptation';
 import {readCameraConditions, type CameraConditions} from './calibration/conditions';
 import {decisiveFindings} from './calibration/compatibility';
 import {CameraProfileRegistry} from './calibration/registry';
@@ -149,6 +150,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
             const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
             return result.ok ? {ok: true, view: result.assessment} : {ok: false, error: result.error};
           },
+          intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
           conditionsFor: (cameraId) => this.conditionsOf(cameraId),
           conditionsGeneration: (cameraId) => this.generationOf(cameraId)
         })
@@ -409,21 +411,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraProfileIntrinsicsJson(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
-    const result = this.profiles.assess(cameraId, this.conditionsOf(cameraId));
-    if (!result.ok) return '';
-    const {adaptation, compatibility} = result.assessment;
-    // Intrinsics are withheld unless the profile actually fits the camera as it
-    // is configured now. Handing them over regardless would let a consumer
-    // project with numbers from a different configuration and get plausible,
-    // wrong geometry back.
-    if (compatibility.state !== 'compatible' || adaptation.intrinsics === undefined) return '';
-    return JSON.stringify({
-      ...adaptation.intrinsics,
-      width: adaptation.width,
-      height: adaptation.height,
-      scale: adaptation.scale,
-      adaptation: adaptation.state
-    });
+    // Withholding intrinsics that do not fit is decided once, in the assessment, so this surface
+    // and the runtime capability cannot drift into answering the question differently.
+    const usable = this.intrinsicsOf(cameraId);
+    return usable === undefined ? '' : JSON.stringify(usable);
   }
 
   public cameraConditionsJson(args: {CAMERA_ID?: unknown} = {}): string {
@@ -435,6 +426,12 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   /** What the track reports about itself right now. Read only. */
+  private intrinsicsOf(cameraId: string): UsableIntrinsics | undefined {
+    const id = normalizeId(cameraId);
+    const result = this.profiles.assess(id, this.conditionsOf(id));
+    return result.ok ? result.assessment.usable : undefined;
+  }
+
   private conditionsOf(cameraId: string): CameraConditions {
     const id = normalizeId(cameraId);
     const session = this.sessions.get(id);

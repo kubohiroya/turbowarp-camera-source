@@ -10,16 +10,29 @@
  * calibration in force at a time, and a fresh solve replaces the previous one
  * rather than accumulating beside it.
  */
-import {adaptProfileToConditions, type ProfileAdaptation} from './adaptation.js';
+import {
+  adaptProfileToConditions,
+  usableIntrinsics,
+  type ProfileAdaptation,
+  type UsableIntrinsics
+} from './adaptation.js';
 import {evaluateProfileCompatibility, type CompatibilityReport} from './compatibility.js';
 import type {CameraConditions} from './conditions.js';
 import {parseCameraIntrinsicProfile} from './profile.js';
 import type {CameraIntrinsicProfileV1, ProfileError, ProfileResult} from './types.js';
 
 export interface ProfileAssessment {
+  /** The document as stored, for showing and re-exporting. Not a licence to project with it. */
   readonly profile: CameraIntrinsicProfileV1;
   readonly compatibility: CompatibilityReport;
   readonly adaptation: ProfileAdaptation;
+  /**
+   * The numbers that may be used, absent when none may be.
+   *
+   * Decided once, here, so that every surface — blocks, the runtime capability, anything added
+   * later — inherits the rule instead of each one remembering to apply it.
+   */
+  readonly usable?: UsableIntrinsics;
 }
 
 export type AssessmentResult =
@@ -80,12 +93,16 @@ export class CameraProfileRegistry {
         }
       };
     }
+    const compatibility = evaluateProfileCompatibility(profile, conditions);
+    const adaptation = adaptProfileToConditions(profile, conditions);
+    const usable = usableIntrinsics(compatibility, adaptation);
     return {
       ok: true,
       assessment: {
         profile,
-        compatibility: evaluateProfileCompatibility(profile, conditions),
-        adaptation: adaptProfileToConditions(profile, conditions)
+        compatibility,
+        adaptation,
+        ...(usable === undefined ? {} : {usable})
       }
     };
   }

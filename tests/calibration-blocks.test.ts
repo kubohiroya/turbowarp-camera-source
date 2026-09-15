@@ -199,6 +199,74 @@ describe('the runtime capability', () => {
   });
 });
 
+describe('withholding intrinsics that do not fit', () => {
+  /**
+   * The same question asked of both surfaces.
+   *
+   * The block path used to apply the rule itself while the runtime capability handed back the whole
+   * assessment, so an extension reading `profile.intrinsics` got numbers the blocks would have
+   * refused. Consumer extensions are the ones that project with these, which made the unguarded
+   * surface the one that mattered.
+   */
+  async function enabledExtension(): Promise<new () => unknown> {
+    vi.resetModules();
+    (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'] = {
+      calibrationProfilesV1: true
+    };
+    const module = await import('../src/extension.js');
+    return module.CameraSourceExtension;
+  }
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'];
+    vi.resetModules();
+  });
+
+  it('gives neither surface numbers while the camera is not running', async () => {
+    const Extension = await enabledExtension();
+    const extension = new Extension() as {
+      registerCameraProfile(args: {PROFILE_JSON: string}): void;
+      cameraProfileIntrinsicsJson(args: {CAMERA_ID: string}): string;
+    };
+    const source = document('full.json');
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+    const cameraId = source.cameraId as string;
+
+    const capability = runtime[runtimeCapabilityKey] as {
+      intrinsicsFor(cameraId: string): unknown;
+      assessProfile(cameraId: string): {ok: boolean; view?: {usable?: unknown; profile: unknown}};
+    };
+    const assessed = capability.assessProfile(cameraId);
+
+    // No frame has arrived, so compatibility cannot be settled and nothing may be used.
+    expect(extension.cameraProfileIntrinsicsJson({CAMERA_ID: cameraId})).toBe('');
+    expect(capability.intrinsicsFor(cameraId)).toBeUndefined();
+    expect(assessed.view?.usable).toBeUndefined();
+  });
+
+  it('still shows the stored profile so an operator can see why', async () => {
+    const Extension = await enabledExtension();
+    const extension = new Extension() as {
+      registerCameraProfile(args: {PROFILE_JSON: string}): void;
+    };
+    const source = document('full.json');
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+
+    // Refusing to hand over usable numbers must not also hide what is held: the document and the
+    // reasons are what an operator needs to act on.
+    const capability = runtime[runtimeCapabilityKey] as {
+      assessProfile(cameraId: string): {
+        ok: boolean;
+        view?: {profile: {profileId: string}; compatibility: {state: string}};
+      };
+    };
+    const assessed = capability.assessProfile(source.cameraId as string);
+    expect(assessed.ok).toBe(true);
+    expect(assessed.view?.profile.profileId).toBe(source.profileId);
+    expect(assessed.view?.compatibility.state).toBe('undetermined');
+  });
+});
+
 describe('state that crosses a project boundary', () => {
   it('keeps profiles and drops the error that named the last attempt', () => {
     const extension = new CameraSourceExtension();
