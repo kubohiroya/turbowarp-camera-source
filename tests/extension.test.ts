@@ -399,6 +399,30 @@ describe('CameraSourceExtension', () => {
     expect(extension.isCameraRunning({CAMERA_ID: 'qr'})).toBe(false);
   });
 
+  it('keeps a restarted session when a lease from the previous session is released', async () => {
+    const first = stream('first-device');
+    const second = stream('second-device');
+    const getUserMedia = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia, enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    const previous = await extension.acquireCamera({owner: 'previous', cameraId: 'default'});
+    extension.stopAllCameras();
+    const current = await extension.acquireCamera({owner: 'current', cameraId: 'default'});
+
+    await previous.release();
+
+    expect(extension.isCameraRunning()).toBe(true);
+    expect(extension.cameraDeviceIdReporter()).toBe('second-device');
+    expect(current.getFrameSource().deviceId).toBe('second-device');
+
+    await current.release();
+    expect(extension.isCameraRunning()).toBe(false);
+  });
+
   it('uploads preview frames directly from video and mirrors with drawable scale', async () => {
     const cameraStream = stream('preview-device');
     const sourceVideo = video();
