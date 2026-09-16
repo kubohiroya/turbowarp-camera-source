@@ -167,19 +167,41 @@ function videoSkinClass(renderer: CameraRenderer): VideoSkinConstructor {
 
     private readonly handleVideoFrame: VideoFrameRequestCallback = () => {
       if (this.disposed) return;
-      this.dirty = true;
-      this.onFrame(this.syncMetrics());
+      this.markChanged();
       this.scheduleFrame();
     };
 
     private readonly handleAnimationFrame: FrameRequestCallback = () => {
       if (this.disposed) return;
-      if (this.video.currentTime !== this.lastCurrentTime) {
-        this.dirty = true;
-        this.onFrame(this.syncMetrics());
-      }
+      if (this.video.currentTime !== this.lastCurrentTime) this.markChanged();
       this.scheduleFrame();
     };
+
+    /**
+     * Says a new frame arrived, to everything that has to hear it.
+     *
+     * Three separate listeners, and missing any one of them stops the picture
+     * without stopping anything else:
+     *
+     * `dirty` is this skin's own note that the texture it holds is behind the
+     * video. `getTexture` reads it.
+     *
+     * `emitWasAltered` is the renderer's. A renderer that redrew every frame
+     * regardless would not need it, but this one skips the work when nothing
+     * says it changed -- and a video is the one skin whose content changes
+     * without anybody touching a drawable. Without this the preview updated
+     * only when something else forced a redraw, so resizing the stage showed
+     * the current frame and then it froze again. `draw` was still being called
+     * thirty times a second; it was returning immediately every time.
+     *
+     * `onFrame` is the extension's, which asks the VM for a redraw and keeps
+     * the drawable's size in step with the video's.
+     */
+    private markChanged(): void {
+      this.dirty = true;
+      this.emitWasAltered();
+      this.onFrame(this.syncMetrics());
+    }
 
     private scheduleFrame(): void {
       if (typeof this.video.requestVideoFrameCallback === 'function') {
