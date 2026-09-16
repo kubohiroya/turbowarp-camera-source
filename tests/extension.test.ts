@@ -510,8 +510,17 @@ describe('CameraSourceExtension', () => {
 
     Object.assign(sourceVideo, {currentTime: 1});
     cameraRenderer.getNativeSize.mockReturnValue([960, 360]);
+    const altered = vi.spyOn(skin!, 'emitWasAltered');
     frameCallback?.(1, {} as VideoFrameCallbackMetadata);
     expect(cameraRenderer.updateDrawableScale).toHaveBeenLastCalledWith(10, [-75, 75]);
+    // The renderer skips the frame when nothing says a drawable changed, and a
+    // video is the one skin whose content changes without anybody touching
+    // one. Asking the VM for a redraw does not reach it: that flag is the
+    // sequencer's. Without this the preview stood still while `draw` ran
+    // thirty times a second and returned immediately each time, and only a
+    // stage resize -- which marks the renderer itself -- showed the picture
+    // moving on.
+    expect(altered).toHaveBeenCalled();
     skin?.getTexture([100, 100]);
     expect(gl.texImage2D).toHaveBeenCalledTimes(2);
     expect(requestRedraw).toHaveBeenCalled();
