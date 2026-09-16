@@ -10,8 +10,16 @@ import type {CompatibilityReport} from './calibration/compatibility.js';
 import type {CameraConditions} from './calibration/conditions.js';
 import type {CameraIntrinsicProfileV1, ProfileResult} from './calibration/types.js';
 
-export const runtimeCapabilityKey = 'kubohiroyaCameraSourceCapability';
-export const runtimeCapabilityVersion = 1 as const;
+// Defined in the published entry rather than here, so the name a consumer imports and the name this
+// extension publishes under cannot drift apart into two string literals that agree by inspection.
+export {
+  cameraSourceCapabilityKey as runtimeCapabilityKey,
+  cameraSourceCapabilityVersion as runtimeCapabilityVersion
+} from './runtime.js';
+
+import {cameraSourceCapabilityVersion} from './runtime.js';
+
+const runtimeCapabilityVersion = cameraSourceCapabilityVersion;
 
 export interface CameraProfileView {
   /** The document as stored. For showing an operator or writing back out, not for projecting with. */

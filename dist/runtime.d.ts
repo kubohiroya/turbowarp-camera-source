@@ -19,8 +19,17 @@ export declare const cameraSourceExtensionId = "kubohiroyacamerasource";
  * consumer has to handle whatever else it does.
  */
 export declare const cameraSourceRuntimeKey = "ext_kubohiroyacamerasource";
-/** Where the versioned capability sits, when the build publishing it has that path enabled. */
+/**
+ * Where the versioned capability sits, when the build publishing it has that path enabled.
+ *
+ * Separate from `cameraSourceRuntimeKey` on purpose. The extension key is present as soon as Camera
+ * Source is registered; this one appears only when the calibration profile contract is switched on.
+ * A consumer can therefore tell "not loaded" from "loaded, and not offering profiles", and neither
+ * has to be reported as the other.
+ */
 export declare const cameraSourceCapabilityKey = "kubohiroyaCameraSourceCapability";
+/** The capability version this build implements. `requireVersion` refuses any other. */
+export declare const cameraSourceCapabilityVersion: 1;
 /**
  * Which way an image has been turned over.
  *
@@ -71,6 +80,32 @@ export interface CameraLease {
 export interface CameraSourceRuntime {
     acquireCamera(options?: CameraAcquireOptions): Promise<CameraLease>;
 }
+/**
+ * The profile contract, re-exported so a consumer states it rather than restating it.
+ *
+ * These are declarations only and cost a consumer nothing at run time. They are published because a
+ * hand-written copy is checked against nothing: `turbowarp-camera-calibration` wrote its own copy of
+ * the registry, named a method this extension does not have, and every attempt to publish a profile
+ * failed for a reason unrelated to the message it produced. Its type-check passed throughout.
+ */
+export type { CameraProfileView, CameraSourceCapabilityV1 } from './runtime-capability.js';
+export type { CalibrationCapture, CalibrationDeviceHint, CalibrationImage, CalibrationQuality, CameraDistortion, CameraIntrinsicProfileV1, CameraIntrinsics, CameraModel, DistortionModel, ProfileError, ProfileErrorCode, ProfileResult } from './calibration/types.js';
+export type { AdaptationCode, AdaptationState, ProfileAdaptation, UsableIntrinsics } from './calibration/adaptation.js';
+export type { CompatibilityCode, CompatibilityFinding, CompatibilityReport, CompatibilityState, FindingState } from './calibration/compatibility.js';
+export type { CameraConditions } from './calibration/conditions.js';
+import type { CameraSourceCapabilityV1 } from './runtime-capability.js';
 /** Narrows a runtime value to the Camera Source surface, so a missing extension reads as absent. */
 export declare function readCameraSourceRuntime(runtime: unknown): CameraSourceRuntime | undefined;
+/**
+ * Narrows a runtime value to the profile capability, or reports it as unavailable.
+ *
+ * Undefined means one of two things a consumer usually handles the same way: Camera Source is not
+ * loaded, or it is loaded with the profile contract switched off. `readCameraSourceRuntime` is what
+ * separates them when the difference matters -- a consumer that can still share a camera but cannot
+ * ask about calibration should say that, rather than reporting the extension as missing.
+ *
+ * A version this build does not implement is a third thing again, and not an absence: the capability
+ * is returned, and `requireVersion` refuses out loud when asked for a version it cannot honour.
+ */
+export declare function readCameraSourceCapability(runtime: unknown): CameraSourceCapabilityV1 | undefined;
 //# sourceMappingURL=runtime.d.ts.map
