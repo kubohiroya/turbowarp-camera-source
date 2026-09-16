@@ -11,7 +11,7 @@
  * state feeds flipped coordinates into a solve, and the pose it gets back is a left-right
  * reflection whose reprojection error stays small.
  */
-import type {Flip} from './runtime';
+import type {Flip} from './runtime.js';
 
 export type {Flip};
 

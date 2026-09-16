@@ -1038,13 +1038,31 @@
   	}
   };
   //#endregion
+  //#region src/runtime.ts
+  /**
+  * Where the extension instance puts itself on the VM runtime.
+  *
+  * Present as soon as the extension is registered. Absent means Camera Source is not loaded, which a
+  * consumer has to handle whatever else it does.
+  */
+  var cameraSourceRuntimeKey = "ext_kubohiroyacamerasource";
+  /**
+  * Where the versioned capability sits, when the build publishing it has that path enabled.
+  *
+  * Separate from `cameraSourceRuntimeKey` on purpose. The extension key is present as soon as Camera
+  * Source is registered; this one appears only when the calibration profile contract is switched on.
+  * A consumer can therefore tell "not loaded" from "loaded, and not offering profiles", and neither
+  * has to be reported as the other.
+  */
+  var cameraSourceCapabilityKey = "kubohiroyaCameraSourceCapability";
+  //#endregion
   //#region src/runtime-capability.ts
-  var runtimeCapabilityKey = "kubohiroyaCameraSourceCapability";
+  var runtimeCapabilityVersion = 1;
   function createRuntimeCapability(host) {
   	const capability = {
-  		version: 1,
+  		version: runtimeCapabilityVersion,
   		requireVersion(version) {
-  			if (version !== 1) throw new Error(`Unsupported Camera Source runtime capability version: ${version}; this build provides 1.`);
+  			if (version !== runtimeCapabilityVersion) throw new Error(`Unsupported Camera Source runtime capability version: ${version}; this build provides ${runtimeCapabilityVersion}.`);
   			return capability;
   		},
   		registerProfile: (document) => host.registerProfile(document),
@@ -1082,15 +1100,6 @@
   function flipsVertically(flip) {
   	return flip === "vertical" || flip === "both";
   }
-  //#endregion
-  //#region src/runtime.ts
-  /**
-  * Where the extension instance puts itself on the VM runtime.
-  *
-  * Present as soon as the extension is registered. Absent means Camera Source is not loaded, which a
-  * consumer has to handle whatever else it does.
-  */
-  var cameraSourceRuntimeKey = "ext_kubohiroyacamerasource";
   //#endregion
   //#region src/video-preview.ts
   var videoLayer = "video";
@@ -1328,7 +1337,7 @@
   		this.dispose = () => {
   			this.stopAllCameras();
   			const runtime = Scratch.vm.runtime;
-  			if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[runtimeCapabilityKey];
+  			if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[cameraSourceCapabilityKey];
   			Scratch.vm.runtime.off?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
   			Scratch.vm.runtime.off?.("PROJECT_LOADED", this.handleProjectBoundary);
   			Scratch.vm.runtime.off?.("RUNTIME_DISPOSED", this.dispose);
@@ -1350,7 +1359,7 @@
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
   			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
   		}) : void 0;
-  		if (this.capability) Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
+  		if (this.capability) Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
   		Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);

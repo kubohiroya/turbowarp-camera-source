@@ -111,8 +111,13 @@ if (policy.profile !== "capability-extension") {
 if (policy.packageName !== manifest.name) {
   throw new Error("repo-policy.json packageName must match package.json name.");
 }
-if (manifest.version !== "0.7.0") {
-  throw new Error("package.json version must be 0.6.0.");
+// One declaration, used for both the manifest check and the pinned CDN URL below. They were two
+// literals and the message quoted a third, older one, so a bump could -- and did -- leave the three
+// disagreeing about which version this repository is on.
+const releaseVersion = "0.8.0";
+
+if (manifest.version !== releaseVersion) {
+  throw new Error(`package.json version must be ${releaseVersion}.`);
 }
 if (manifest.license !== policy.license) {
   throw new Error("package.json license must match repo-policy.json.");
@@ -153,8 +158,7 @@ requireText(
   "README.ja.md",
 );
 
-const cdnUrl =
-  "https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.7.0/dist/camera-source.js";
+const cdnUrl = `https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@${releaseVersion}/dist/camera-source.js`;
 requireText(readme, cdnUrl, "README.md");
 requireText(japaneseReadme, cdnUrl, "README.ja.md");
 
