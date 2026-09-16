@@ -37,14 +37,14 @@ afterEach(() => {
 });
 
 describe('the calibration blocks', () => {
-  it('stays out of the palette while the feature is off', () => {
-    // Camera acquisition and preview are untouched by the flag; what it gates
-    // is the new surface, until it has been exercised against a real
-    // calibrator.
+  it('publishes every block it defines, with nothing held back', () => {
+    // These were once behind a startup flag. Nothing gates them now, so a
+    // palette that is missing one is a fault rather than a configuration.
     const info = new CameraSourceExtension().getInfo() as {blocks: Array<{opcode: string}>};
     const opcodes = info.blocks.map((block) => block.opcode);
+    expect(opcodes).toEqual(definitions.blocks.map((block) => block.opcode));
     expect(opcodes).toContain('startSharedCamera');
-    expect(opcodes).not.toContain('registerCameraProfile');
+    expect(opcodes).toContain('registerCameraProfile');
   });
 
   it('implements every calibration opcode it defines', () => {
@@ -138,36 +138,8 @@ describe('a profile file an operator already has', () => {
 });
 
 describe('the runtime capability', () => {
-  /**
-   * The flag set is frozen when `config/feature-flags.ts` is evaluated, so a test that wants the
-   * capability has to write the global and then bring the module graph up again. That is the same
-   * order a host has to follow: write the flags before the extension bundle runs.
-   */
-  async function enabledExtension(): Promise<new () => unknown> {
-    vi.resetModules();
-    (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'] = {
-      calibrationProfilesV1: true
-    };
-    const module = await import('../src/extension.js');
-    return module.CameraSourceExtension;
-  }
-
-  afterEach(() => {
-    delete (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'];
-    vi.resetModules();
-  });
-
-  it('stays unpublished while the feature is off', () => {
-    // Consumer extensions are the capability's audience, so leaving the key in place would turn the
-    // new path on by default for exactly the callers the flag is meant to keep it off for. An
-    // absent key is what a consumer already sees when Camera Source is not loaded at all.
+  it('is published under a versioned key', () => {
     new CameraSourceExtension();
-    expect(runtime[runtimeCapabilityKey]).toBeUndefined();
-  });
-
-  it('is published under a versioned key', async () => {
-    const Extension = await enabledExtension();
-    new Extension();
     const capability = runtime[runtimeCapabilityKey] as {
       version: number;
       requireVersion(version: number): unknown;
@@ -178,16 +150,14 @@ describe('the runtime capability', () => {
     expect(capability.calibratedCameras()).toEqual([]);
   });
 
-  it('refuses a version it does not implement', async () => {
-    const Extension = await enabledExtension();
-    new Extension();
+  it('refuses a version it does not implement', () => {
+    new CameraSourceExtension();
     const capability = runtime[runtimeCapabilityKey] as {requireVersion(v: number): unknown};
     expect(() => capability.requireVersion(2)).toThrowError(/Unsupported/);
   });
 
-  it('takes a profile from any producer and hands it back', async () => {
-    const Extension = await enabledExtension();
-    new Extension();
+  it('takes a profile from any producer and hands it back', () => {
+    new CameraSourceExtension();
     const capability = runtime[runtimeCapabilityKey] as {
       registerProfile(document: unknown): {ok: boolean};
       profileFor(cameraId: string): {profileId: string} | undefined;
@@ -199,11 +169,10 @@ describe('the runtime capability', () => {
     expect(capability.calibratedCameras()).toEqual([source.cameraId]);
   });
 
-  it('reports an uncalibrated camera as absent rather than as a failure', async () => {
+  it('reports an uncalibrated camera as absent rather than as a failure', () => {
     // The safe reading of a failure is to stop, which is the wrong response to nobody having
     // calibrated this camera yet. Absence is reported the way `profileFor` reports it.
-    const Extension = await enabledExtension();
-    new Extension();
+    new CameraSourceExtension();
     const capability = runtime[runtimeCapabilityKey] as {
       assessProfile(cameraId: string): unknown;
       profileFor(cameraId: string): unknown;
@@ -212,9 +181,8 @@ describe('the runtime capability', () => {
     expect(capability.profileFor('ghost')).toBeUndefined();
   });
 
-  it('withdraws only the capability it published', async () => {
-    const Extension = await enabledExtension();
-    const first = new Extension() as {dispose(): void};
+  it('withdraws only the capability it published', () => {
+        const first = new CameraSourceExtension() as {dispose(): void};
     const published = runtime[runtimeCapabilityKey];
     expect(published).toBeDefined();
 
@@ -240,23 +208,8 @@ describe('withholding intrinsics that do not fit', () => {
    * refused. Consumer extensions are the ones that project with these, which made the unguarded
    * surface the one that mattered.
    */
-  async function enabledExtension(): Promise<new () => unknown> {
-    vi.resetModules();
-    (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'] = {
-      calibrationProfilesV1: true
-    };
-    const module = await import('../src/extension.js');
-    return module.CameraSourceExtension;
-  }
-
-  afterEach(() => {
-    delete (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'];
-    vi.resetModules();
-  });
-
-  it('gives neither surface numbers while the camera is not running', async () => {
-    const Extension = await enabledExtension();
-    const extension = new Extension() as {
+  it('gives neither surface numbers while the camera is not running', () => {
+    const extension = new CameraSourceExtension() as {
       registerCameraProfile(args: {PROFILE_JSON: string}): void;
       cameraProfileIntrinsicsJson(args: {CAMERA_ID: string}): string;
     };
@@ -276,9 +229,8 @@ describe('withholding intrinsics that do not fit', () => {
     expect(assessed?.usable).toBeUndefined();
   });
 
-  it('still shows the stored profile so an operator can see why', async () => {
-    const Extension = await enabledExtension();
-    const extension = new Extension() as {
+  it('still shows the stored profile so an operator can see why', () => {
+    const extension = new CameraSourceExtension() as {
       registerCameraProfile(args: {PROFILE_JSON: string}): void;
     };
     const source = document('full.json');
@@ -298,23 +250,8 @@ describe('withholding intrinsics that do not fit', () => {
 });
 
 describe('reusing an assessment', () => {
-  async function enabledExtension(): Promise<new () => unknown> {
-    vi.resetModules();
-    (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'] = {
-      calibrationProfilesV1: true
-    };
-    const module = await import('../src/extension.js');
-    return module.CameraSourceExtension;
-  }
-
-  afterEach(() => {
-    delete (globalThis as Record<string, unknown>)['__TWCS_FEATURE_FLAGS__'];
-    vi.resetModules();
-  });
-
-  it('answers with the same view while nothing it depends on has changed', async () => {
-    const Extension = await enabledExtension();
-    const extension = new Extension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
+  it('answers with the same view while nothing it depends on has changed', () => {
+    const extension = new CameraSourceExtension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
     const source = document('full.json');
     extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
     const cameraId = source.cameraId as string;
@@ -330,9 +267,8 @@ describe('reusing an assessment', () => {
     expect(capability.assessProfile(cameraId)).toBe(first);
   });
 
-  it('derives again once the profile is replaced', async () => {
-    const Extension = await enabledExtension();
-    const extension = new Extension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
+  it('derives again once the profile is replaced', () => {
+    const extension = new CameraSourceExtension() as {registerCameraProfile(a: {PROFILE_JSON: string}): void};
     const source = document('full.json');
     extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
     const cameraId = source.cameraId as string;

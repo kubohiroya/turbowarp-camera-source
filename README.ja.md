@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.8.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.9.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.8.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.9.0
 ```
 
 ## Quick start
@@ -69,9 +69,6 @@ stop shared camera [pose]
 - `camera device count`: 更新済みカメラデバイス数を返します。
 - `camera device ID at [INDEX]`: 1始まりの位置でカメラdevice IDを返します。
 - `camera device label at [INDEX]`: 1始まりの位置でカメララベルを返します。
-
-次の12ブロックは`calibrationProfilesV1`フラグがONのときだけパレットに出ます（既定OFF）。
-
 - `register camera profile [PROFILE_JSON]`: 内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。
 - `forget camera profile for [CAMERA_ID]`: 登録済みプロファイルを破棄します。
 - `camera [CAMERA_ID] is calibrated?`: プロファイルが登録されているかを返します。未登録は正常な状態です。
@@ -146,12 +143,6 @@ Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いま�
 ### 校正プロファイル
 
 内部校正プロファイルの契約は本拡張が持つが、**プロファイルを作ることはしない**。チェスボード校正も、操作者が貼り付けたJSONも、将来の別方式も、検証を通る文書の生産者というだけで、ここからは区別できない。
-
-この面は`config/feature-flags.ts`の起動時固定フラグで囲ってあり、**既定はOFF**。カメラ取得とpreviewはどちらでも変わらない。
-
-```js
-globalThis.__TWCS_FEATURE_FLAGS__ = {calibrationProfilesV1: true};
-```
 
 **プロファイルはカメラの投影の仕方を述べるもので、どこに立っているかは述べない。** 共通world座標での姿勢は配置を解く拡張の責務で、両者を1つの文書に混ぜたことが、従来の`twrmc/camera-calibration`形式を出自のアプリ以外で使えなくしていた。旧文書は読めるが、その姿勢は配置として再公開せずに捨てる。
 

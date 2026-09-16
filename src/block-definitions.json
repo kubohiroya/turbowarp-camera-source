@@ -167,7 +167,6 @@
     },
     {
       "opcode": "registerCameraProfile",
-      "feature": "calibrationProfilesV1",
       "blockType": "COMMAND",
       "text": "register camera profile [PROFILE_JSON]",
       "arguments": {
@@ -179,7 +178,6 @@
     },
     {
       "opcode": "forgetCameraProfile",
-      "feature": "calibrationProfilesV1",
       "blockType": "COMMAND",
       "text": "forget camera profile for [CAMERA_ID]",
       "arguments": {
@@ -191,7 +189,6 @@
     },
     {
       "opcode": "cameraProfileRegistered",
-      "feature": "calibrationProfilesV1",
       "blockType": "BOOLEAN",
       "text": "camera [CAMERA_ID] is calibrated?",
       "arguments": {
@@ -203,7 +200,6 @@
     },
     {
       "opcode": "cameraProfileJson",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile JSON for [CAMERA_ID]",
       "arguments": {
@@ -215,21 +211,18 @@
     },
     {
       "opcode": "cameraProfileError",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile error",
       "arguments": {}
     },
     {
       "opcode": "cameraProfileErrorDetail",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile error detail",
       "arguments": {}
     },
     {
       "opcode": "cameraProfileCompatibility",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile compatibility for [CAMERA_ID]",
       "arguments": {
@@ -241,7 +234,6 @@
     },
     {
       "opcode": "cameraProfileCompatibilityDetail",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile compatibility detail for [CAMERA_ID]",
       "arguments": {
@@ -253,7 +245,6 @@
     },
     {
       "opcode": "cameraProfileAdaptation",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera profile adaptation for [CAMERA_ID]",
       "arguments": {
@@ -265,7 +256,6 @@
     },
     {
       "opcode": "cameraProfileIntrinsicsJson",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera intrinsics JSON for [CAMERA_ID]",
       "arguments": {
@@ -277,7 +267,6 @@
     },
     {
       "opcode": "cameraConditionsJson",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera conditions JSON for [CAMERA_ID]",
       "arguments": {
@@ -289,7 +278,6 @@
     },
     {
       "opcode": "cameraConditionsGeneration",
-      "feature": "calibrationProfilesV1",
       "blockType": "REPORTER",
       "text": "camera conditions generation for [CAMERA_ID]",
       "arguments": {

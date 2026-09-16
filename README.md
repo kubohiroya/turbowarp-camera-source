@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.8.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.9.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.8.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.9.0
 ```
 
 ## Quick Start
@@ -393,13 +393,7 @@ noninteractive; it is intended for display, not Scratch touching or color-sensin
 
 This extension owns the contract for intrinsic calibration profiles but never produces one. Chessboard calibration, an operator pasting JSON, and any future calibrator are all just producers of a document that passes validation, and nothing here can tell them apart.
 
-The surface is behind a startup-fixed flag in `config/feature-flags.ts`, **off by default**. Camera acquisition and preview are untouched by it either way:
-
-```js
-globalThis.__TWCS_FEATURE_FLAGS__ = {calibrationProfilesV1: true};
-```
-
-A versioned capability is published for other extensions:
+A versioned capability is published for other extensions, always:
 
 ```js
 const calibration = Scratch.vm.runtime.kubohiroyaCameraSourceCapability.requireVersion(1);
