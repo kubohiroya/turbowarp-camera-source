@@ -53,21 +53,6 @@ jobs:
         # ships one, so this only keeps the requirement from depending on which
         # npm happens to come with a future bump.
         run: npm install -g npm@latest
-      - name: Report the identity this job presents to npm
-        # Temporary. The registry refuses the exchange with "OIDC permission
-        # denied", which says a claim does not match the package's trusted
-        # publisher but not which one. Prints the claims only -- never the
-        # token, which is a credential for the length of the job.
-        run: |
-          token="$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).value')"
-          node -e '
-            const claims = JSON.parse(Buffer.from(process.argv[1].split(".")[1], "base64url").toString());
-            for (const name of ["iss", "aud", "sub", "repository", "repository_owner", "workflow_ref", "job_workflow_ref", "ref", "environment", "event_name"]) {
-              console.log(name.padEnd(18), claims[name] ?? "(absent)");
-            }
-          ' "$token"
-
       - name: Publish to npm
         # No token in this repository. The package's trusted publisher on
         # npmjs.com names this repository and this workflow, and npm checks that
