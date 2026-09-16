@@ -18,7 +18,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 26
-          registry-url: https://registry.npmjs.org
+        # No registry-url. It writes an .npmrc whose auth token is the literal
+        # placeholder XXXXX-XXXXX-XXXXX-XXXXX when no token is supplied, and a
+        # configured credential -- even a bogus one -- is what npm sends instead
+        # of exchanging the workflow identity, so the publish is refused as
+        # "OIDC permission denied". package.json already names the registry in
+        # publishConfig, so nothing else needed this.
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm check

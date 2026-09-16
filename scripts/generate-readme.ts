@@ -10,7 +10,6 @@ interface BlockDefinition {
   opcode: string;
   blockType: string;
   text: string;
-  feature?: string;
   arguments: Record<string, BlockArgument>;
 }
 
@@ -80,24 +79,8 @@ async function write(relative: string, generated: string): Promise<void> {
   );
 }
 
-/**
- * The Japanese list, grouped by the flag that gates each block.
- *
- * Gated blocks are absent from the palette unless their flag is on, so listing them beside the rest
- * without saying which is which would describe a palette nobody sees.
- */
 function renderJapaneseList(blocks: readonly BlockDefinition[]): string {
-  const always = blocks.filter((block) => block.feature === undefined);
-  const features = [...new Set(blocks.flatMap((block) => (block.feature ? [block.feature] : [])))];
-  const sections = [always.map(renderJapaneseEntry).join('\n')];
-  for (const feature of features) {
-    const gated = blocks.filter((block) => block.feature === feature);
-    sections.push(
-      `次の${gated.length}ブロックは\`${feature}\`フラグがONのときだけパレットに出ます（既定OFF）。`,
-      gated.map(renderJapaneseEntry).join('\n')
-    );
-  }
-  return sections.join('\n\n');
+  return blocks.map(renderJapaneseEntry).join('\n');
 }
 
 function renderJapaneseEntry(block: BlockDefinition): string {

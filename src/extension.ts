@@ -1,4 +1,3 @@
-import {featureFlags} from '../config/feature-flags';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
 import type {UsableIntrinsics} from './calibration/adaptation';
@@ -39,7 +38,6 @@ interface MenuDefinition {
 
 interface BlockDefinition {
   opcode: string;
-  feature?: 'calibrationProfilesV1';
   blockType: BlockTypeName;
   text: string;
   arguments: Record<string, DefinitionArgument>;
@@ -145,33 +143,30 @@ export class CameraSourceExtension implements TurboWarpExtension {
       readonly assessment: ProfileAssessment | undefined;
     }
   >();
-  private readonly calibrationEnabled = featureFlags.calibrationProfilesV1;
   /** The object published on the runtime, kept so disposal can withdraw exactly what it published. */
-  private readonly capability: CameraSourceCapabilityV1 | undefined;
+  private readonly capability: CameraSourceCapabilityV1;
   private profileError: ProfileError | undefined;
   private devices: MediaDeviceInfo[] = [];
 
   public constructor() {
     Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
-    // The flag closes the whole new path, not just the palette. Consumer extensions are the main
-    // audience for the capability, so publishing it regardless would leave the path on by default
-    // for exactly the callers it is meant to be off for. An absent key is a case every consumer
-    // already handles: it is what they see when Camera Source is not loaded at all.
-    this.capability = this.calibrationEnabled
-      ? createRuntimeCapability({
-          registerProfile: (document) => this.profiles.register(document),
-          forgetProfile: (cameraId) => this.profiles.forget(cameraId),
-          profileFor: (cameraId) => this.profiles.get(cameraId),
-          calibratedCameras: () => this.profiles.cameraIds(),
-          assessProfile: (cameraId) => {
-            return this.assessmentOf(cameraId);
-          },
-          intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
-          conditionsFor: (cameraId) => this.conditionsOf(cameraId),
-          conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-        })
-      : undefined;
-    if (this.capability) Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
+    // Published unconditionally. It was once behind a startup flag, on the reasoning that consumer
+    // extensions are its audience and the path was unproven -- but the extensions that would prove
+    // it are the ones the missing key turned away, and an absent key is indistinguishable from
+    // Camera Source not being loaded. Withholding it bought nothing and cost a diagnosis.
+    this.capability = createRuntimeCapability({
+        registerProfile: (document) => this.profiles.register(document),
+        forgetProfile: (cameraId) => this.profiles.forget(cameraId),
+        profileFor: (cameraId) => this.profiles.get(cameraId),
+        calibratedCameras: () => this.profiles.cameraIds(),
+        assessProfile: (cameraId) => {
+          return this.assessmentOf(cameraId);
+        },
+        intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
+        conditionsFor: (cameraId) => this.conditionsOf(cameraId),
+      conditionsGeneration: (cameraId) => this.generationOf(cameraId)
+    });
+    Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
     Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
     Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
@@ -181,9 +176,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     return {
       id: extensionConfig.id,
       name: Scratch.translate(definitions.extensionName),
-      blocks: blockDefinitions
-        .filter((block) => block.feature === undefined || this.calibrationEnabled)
-        .map((block) => this.toScratchBlock(block)),
+      blocks: blockDefinitions.map((block) => this.toScratchBlock(block)),
       menus: Object.fromEntries(
         Object.entries(menuDefinitions).map(([id, menu]) => [
           id,

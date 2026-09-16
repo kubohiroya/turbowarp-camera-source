@@ -17,10 +17,6 @@
   	license: "MPL-2.0",
   	unsandboxed: true
   };
-  //#endregion
-  //#region config/feature-flags.ts
-  var overrides = globalThis.__TWCS_FEATURE_FLAGS__;
-  var featureFlags = Object.freeze({ calibrationProfilesV1: overrides?.calibrationProfilesV1 === true });
   var block_definitions_default = {
   	extensionName: "Camera Source",
   	blocks: [
@@ -168,7 +164,6 @@
   		},
   		{
   			"opcode": "registerCameraProfile",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "COMMAND",
   			"text": "register camera profile [PROFILE_JSON]",
   			"arguments": { "PROFILE_JSON": {
@@ -178,7 +173,6 @@
   		},
   		{
   			"opcode": "forgetCameraProfile",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "COMMAND",
   			"text": "forget camera profile for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -188,7 +182,6 @@
   		},
   		{
   			"opcode": "cameraProfileRegistered",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "BOOLEAN",
   			"text": "camera [CAMERA_ID] is calibrated?",
   			"arguments": { "CAMERA_ID": {
@@ -198,7 +191,6 @@
   		},
   		{
   			"opcode": "cameraProfileJson",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile JSON for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -208,21 +200,18 @@
   		},
   		{
   			"opcode": "cameraProfileError",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile error",
   			"arguments": {}
   		},
   		{
   			"opcode": "cameraProfileErrorDetail",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile error detail",
   			"arguments": {}
   		},
   		{
   			"opcode": "cameraProfileCompatibility",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile compatibility for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -232,7 +221,6 @@
   		},
   		{
   			"opcode": "cameraProfileCompatibilityDetail",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile compatibility detail for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -242,7 +230,6 @@
   		},
   		{
   			"opcode": "cameraProfileAdaptation",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera profile adaptation for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -252,7 +239,6 @@
   		},
   		{
   			"opcode": "cameraProfileIntrinsicsJson",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera intrinsics JSON for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -262,7 +248,6 @@
   		},
   		{
   			"opcode": "cameraConditionsJson",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera conditions JSON for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -272,7 +257,6 @@
   		},
   		{
   			"opcode": "cameraConditionsGeneration",
-  			"feature": "calibrationProfilesV1",
   			"blockType": "REPORTER",
   			"text": "camera conditions generation for [CAMERA_ID]",
   			"arguments": { "CAMERA_ID": {
@@ -1332,7 +1316,6 @@
   		this.generations = /* @__PURE__ */ new Map();
   		this.lastConditions = /* @__PURE__ */ new Map();
   		this.assessments = /* @__PURE__ */ new Map();
-  		this.calibrationEnabled = featureFlags.calibrationProfilesV1;
   		this.devices = [];
   		this.dispose = () => {
   			this.stopAllCameras();
@@ -1347,7 +1330,7 @@
   			this.profileError = void 0;
   		};
   		Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
-  		this.capability = this.calibrationEnabled ? createRuntimeCapability({
+  		this.capability = createRuntimeCapability({
   			registerProfile: (document) => this.profiles.register(document),
   			forgetProfile: (cameraId) => this.profiles.forget(cameraId),
   			profileFor: (cameraId) => this.profiles.get(cameraId),
@@ -1358,8 +1341,8 @@
   			intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
   			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
   			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-  		}) : void 0;
-  		if (this.capability) Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
+  		});
+  		Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
   		Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
   		Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
@@ -1368,7 +1351,7 @@
   		return {
   			id: extensionConfig.id,
   			name: Scratch.translate(block_definitions_default.extensionName),
-  			blocks: blockDefinitions.filter((block) => block.feature === void 0 || this.calibrationEnabled).map((block) => this.toScratchBlock(block)),
+  			blocks: blockDefinitions.map((block) => this.toScratchBlock(block)),
   			menus: Object.fromEntries(Object.entries(menuDefinitions).map(([id, menu]) => [id, {
   				acceptReporters: menu.acceptReporters,
   				items: [...menu.items]
