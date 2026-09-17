@@ -178,6 +178,16 @@
       ]
     },
     {
+      "opcode": "cameraProfileYaml",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "forgetCameraProfile",
       "blockType": "COMMAND",
       "arguments": [

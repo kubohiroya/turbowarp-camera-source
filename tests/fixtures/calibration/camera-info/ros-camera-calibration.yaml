@@ -1,0 +1,28 @@
+# Written the way ROS's camera_calibration node writes ost.yaml: PyYAML, with the long matrices
+# wrapped across lines and zeros spelled "0.".
+image_width: 640
+image_height: 480
+camera_name: narrow_stereo
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [ 430.21554,    0.     ,  306.6195 ,
+            0.     ,  430.53913,  227.22923,
+            0.     ,    0.     ,    1.     ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.337039, 0.093776, 0.001063, -0.000302, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [ 1.,  0.,  0.,
+          0.,  1.,  0.,
+          0.,  0.,  1.]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [ 337.61652,    0.     ,  303.45584,    0.     ,
+            0.     ,  379.71481,  225.11453,    0.     ,
+            0.     ,    0.     ,    1.     ,    0.     ]

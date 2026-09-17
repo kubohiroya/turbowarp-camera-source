@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "description": "A TurboWarp capability extension for sharing one MediaDevices camera stream across extensions.",
   "type": "module",
@@ -18,6 +18,10 @@
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js"
+    },
+    "./profile": {
+      "types": "./dist/profile.d.ts",
+      "import": "./dist/profile.js"
     },
     "./package.json": "./package.json"
   },

@@ -10,5 +10,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/runtime.ts"]
+  "include": ["src/runtime.ts", "src/profile.ts"]
 }

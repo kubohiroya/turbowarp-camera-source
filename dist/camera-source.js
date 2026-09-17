@@ -214,6 +214,15 @@
   			} }
   		},
   		{
+  			"opcode": "cameraProfileYaml",
+  			"blockType": "REPORTER",
+  			"text": "camera profile YAML for [CAMERA_ID]",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
   			"opcode": "cameraProfileError",
   			"blockType": "REPORTER",
   			"text": "camera profile error",
@@ -742,7 +751,7 @@
   		skew: requireBounded(record["skew"], member(path, "skew"), -1e7, MAXIMUM_PIXEL_MAGNITUDE)
   	};
   }
-  function readDistortion(value, path) {
+  function readDistortion$1(value, path) {
   	const record = requireRecord(value, path);
   	requireExactKeys(record, path, ["model", "coefficients"]);
   	const modelPath = member(path, "model");
@@ -830,7 +839,7 @@
   		"device"
   	]);
   	const image = readImage(record["image"], "image");
-  	const distortion = readDistortion(record["distortion"], "distortion");
+  	const distortion = readDistortion$1(record["distortion"], "distortion");
   	if (image.undistorted && distortion.model !== "none") reject("inconsistent-profile", "distortion.model", "A profile for an already undistorted image cannot also carry distortion coefficients.");
   	const capture = "capture" in record ? readCapture(record["capture"], "capture") : void 0;
   	const quality = "quality" in record ? readQuality(record["quality"], "quality") : void 0;
@@ -1078,6 +1087,789 @@
   		};
   	}
   };
+  //#endregion
+  //#region src/calibration/yaml.ts
+  var YamlError = class extends Error {
+  	constructor(message, line) {
+  		super(line > 0 ? `Line ${line}: ${message}` : message);
+  		this.name = "YamlError";
+  		this.line = line;
+  	}
+  };
+  var MAXIMUM_DEPTH = 16;
+  var MAXIMUM_LENGTH = 65536;
+  function parseYaml(source) {
+  	if (source.length > MAXIMUM_LENGTH) throw new YamlError("The document is longer than a calibration file ever is.", 0);
+  	const lines = splitLines(source);
+  	if (lines.length === 0) throw new YamlError("The document is empty.", 0);
+  	const reader = new BlockReader(lines);
+  	const value = reader.readBlock(lines[0].indent, 0);
+  	if (!reader.done()) throw new YamlError("Unexpected indentation.", reader.peek().number);
+  	return value;
+  }
+  function splitLines(source) {
+  	const lines = [];
+  	let started = false;
+  	source.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/).forEach((raw, index) => {
+  		const number = index + 1;
+  		if (/\t/.test(raw.match(/^\s*/)[0])) throw new YamlError("Tabs cannot indent YAML.", number);
+  		const text = stripComment(raw).trimEnd();
+  		const content = text.trimStart();
+  		if (content.length === 0) return;
+  		if (!started && content.startsWith("%")) return;
+  		if (content === "---" || content.startsWith("--- ")) {
+  			if (started) throw new YamlError("Only one document is read from a calibration file.", number);
+  			started = true;
+  			const rest = content.slice(3).trim();
+  			if (rest.length > 0) lines.push({
+  				number,
+  				indent: 0,
+  				text: rest
+  			});
+  			return;
+  		}
+  		if (content === "...") {
+  			started = true;
+  			return;
+  		}
+  		started = true;
+  		lines.push({
+  			number,
+  			indent: text.length - content.length,
+  			text: content
+  		});
+  	});
+  	return lines;
+  }
+  /** Removes a `#` comment that is not inside quotes. A `#` only starts one after whitespace. */
+  function stripComment(raw) {
+  	let quote;
+  	for (let index = 0; index < raw.length; index += 1) {
+  		const character = raw[index];
+  		if (quote) {
+  			if (character === "\\" && quote === "\"") index += 1;
+  			else if (character === quote) quote = void 0;
+  			continue;
+  		}
+  		if (character === "\"" || character === "'") quote = character;
+  		else if (character === "#" && (index === 0 || /\s/.test(raw[index - 1]))) return raw.slice(0, index);
+  	}
+  	return raw;
+  }
+  var BlockReader = class {
+  	constructor(lines) {
+  		this.lines = lines;
+  		this.index = 0;
+  	}
+  	done() {
+  		return this.index >= this.lines.length;
+  	}
+  	peek() {
+  		return this.lines[this.index];
+  	}
+  	readBlock(indent, depth) {
+  		if (depth > MAXIMUM_DEPTH) throw new YamlError("The document is nested too deeply.", this.peek()?.number ?? 0);
+  		const first = this.peek();
+  		if (!first) throw new YamlError("Expected a value.", 0);
+  		if (first.text === "-" || first.text.startsWith("- ")) return this.readSequence(indent, depth);
+  		if (findMappingColon(first.text) >= 0) return this.readMapping(indent, depth);
+  		this.index += 1;
+  		return this.readInline(first.text, first.number, first.indent);
+  	}
+  	readMapping(indent, depth) {
+  		const mapping = {};
+  		while (!this.done()) {
+  			const line = this.peek();
+  			if (line.indent < indent) break;
+  			if (line.indent > indent) throw new YamlError("Unexpected indentation.", line.number);
+  			const colon = findMappingColon(line.text);
+  			if (colon < 0) throw new YamlError("Expected a \"key: value\" pair.", line.number);
+  			const key = readKey(line.text.slice(0, colon).trim(), line.number);
+  			if (Object.prototype.hasOwnProperty.call(mapping, key)) throw new YamlError(`The key "${key}" appears twice.`, line.number);
+  			const rest = line.text.slice(colon + 1).trim();
+  			this.index += 1;
+  			if (rest.length > 0) {
+  				mapping[key] = this.readInline(rest, line.number, line.indent);
+  				continue;
+  			}
+  			const next = this.peek();
+  			const nestedSequence = next !== void 0 && next.indent === indent && (next.text === "-" || next.text.startsWith("- "));
+  			if (next === void 0 || next.indent <= indent && !nestedSequence) mapping[key] = null;
+  			else mapping[key] = this.readBlock(next.indent, depth + 1);
+  		}
+  		return mapping;
+  	}
+  	readSequence(indent, depth) {
+  		const sequence = [];
+  		while (!this.done()) {
+  			const line = this.peek();
+  			if (line.indent < indent || !(line.text === "-" || line.text.startsWith("- "))) break;
+  			if (line.indent > indent) throw new YamlError("Unexpected indentation.", line.number);
+  			const rest = line.text.slice(1).trim();
+  			this.index += 1;
+  			if (rest.length === 0) {
+  				const next = this.peek();
+  				sequence.push(next !== void 0 && next.indent > indent ? this.readBlock(next.indent, depth + 1) : null);
+  			} else if (findMappingColon(rest) >= 0 && !/^[[{"']/.test(rest)) throw new YamlError("A mapping inside a block sequence is not part of a calibration file.", line.number);
+  			else sequence.push(this.readInline(rest, line.number, line.indent));
+  		}
+  		return sequence;
+  	}
+  	/**
+  	* Reads a value that starts on one line. A flow collection may continue on the lines after it, as
+  	* PyYAML writes long matrices, so those lines are drawn in until the brackets balance.
+  	*/
+  	readInline(text, number, indent) {
+  		if (text.startsWith("[") || text.startsWith("{")) {
+  			let joined = text;
+  			while (!flowClosed(joined)) {
+  				const next = this.peek();
+  				if (!next || next.indent <= indent) throw new YamlError("A bracket is never closed.", number);
+  				joined += ` ${next.text}`;
+  				this.index += 1;
+  			}
+  			const flow = new FlowReader(joined, number);
+  			const value = flow.readValue(0);
+  			flow.expectEnd();
+  			return value;
+  		}
+  		return readScalar(text, number);
+  	}
+  };
+  /** Where the `: ` separating a key from its value is, or -1. Colons inside quotes do not count. */
+  function findMappingColon(text) {
+  	let quote;
+  	for (let index = 0; index < text.length; index += 1) {
+  		const character = text[index];
+  		if (quote) {
+  			if (character === "\\" && quote === "\"") index += 1;
+  			else if (character === quote) quote = void 0;
+  			continue;
+  		}
+  		if (index === 0 && (character === "[" || character === "{")) return -1;
+  		if (character === "\"" || character === "'") quote = character;
+  		else if (character === ":" && (index === text.length - 1 || text[index + 1] === " ")) return index;
+  	}
+  	return -1;
+  }
+  function flowClosed(text) {
+  	let depth = 0;
+  	let quote;
+  	for (let index = 0; index < text.length; index += 1) {
+  		const character = text[index];
+  		if (quote) {
+  			if (character === "\\" && quote === "\"") index += 1;
+  			else if (character === quote) quote = void 0;
+  			continue;
+  		}
+  		if (character === "\"" || character === "'") quote = character;
+  		else if (character === "[" || character === "{") depth += 1;
+  		else if (character === "]" || character === "}") depth -= 1;
+  	}
+  	return depth <= 0;
+  }
+  function readKey(text, number) {
+  	const value = readScalar(text, number);
+  	if (typeof value !== "string") return String(value);
+  	return value;
+  }
+  var FlowReader = class {
+  	constructor(text, number) {
+  		this.text = text;
+  		this.number = number;
+  		this.index = 0;
+  	}
+  	readValue(depth) {
+  		if (depth > MAXIMUM_DEPTH) throw new YamlError("The document is nested too deeply.", this.number);
+  		this.skipSpace();
+  		const character = this.text[this.index];
+  		if (character === "[") return this.readSequence(depth);
+  		if (character === "{") return this.readMapping(depth);
+  		return readScalar(this.readToken(), this.number);
+  	}
+  	expectEnd() {
+  		this.skipSpace();
+  		if (this.index < this.text.length) throw new YamlError("Unexpected text after a closing bracket.", this.number);
+  	}
+  	readSequence(depth) {
+  		this.index += 1;
+  		const sequence = [];
+  		this.skipSpace();
+  		if (this.text[this.index] === "]") {
+  			this.index += 1;
+  			return sequence;
+  		}
+  		for (;;) {
+  			sequence.push(this.readValue(depth + 1));
+  			this.skipSpace();
+  			const separator = this.text[this.index];
+  			this.index += 1;
+  			if (separator === "]") return sequence;
+  			if (separator !== ",") throw new YamlError("Expected \",\" or \"]\" in a sequence.", this.number);
+  			this.skipSpace();
+  			if (this.text[this.index] === "]") {
+  				this.index += 1;
+  				return sequence;
+  			}
+  		}
+  	}
+  	readMapping(depth) {
+  		this.index += 1;
+  		const mapping = {};
+  		this.skipSpace();
+  		if (this.text[this.index] === "}") {
+  			this.index += 1;
+  			return mapping;
+  		}
+  		for (;;) {
+  			this.skipSpace();
+  			const key = readKey(this.readToken(":"), this.number);
+  			this.skipSpace();
+  			if (this.text[this.index] !== ":") throw new YamlError("Expected \":\" after a key.", this.number);
+  			this.index += 1;
+  			if (Object.prototype.hasOwnProperty.call(mapping, key)) throw new YamlError(`The key "${key}" appears twice.`, this.number);
+  			mapping[key] = this.readValue(depth + 1);
+  			this.skipSpace();
+  			const separator = this.text[this.index];
+  			this.index += 1;
+  			if (separator === "}") return mapping;
+  			if (separator !== ",") throw new YamlError("Expected \",\" or \"}\" in a mapping.", this.number);
+  			this.skipSpace();
+  			if (this.text[this.index] === "}") {
+  				this.index += 1;
+  				return mapping;
+  			}
+  		}
+  	}
+  	/** A quoted string, or plain text up to the next flow delimiter. */
+  	readToken(stopAlso = "") {
+  		this.skipSpace();
+  		const start = this.index;
+  		const character = this.text[this.index];
+  		if (character === "\"" || character === "'") {
+  			this.index += 1;
+  			while (this.index < this.text.length) {
+  				const current = this.text[this.index];
+  				if (current === "\\" && character === "\"") {
+  					this.index += 2;
+  					continue;
+  				}
+  				if (current === character) {
+  					if (character === "'" && this.text[this.index + 1] === "'") {
+  						this.index += 2;
+  						continue;
+  					}
+  					this.index += 1;
+  					return this.text.slice(start, this.index);
+  				}
+  				this.index += 1;
+  			}
+  			throw new YamlError("A quoted string is never closed.", this.number);
+  		}
+  		while (this.index < this.text.length && !`,]}${stopAlso}`.includes(this.text[this.index])) this.index += 1;
+  		return this.text.slice(start, this.index).trim();
+  	}
+  	skipSpace() {
+  		while (this.index < this.text.length && /\s/.test(this.text[this.index])) this.index += 1;
+  	}
+  };
+  var INTEGER = /^[-+]?(?:0|[1-9][0-9_]*)$/;
+  var FLOAT = /^[-+]?(?:[0-9][0-9_]*)?\.?[0-9]*(?:[eE][-+]?[0-9]+)?$/;
+  function readScalar(text, number) {
+  	const value = text.trim();
+  	if (value.length === 0) return null;
+  	const first = value[0];
+  	if (first === "\"") return readDoubleQuoted(value, number);
+  	if (first === "'") {
+  		if (value.length < 2 || !value.endsWith("'")) throw new YamlError("A quoted string is never closed.", number);
+  		return value.slice(1, -1).replace(/''/g, "'");
+  	}
+  	if (first === "&" || first === "*") throw new YamlError("Anchors and aliases are not read.", number);
+  	if (first === "!") throw new YamlError("Tags are not read.", number);
+  	if (first === "|" || first === ">") throw new YamlError("Block scalars are not read.", number);
+  	if (first === "@" || first === "`") throw new YamlError(`A plain value cannot start with "${first}".`, number);
+  	if (value === "~" || value === "null" || value === "Null" || value === "NULL") return null;
+  	if (value === "true" || value === "True" || value === "TRUE") return true;
+  	if (value === "false" || value === "False" || value === "FALSE") return false;
+  	if (/^[-+]?\.(?:inf|Inf|INF|nan|NaN|NAN)$/.test(value)) throw new YamlError("Infinity and NaN are not calibration values.", number);
+  	if (INTEGER.test(value)) return Number(value.replace(/_/g, ""));
+  	if (/[0-9]/.test(value) && FLOAT.test(value)) {
+  		const parsed = Number(value.replace(/_/g, ""));
+  		if (Number.isFinite(parsed)) return parsed;
+  	}
+  	return value;
+  }
+  function readDoubleQuoted(value, number) {
+  	if (value.length < 2 || !value.endsWith("\"")) throw new YamlError("A quoted string is never closed.", number);
+  	const body = value.slice(1, -1);
+  	let result = "";
+  	for (let index = 0; index < body.length; index += 1) {
+  		const character = body[index];
+  		if (character !== "\\") {
+  			result += character;
+  			continue;
+  		}
+  		const escape = body[index + 1];
+  		index += 1;
+  		switch (escape) {
+  			case "\"":
+  			case "\\":
+  			case "/":
+  				result += escape;
+  				break;
+  			case "n":
+  				result += "\n";
+  				break;
+  			case "t":
+  				result += "	";
+  				break;
+  			case "r":
+  				result += "\r";
+  				break;
+  			case "0":
+  				result += "\0";
+  				break;
+  			case "u": {
+  				const hex = body.slice(index + 1, index + 5);
+  				if (!/^[0-9a-fA-F]{4}$/.test(hex)) throw new YamlError("Invalid \\u escape.", number);
+  				result += String.fromCharCode(parseInt(hex, 16));
+  				index += 4;
+  				break;
+  			}
+  			default: throw new YamlError(`Unsupported escape "\\${escape ?? ""}".`, number);
+  		}
+  	}
+  	return result;
+  }
+  //#endregion
+  //#region src/calibration/camera-info.ts
+  /**
+  * The file a calibration is exchanged in: a ROS `camera_info` YAML document.
+  *
+  * The profile contract is how this extension holds a calibration; it is not a format anyone outside
+  * this family reads. A file an operator carries between machines is better written in the format
+  * the tools they will meet already read, and for one camera's intrinsics that is the YAML that
+  * ROS's `camera_calibration_parsers` reads and writes -- OpenCV-based pipelines, ROS and ROS 2
+  * drivers, and SLAM tools load it as it is.
+  *
+  * ROS carries what projection needs and nothing about when or how the camera was configured, which
+  * is exactly what deciding whether a profile still fits requires. Those members travel in one extra
+  * top-level mapping, `turbowarp_camera_source`, named after their owner. ROS's reader looks keys up
+  * by name and never enumerates the document, so a file with the extra mapping still loads there,
+  * and a file without it is still ROS.
+  *
+  * A file that lacks the mapping altogether cannot become a profile: when it was calibrated and which
+  * run it was are required members, and inventing either would turn "unknown" into a record.
+  */
+  /** The top-level key holding the members ROS has no place for. */
+  var CAMERA_INFO_EXTENSION_KEY = "turbowarp_camera_source";
+  var MATRIX_TOLERANCE = 1e-6;
+  /**
+  * Every top-level key a ROS file may have, and the extra mapping.
+  *
+  * Anything else is refused rather than dropped. A calibration file that carries a key nobody reads
+  * is either from a tool that means something by it or has had something pasted into it, and a
+  * profile validator that fails closed does not start ignoring members because they arrived in YAML.
+  */
+  var ROOT_KEYS = /* @__PURE__ */ new Set([
+  	"image_width",
+  	"image_height",
+  	"camera_name",
+  	"camera_matrix",
+  	"distortion_model",
+  	"distortion_coefficients",
+  	"rectification_matrix",
+  	"projection_matrix",
+  	"binning_x",
+  	"binning_y",
+  	"roi",
+  	CAMERA_INFO_EXTENSION_KEY
+  ]);
+  /** ROS distortion model names, as `sensor_msgs/distortion_models.hpp` spells them. */
+  var PLUMB_BOB = "plumb_bob";
+  var RATIONAL_POLYNOMIAL = "rational_polynomial";
+  var EQUIDISTANT = "equidistant";
+  var CameraInfoRejection = class extends Error {
+  	constructor(detail) {
+  		super(detail.message);
+  		this.detail = detail;
+  	}
+  };
+  function refuse(code, path, message) {
+  	throw new CameraInfoRejection({
+  		code,
+  		path,
+  		message
+  	});
+  }
+  /**
+  * Renders a profile as a ROS `camera_info` YAML document.
+  *
+  * The layout follows what `camera_calibration_parsers` writes, key for key and in the same order, so
+  * the file reads like one ROS produced. The projection matrix is the calibration matrix with a zero
+  * fourth column, which is what a monocular camera with no rectification has; binning and region of
+  * interest are left out, as ROS treats them as optional.
+  *
+  * Strings in the extra mapping are always double-quoted. A timestamp left plain is read as a date
+  * by YAML 1.1 readers such as PyYAML, and an id made only of digits as a number.
+  */
+  function serializeCameraInfoYaml(profile) {
+  	const { fx, fy, cx, cy, skew } = profile.intrinsics;
+  	const { model, coefficients } = rosDistortion(profile);
+  	const lines = [
+  		`image_width: ${profile.image.width}`,
+  		`image_height: ${profile.image.height}`,
+  		`camera_name: ${plainOrQuoted(profile.cameraId)}`,
+  		...matrix("camera_matrix", 3, 3, [
+  			fx,
+  			skew,
+  			cx,
+  			0,
+  			fy,
+  			cy,
+  			0,
+  			0,
+  			1
+  		]),
+  		`distortion_model: ${model}`,
+  		...matrix("distortion_coefficients", 1, coefficients.length, coefficients),
+  		...matrix("rectification_matrix", 3, 3, [
+  			1,
+  			0,
+  			0,
+  			0,
+  			1,
+  			0,
+  			0,
+  			0,
+  			1
+  		]),
+  		...matrix("projection_matrix", 3, 4, [
+  			fx,
+  			skew,
+  			cx,
+  			0,
+  			0,
+  			fy,
+  			cy,
+  			0,
+  			0,
+  			0,
+  			1,
+  			0
+  		]),
+  		`${CAMERA_INFO_EXTENSION_KEY}:`,
+  		`  schema: ${quoted(profile.schema)}`,
+  		`  version: ${profile.version}`,
+  		`  profileId: ${quoted(profile.profileId)}`,
+  		`  calibratedAt: ${quoted(profile.calibratedAt)}`,
+  		`  producer: ${quoted(profile.producer)}`,
+  		`  undistorted: ${profile.image.undistorted}`
+  	];
+  	const capture = profile.capture;
+  	if (capture !== void 0) {
+  		lines.push("  capture:");
+  		if (Object.keys(capture).length === 0) lines[lines.length - 1] += " {}";
+  		appendMember(lines, "frameRate", capture.frameRate);
+  		appendMember(lines, "facingMode", capture.facingMode);
+  		appendMember(lines, "resizeMode", capture.resizeMode);
+  		appendMember(lines, "zoom", capture.zoom);
+  		appendMember(lines, "focusMode", capture.focusMode);
+  		appendMember(lines, "focusDistance", capture.focusDistance);
+  	}
+  	if (profile.quality !== void 0) {
+  		lines.push("  quality:");
+  		appendMember(lines, "sampleCount", profile.quality.sampleCount);
+  		appendMember(lines, "reprojectionErrorPx", profile.quality.reprojectionErrorPx);
+  	}
+  	if (profile.device !== void 0) {
+  		lines.push("  device:");
+  		if (Object.keys(profile.device).length === 0) lines[lines.length - 1] += " {}";
+  		appendMember(lines, "label", profile.device.label);
+  		appendMember(lines, "deviceId", profile.device.deviceId);
+  	}
+  	return `${lines.join("\n")}\n`;
+  }
+  /**
+  * Turns a ROS `camera_info` YAML document into a profile document, ready to be validated.
+  *
+  * Only the shape ROS defines is checked here -- matrix sizes, the fixed entries of the calibration
+  * matrix, a rectification that does nothing, a distortion model ROS names. Everything the profile
+  * contract says about the values themselves is left to the profile validator, so there is one
+  * place that decides whether a calibration is acceptable.
+  */
+  function readCameraInfoYaml(text) {
+  	let parsed;
+  	try {
+  		parsed = parseYaml(text);
+  	} catch (error) {
+  		if (error instanceof YamlError) return {
+  			ok: false,
+  			error: {
+  				code: "not-an-object",
+  				path: "",
+  				message: `The profile is not valid YAML. ${error.message}`
+  			}
+  		};
+  		throw error;
+  	}
+  	try {
+  		return {
+  			ok: true,
+  			document: toProfileDocument(parsed)
+  		};
+  	} catch (error) {
+  		if (error instanceof CameraInfoRejection) return {
+  			ok: false,
+  			error: error.detail
+  		};
+  		throw error;
+  	}
+  }
+  function toProfileDocument(parsed) {
+  	const root = record(parsed, "");
+  	for (const key of Object.keys(root)) if (!ROOT_KEYS.has(key)) refuse("unexpected-field", key, "Unknown member.");
+  	readBinningAndRoi(root);
+  	const width = root["image_width"];
+  	const height = root["image_height"];
+  	if (width === void 0) refuse("missing-field", "image_width", "Required member is missing.");
+  	if (height === void 0) refuse("missing-field", "image_height", "Required member is missing.");
+  	const k = readMatrix(root, "camera_matrix", 3, 3);
+  	expectEntries(k, "camera_matrix", [
+  		[3, 0],
+  		[6, 0],
+  		[7, 0],
+  		[8, 1]
+  	]);
+  	if ("rectification_matrix" in root) expectEntries(readMatrix(root, "rectification_matrix", 3, 3), "rectification_matrix", [
+  		1,
+  		0,
+  		0,
+  		0,
+  		1,
+  		0,
+  		0,
+  		0,
+  		1
+  	].map((value, index) => [index, value]), "A rectification other than identity belongs to a stereo pair, not to one camera's intrinsics.");
+  	if ("projection_matrix" in root) readMatrix(root, "projection_matrix", 3, 4);
+  	const distortion = readDistortion(root);
+  	const extension = root[CAMERA_INFO_EXTENSION_KEY];
+  	if (extension === void 0) refuse("missing-field", CAMERA_INFO_EXTENSION_KEY, "The file is a ROS camera_info document without the calibration record: when it was calibrated and under which camera settings are not known.");
+  	const extra = record(extension, CAMERA_INFO_EXTENSION_KEY);
+  	const known = /* @__PURE__ */ new Set([
+  		"schema",
+  		"version",
+  		"profileId",
+  		"calibratedAt",
+  		"producer",
+  		"undistorted",
+  		"capture",
+  		"quality",
+  		"device"
+  	]);
+  	for (const key of Object.keys(extra)) if (!known.has(key)) refuse("unexpected-field", `${CAMERA_INFO_EXTENSION_KEY}.${key}`, "Unknown member.");
+  	if (extra["schema"] !== "twcs/camera-intrinsics") refuse("unsupported-schema", `${CAMERA_INFO_EXTENSION_KEY}.schema`, `Expected ${JSON.stringify(CAMERA_INTRINSIC_PROFILE_SCHEMA)}.`);
+  	if (extra["version"] !== 1) refuse("unsupported-version", `${CAMERA_INFO_EXTENSION_KEY}.version`, `Expected 1.`);
+  	const undistorted = extra["undistorted"] ?? false;
+  	return {
+  		schema: CAMERA_INTRINSIC_PROFILE_SCHEMA,
+  		version: 1,
+  		profileId: extra["profileId"],
+  		cameraId: root["camera_name"],
+  		calibratedAt: extra["calibratedAt"],
+  		producer: extra["producer"],
+  		cameraModel: "pinhole",
+  		image: {
+  			width,
+  			height,
+  			undistorted
+  		},
+  		intrinsics: {
+  			fx: k[0],
+  			fy: k[4],
+  			cx: k[2],
+  			cy: k[5],
+  			skew: k[1]
+  		},
+  		distortion,
+  		..."capture" in extra ? { capture: extra["capture"] } : {},
+  		..."quality" in extra ? { quality: extra["quality"] } : {},
+  		..."device" in extra ? { device: extra["device"] } : {}
+  	};
+  }
+  /**
+  * Maps a ROS distortion model onto the profile's.
+  *
+  * `plumb_bob` coefficients that are all zero read as no distortion. ROS has no model for "none"; a
+  * lens-free image is written as plumb_bob with five zeros, and reading it back must not invent a
+  * Brown-Conrady lens that happens to do nothing.
+  */
+  function readDistortion(root) {
+  	const rawModel = root["distortion_model"] ?? PLUMB_BOB;
+  	const coefficients = readMatrix(root, "distortion_coefficients", 1, void 0);
+  	switch (rawModel) {
+  		case PLUMB_BOB:
+  			if (coefficients.length !== 4 && coefficients.length !== 5) refuse("invalid-distortion", "distortion_coefficients", `plumb_bob takes 5 coefficients, not ${coefficients.length}.`);
+  			return isAllZero(coefficients) ? {
+  				model: "none",
+  				coefficients: []
+  			} : {
+  				model: "brown-conrady",
+  				coefficients
+  			};
+  		case RATIONAL_POLYNOMIAL:
+  			if (coefficients.length !== 8) refuse("invalid-distortion", "distortion_coefficients", `rational_polynomial takes 8 coefficients, not ${coefficients.length}.`);
+  			return {
+  				model: "brown-conrady",
+  				coefficients
+  			};
+  		case EQUIDISTANT:
+  			if (coefficients.length !== 4) refuse("invalid-distortion", "distortion_coefficients", `equidistant takes 4 coefficients, not ${coefficients.length}.`);
+  			return {
+  				model: "kannala-brandt",
+  				coefficients
+  			};
+  		default: refuse("invalid-distortion", "distortion_model", `Expected ${PLUMB_BOB}, ${RATIONAL_POLYNOMIAL} or ${EQUIDISTANT}.`);
+  	}
+  }
+  /**
+  * Binning and a region of interest change which pixels the calibration describes. ROS writes both
+  * with their do-nothing values, and only those are accepted: a calibration of a binned or cropped
+  * image is a different calibration, and reading it as the full frame's would move the principal
+  * point without anyone noticing.
+  */
+  function readBinningAndRoi(root) {
+  	for (const name of ["binning_x", "binning_y"]) {
+  		const value = root[name];
+  		if (value !== void 0 && value !== 0 && value !== 1) refuse("inconsistent-profile", name, "A binned image is not the image the calibration describes.");
+  	}
+  	const roi = root["roi"];
+  	if (roi === void 0) return;
+  	const region = record(roi, "roi");
+  	const width = region["width"] ?? 0;
+  	const height = region["height"] ?? 0;
+  	const offsetX = region["x_offset"] ?? 0;
+  	const offsetY = region["y_offset"] ?? 0;
+  	const whole = width === 0 && height === 0;
+  	const full = width === root["image_width"] && height === root["image_height"];
+  	if (offsetX !== 0 || offsetY !== 0 || !(whole || full)) refuse("inconsistent-profile", "roi", "A region of interest is not the image the calibration describes.");
+  }
+  function rosDistortion(profile) {
+  	const coefficients = [...profile.distortion.coefficients];
+  	switch (profile.distortion.model) {
+  		case "none": return {
+  			model: PLUMB_BOB,
+  			coefficients: [
+  				0,
+  				0,
+  				0,
+  				0,
+  				0
+  			]
+  		};
+  		case "kannala-brandt": return {
+  			model: EQUIDISTANT,
+  			coefficients
+  		};
+  		case "brown-conrady":
+  			if (coefficients.length === 8) return {
+  				model: RATIONAL_POLYNOMIAL,
+  				coefficients
+  			};
+  			return {
+  				model: PLUMB_BOB,
+  				coefficients: coefficients.length === 4 ? [...coefficients, 0] : coefficients
+  			};
+  	}
+  }
+  function readMatrix(root, name, rows, cols) {
+  	const value = root[name];
+  	if (value === void 0) refuse("missing-field", name, "Required member is missing.");
+  	const matrix = record(value, name);
+  	const declaredRows = matrix["rows"];
+  	const declaredCols = matrix["cols"];
+  	const data = matrix["data"];
+  	if (declaredRows !== rows) refuse("invalid-value", `${name}.rows`, `Expected ${rows}.`);
+  	if (cols !== void 0 && declaredCols !== cols) refuse("invalid-value", `${name}.cols`, `Expected ${cols}.`);
+  	if (typeof declaredCols !== "number" || !Number.isInteger(declaredCols) || declaredCols < 0) refuse("invalid-value", `${name}.cols`, "Expected a column count.");
+  	if (!Array.isArray(data)) refuse("invalid-type", `${name}.data`, "Expected a sequence of numbers.");
+  	if (data.length !== rows * declaredCols) refuse("invalid-value", `${name}.data`, `Expected ${rows * declaredCols} numbers for a ${rows}x${declaredCols} matrix, not ${data.length}.`);
+  	return data.map((entry, index) => {
+  		if (typeof entry !== "number" || !Number.isFinite(entry)) refuse("invalid-type", `${name}.data[${index}]`, "Expected a number.");
+  		return entry;
+  	});
+  }
+  function expectEntries(data, name, entries, message) {
+  	for (const [index, expected] of entries) if (Math.abs(data[index] - expected) > MATRIX_TOLERANCE) refuse("inconsistent-profile", `${name}.data[${index}]`, message ?? `Expected ${expected}; the value read as ${data[index]}.`);
+  }
+  function record(value, path) {
+  	if (typeof value !== "object" || value === null || Array.isArray(value)) refuse("not-an-object", path, "Expected a mapping.");
+  	return value;
+  }
+  function isAllZero(values) {
+  	return values.every((value) => value === 0);
+  }
+  function matrix(name, rows, cols, data) {
+  	return [
+  		`${name}:`,
+  		`  rows: ${rows}`,
+  		`  cols: ${cols}`,
+  		`  data: [${data.map(number).join(", ")}]`
+  	];
+  }
+  /** Numbers as JavaScript writes them, which is the shortest text that reads back to the same value. */
+  function number(value) {
+  	return Object.is(value, -0) ? "0" : String(value);
+  }
+  function quoted(text) {
+  	return JSON.stringify(text);
+  }
+  /** Camera names are identifiers and read the same plain, which is how ROS writes them. */
+  function plainOrQuoted(text) {
+  	return /^[A-Za-z][A-Za-z0-9._-]*$/.test(text) && !/^(?:true|false|null|yes|no|on|off|y|n)$/i.test(text) ? text : quoted(text);
+  }
+  function appendMember(lines, name, value) {
+  	if (value === void 0) return;
+  	lines.push(`    ${name}: ${typeof value === "string" ? quoted(value) : number(value)}`);
+  }
+  //#endregion
+  //#region src/calibration/profile-text.ts
+  /**
+  * Profile text as an operator hands it over: a ROS `camera_info` YAML file, or profile JSON.
+  *
+  * The operator does not know which one a file is and should not have to. JSON always starts with a
+  * brace; a calibration YAML file never does, because its top level is a block mapping. That one
+  * character decides, and each branch names what it expected when the text is not what it looked
+  * like.
+  */
+  function readProfileText(text) {
+  	const trimmed = text.trim();
+  	if (trimmed.length === 0) return {
+  		ok: false,
+  		error: {
+  			code: "not-an-object",
+  			path: "",
+  			message: "The profile is empty."
+  		}
+  	};
+  	if (trimmed.startsWith("{")) try {
+  		return {
+  			ok: true,
+  			document: JSON.parse(trimmed)
+  		};
+  	} catch {
+  		return {
+  			ok: false,
+  			error: {
+  				code: "not-an-object",
+  				path: "",
+  				message: "The profile is not valid JSON."
+  			}
+  		};
+  	}
+  	return readCameraInfoYaml(trimmed);
+  }
   //#endregion
   //#region src/calibration/store.ts
   /**
@@ -1830,6 +2622,18 @@
   		const profile = this.profiles.get(normalizeId(args.CAMERA_ID));
   		return profile ? serializeCameraIntrinsicProfile(profile) : "";
   	}
+  	/**
+  	* The registered profile as a ROS `camera_info` YAML document, which is how a calibration is
+  	* written to a file or handed to another machine.
+  	*
+  	* The standard part loads in ROS and OpenCV-based tools as it is. What deciding compatibility needs
+  	* and ROS has no place for travels in the `turbowarp_camera_source` mapping, which ROS's reader
+  	* does not look at.
+  	*/
+  	cameraProfileYaml(args = {}) {
+  		const profile = this.profiles.get(normalizeId(args.CAMERA_ID));
+  		return profile ? serializeCameraInfoYaml(profile) : "";
+  	}
   	cameraProfileError() {
   		return this.profileError?.code ?? "";
   	}
@@ -1862,17 +2666,20 @@
   	cameraConditionsGeneration(args = {}) {
   		return this.generationOf(normalizeId(args.CAMERA_ID));
   	}
+  	/**
+  	* Registers profile text, whichever of the two forms an operator was handed.
+  	*
+  	* A ROS `camera_info` YAML file is what the calibration app writes and what leaves the PC; profile
+  	* JSON is what this extension renders and stores. Both reach the same validator, so a file is
+  	* accepted or refused for the same reasons whichever form it came in.
+  	*/
   	registerProfileText(value, prepare) {
-  		const parsed = parseJson(Scratch.Cast.toString(value ?? ""));
+  		const parsed = readProfileText(Scratch.Cast.toString(value ?? ""));
   		if (!parsed.ok) {
-  			this.profileError = {
-  				code: "not-an-object",
-  				path: "",
-  				message: "The profile is not valid JSON."
-  			};
+  			this.profileError = parsed.error;
   			return;
   		}
-  		const result = this.profiles.register(prepare(parsed.value));
+  		const result = this.profiles.register(prepare(parsed.document));
   		this.profileError = result.ok ? void 0 : result.error;
   	}
   	/**
