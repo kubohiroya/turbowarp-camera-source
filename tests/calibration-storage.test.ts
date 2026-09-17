@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {CameraSourceExtension} from '../src/extension.js';
+import {CameraSourceExtension, requestedCamera} from '../src/extension.js';
 import {
   cameraProfileChannelName,
   createIndexedDbCameraProfileStore,
@@ -106,10 +106,10 @@ function stored(document: Record<string, unknown>): StoredCameraProfile {
 }
 
 /** A camera that has delivered a 640x480 frame and reports no optical controls. */
-function runningCamera(): void {
+function runningCamera(deviceId = 'cam-1'): void {
   const track = {
     readyState: 'live',
-    getSettings: () => ({deviceId: 'cam-1'}),
+    getSettings: () => ({deviceId}),
     stop: vi.fn(),
     addEventListener: vi.fn()
   };
@@ -302,6 +302,174 @@ describe('restoring a stored profile', () => {
     await extension.restoreStoredCameraProfile({CAMERA_ID: 'pose'});
     expect(extension.storedCameraProfileResult({CAMERA_ID: 'pose'})).toBe('unavailable');
     await expect(createIndexedDbCameraProfileStore(undefined).list()).rejects.toThrow();
+  });
+});
+
+/** A profile solved on one particular device, as the calibration app records it. */
+function onDevice(profileId: string, calibratedAt: string, deviceId: string): Record<string, unknown> {
+  return profile(profileId, calibratedAt, undefined, {capture: {}, device: {label: 'USB Camera', deviceId}});
+}
+
+describe('restoring a stored profile for the camera\'s device', () => {
+  it('passes over a newer compatible profile from another camera of the same model', async () => {
+    runningCamera('device-b');
+    const store = memoryStore([
+      stored(onDevice('camera-a', '2026-09-17T00:00:00Z', 'device-a')),
+      stored(onDevice('camera-b', '2026-09-16T00:00:00Z', 'device-b'))
+    ]);
+    const extension = new CameraSourceExtension({profileStore: store});
+    await extension.startSharedCamera({CAMERA_ID: 'cam-2'});
+
+    // The unscoped restore cannot tell them apart and takes the newest.
+    await extension.restoreStoredCameraProfile({CAMERA_ID: 'cam-2'});
+    expect(JSON.parse(extension.cameraProfileJson({CAMERA_ID: 'cam-2'})).profileId).toBe('camera-a');
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(false);
+
+    await extension.restoreStoredCameraProfileForDevice({CAMERA_ID: 'cam-2'});
+
+    expect(extension.storedCameraProfileResult({CAMERA_ID: 'cam-2'})).toBe('restored');
+    expect(JSON.parse(extension.cameraProfileJson({CAMERA_ID: 'cam-2'}))).toMatchObject({
+      profileId: 'camera-b',
+      cameraId: 'cam-2'
+    });
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(true);
+  });
+
+  it('reports none, counting the other devices, and keeps the registration', async () => {
+    runningCamera('device-c');
+    const store = memoryStore([
+      stored(onDevice('camera-a', '2026-09-17T00:00:00Z', 'device-a')),
+      stored(profile('no-device', '2026-09-16T00:00:00Z'))
+    ]);
+    const extension = new CameraSourceExtension({profileStore: store});
+    await extension.startSharedCamera({CAMERA_ID: 'cam-3'});
+    extension.registerCameraProfileAs({
+      PROFILE_JSON: JSON.stringify(onDevice('in-force', '2026-01-01T00:00:00Z', 'device-c')),
+      CAMERA_ID: 'cam-3'
+    });
+
+    await extension.restoreStoredCameraProfileForDevice({CAMERA_ID: 'cam-3'});
+
+    expect(extension.storedCameraProfileResult({CAMERA_ID: 'cam-3'})).toBe('none');
+    expect(extension.storedCameraProfileDetail({CAMERA_ID: 'cam-3'})).toContain('2 saved profile(s)');
+    expect(JSON.parse(extension.cameraProfileJson({CAMERA_ID: 'cam-3'})).profileId).toBe('in-force');
+  });
+
+  it('still fails closed on the camera\'s own profile when it no longer fits', async () => {
+    runningCamera('device-a');
+    const store = memoryStore([
+      stored(
+        profile('camera-a', '2026-09-17T00:00:00Z', {width: 1280, height: 720}, {
+          capture: {},
+          device: {deviceId: 'device-a'}
+        })
+      )
+    ]);
+    const extension = new CameraSourceExtension({profileStore: store});
+    await extension.startSharedCamera({CAMERA_ID: 'cam-1'});
+
+    await extension.restoreStoredCameraProfileForDevice({CAMERA_ID: 'cam-1'});
+
+    expect(extension.storedCameraProfileResult({CAMERA_ID: 'cam-1'})).toBe('incompatible');
+    expect(extension.cameraProfileRegistered({CAMERA_ID: 'cam-1'})).toBe(false);
+  });
+
+  it('is undetermined while the camera is not running', async () => {
+    const store = memoryStore([stored(onDevice('camera-a', '2026-09-17T00:00:00Z', 'device-a'))]);
+    const extension = new CameraSourceExtension({profileStore: store});
+
+    await extension.restoreStoredCameraProfileForDevice({CAMERA_ID: 'cam-1'});
+
+    expect(extension.storedCameraProfileResult({CAMERA_ID: 'cam-1'})).toBe('undetermined');
+    expect(extension.cameraProfileRegistered({CAMERA_ID: 'cam-1'})).toBe(false);
+  });
+});
+
+describe('binding a profile to the camera\'s device', () => {
+  it('records the device in a compatible profile, so a save can be restored for that device', async () => {
+    runningCamera('device-b');
+    const store = memoryStore();
+    const extension = new CameraSourceExtension({profileStore: store});
+    await extension.startSharedCamera({CAMERA_ID: 'cam-2'});
+    // Solved in another browser, whose device id means nothing here.
+    extension.registerCameraProfileAs({
+      PROFILE_JSON: JSON.stringify(onDevice('from-file', '2026-09-10T00:00:00Z', 'elsewhere')),
+      CAMERA_ID: 'cam-2'
+    });
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(false);
+
+    extension.bindCameraProfileToDevice({CAMERA_ID: 'cam-2'});
+
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(true);
+    expect(JSON.parse(extension.cameraProfileJson({CAMERA_ID: 'cam-2'})).device).toEqual({
+      label: 'USB Camera',
+      deviceId: 'device-b'
+    });
+    await extension.saveCameraProfile({CAMERA_ID: 'cam-2'});
+    extension.forgetCameraProfile({CAMERA_ID: 'cam-2'});
+    await extension.restoreStoredCameraProfileForDevice({CAMERA_ID: 'cam-2'});
+    expect(extension.storedCameraProfileResult({CAMERA_ID: 'cam-2'})).toBe('restored');
+  });
+
+  it('leaves a profile that does not fit the camera unbound', async () => {
+    runningCamera('device-b');
+    const extension = new CameraSourceExtension({profileStore: memoryStore()});
+    await extension.startSharedCamera({CAMERA_ID: 'cam-2'});
+    extension.registerCameraProfileAs({
+      PROFILE_JSON: JSON.stringify(profile('wrong-size', '2026-09-10T00:00:00Z', {width: 1280, height: 720})),
+      CAMERA_ID: 'cam-2'
+    });
+
+    extension.bindCameraProfileToDevice({CAMERA_ID: 'cam-2'});
+
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(false);
+    expect(JSON.parse(extension.cameraProfileJson({CAMERA_ID: 'cam-2'})).device).toBeUndefined();
+  });
+
+  it('does nothing without a registered profile or a running camera', () => {
+    const extension = new CameraSourceExtension({profileStore: memoryStore()});
+    extension.bindCameraProfileToDevice({CAMERA_ID: 'cam-2'});
+    extension.registerCameraProfileAs({
+      PROFILE_JSON: JSON.stringify(profile('solved', '2026-09-10T00:00:00Z')),
+      CAMERA_ID: 'cam-2'
+    });
+    extension.bindCameraProfileToDevice({CAMERA_ID: 'cam-2'});
+    expect(extension.cameraProfileOnDevice({CAMERA_ID: 'cam-2'})).toBe(false);
+  });
+});
+
+describe('the camera requested by the page', () => {
+  it('names the device exactly and the size and rate as ideal', () => {
+    expect(requestedCamera('?token=abc&cameraDeviceId=device-b&cameraWidth=1280&cameraHeight=720&cameraFrameRate=30')).toEqual({
+      deviceId: 'device-b',
+      video: {
+        deviceId: {exact: 'device-b'},
+        width: {ideal: 1280},
+        height: {ideal: 720},
+        frameRate: {ideal: 30}
+      }
+    });
+  });
+
+  it('asks for nothing it was not given, and ignores a size that is not a positive number', () => {
+    expect(requestedCamera('')).toEqual({});
+    expect(requestedCamera('?cameraWidth=wide&cameraHeight=0')).toEqual({});
+    expect(requestedCamera('?cameraWidth=640')).toEqual({video: {width: {ideal: 640}}});
+  });
+
+  it('starts the camera with those constraints', async () => {
+    runningCamera('device-b');
+    vi.stubGlobal('location', {search: '?cameraDeviceId=device-b&cameraWidth=640&cameraHeight=480'});
+    const extension = new CameraSourceExtension({profileStore: memoryStore()});
+
+    await extension.startRequestedSharedCamera({CAMERA_ID: 'default'});
+
+    const getUserMedia = (globalThis.navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>).mock.calls;
+    expect(getUserMedia[0]?.[0]).toEqual({
+      audio: false,
+      video: {deviceId: {exact: 'device-b'}, width: {ideal: 640}, height: {ideal: 480}}
+    });
+    expect(extension.cameraDeviceIdReporter({CAMERA_ID: 'default'})).toBe('device-b');
   });
 });
 
