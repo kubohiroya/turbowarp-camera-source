@@ -223,6 +223,40 @@
       ]
     },
     {
+      "opcode": "registerCameraProfileAs",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        },
+        {
+          "id": "PROFILE_JSON",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "restoreStoredCameraProfile",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "saveCameraProfile",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "showCameraPreview",
       "blockType": "COMMAND",
       "arguments": [
@@ -260,6 +294,31 @@
           "type": "STRING"
         }
       ]
+    },
+    {
+      "opcode": "storedCameraProfileDetail",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "storedCameraProfileResult",
+      "blockType": "REPORTER",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "storedCameraProfilesGeneration",
+      "blockType": "REPORTER",
+      "arguments": []
     }
   ],
   "menus": [

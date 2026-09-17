@@ -2,9 +2,19 @@ import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
 import type {UsableIntrinsics} from './calibration/adaptation';
 import {readCameraConditions, type CameraConditions} from './calibration/conditions';
-import {decisiveFindings} from './calibration/compatibility';
+import {
+  decisiveFindings,
+  evaluateProfileCompatibility,
+  type CompatibilityReport
+} from './calibration/compatibility';
 import {CameraProfileRegistry, type ProfileAssessment} from './calibration/registry';
-import {serializeCameraIntrinsicProfile} from './calibration/profile';
+import {readCameraProfileDocument, serializeCameraIntrinsicProfile} from './calibration/profile';
+import {
+  cameraProfileChannelName,
+  createIndexedDbCameraProfileStore,
+  type CameraProfileStore,
+  type StoredCameraProfile
+} from './calibration/store';
 import type {CameraIntrinsicProfileV1, ProfileError} from './calibration/types';
 import {
   createRuntimeCapability,
@@ -119,6 +129,74 @@ function previewFlipOf(options: CameraAcquireOptions): Flip {
   return toFlip(options.previewFlip);
 }
 
+/**
+ * What the last save or restore for a camera id came to.
+ *
+ * `saved` and `restored` succeeded. `no-profile` is a save with nothing registered to save. `none`,
+ * `incompatible` and `undetermined` are restores that registered nothing, and why. `unavailable` is
+ * either one finding the browser storage unusable.
+ */
+type StoredProfileState =
+  | 'saved'
+  | 'no-profile'
+  | 'restored'
+  | 'none'
+  | 'incompatible'
+  | 'undetermined'
+  | 'unavailable';
+
+interface StoredProfileOutcome {
+  readonly state: StoredProfileState;
+  readonly detail: string;
+}
+
+export interface CameraSourceExtensionOptions {
+  /** Where saved profiles live. IndexedDB unless something else is handed in. */
+  readonly profileStore?: CameraProfileStore;
+}
+
+/** The document with its camera id replaced, or the value untouched when it is not an object. */
+function rebindCameraId(document: unknown, cameraId: string): unknown {
+  if (typeof document !== 'object' || document === null || Array.isArray(document)) return document;
+  return {...(document as Record<string, unknown>), cameraId};
+}
+
+function parseJson(text: string): {ok: true; value: unknown} | {ok: false} {
+  try {
+    return {ok: true, value: JSON.parse(text)};
+  } catch {
+    return {ok: false};
+  }
+}
+
+/** Which saved profile, in words an operator can match against the file they exported. */
+function describeStoredProfile(profile: CameraIntrinsicProfileV1): string {
+  const label = profile.device?.label;
+  return `Profile ${profile.profileId} calibrated at ${profile.calibratedAt}${label ? ` on ${label}` : ''}.`;
+}
+
+function compatibilityDetail(report: CompatibilityReport): string {
+  const findings = decisiveFindings(report);
+  if (findings.length === 0) return 'The profile matches the camera as configured.';
+  return findings.map((entry) => entry.detail).join(' ');
+}
+
+/**
+ * Newest calibration first.
+ *
+ * Timestamps are compared as instants, so an offset other than `Z` still sorts where it belongs. One
+ * that does not parse sorts last: it cannot be shown to be newer than anything.
+ */
+function newestFirst(left: StoredCameraProfile, right: StoredCameraProfile): number {
+  const instant = (text: string): number => {
+    const value = Date.parse(text);
+    return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+  };
+  const byCalibration = instant(right.calibratedAt) - instant(left.calibratedAt);
+  if (byCalibration !== 0 && !Number.isNaN(byCalibration)) return byCalibration;
+  return instant(right.savedAt) - instant(left.savedAt) || 0;
+}
+
 function cameraFailure(error: unknown): CameraFailure {
   if (error instanceof Error) {
     return {code: error.name || 'Error', message: error.message};
@@ -147,8 +225,14 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly capability: CameraSourceCapabilityV1;
   private profileError: ProfileError | undefined;
   private devices: MediaDeviceInfo[] = [];
+  private readonly profileStore: CameraProfileStore;
+  private readonly storedProfileOutcomes = new Map<string, StoredProfileOutcome>();
+  private readonly profileChannel: BroadcastChannel | undefined;
+  private storedProfilesGeneration = 0;
 
-  public constructor() {
+  public constructor(options: CameraSourceExtensionOptions = {}) {
+    this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
+    this.profileChannel = this.openProfileChannel();
     Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
     // Published unconditionally. It was once behind a startup flag, on the reasoning that consumer
     // extensions are its audience and the path was unproven -- but the extensions that would prove
@@ -342,6 +426,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     // would take the new instance's capability away from every consumer.
     const runtime = Scratch.vm.runtime;
     if (runtime[runtimeCapabilityKey] === this.capability) delete runtime[runtimeCapabilityKey];
+    this.profileChannel?.close();
     Scratch.vm.runtime.off?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.off?.('PROJECT_LOADED', this.handleProjectBoundary);
     Scratch.vm.runtime.off?.('RUNTIME_DISPOSED', this.dispose);
@@ -360,24 +445,139 @@ export class CameraSourceExtension implements TurboWarpExtension {
     // The condition generations stay as they are. A consumer compares the integer to decide whether
     // what it derived from a profile is still good, and that question does not change because a
     // project boundary went past.
+    //
+    // Save and restore outcomes go with the error, for the same reason. The storage generation does
+    // not: it counts saves, and a project that loads after one still needs to see that it happened.
     this.profileError = undefined;
+    this.storedProfileOutcomes.clear();
   };
 
   public registerCameraProfile(args: {PROFILE_JSON?: unknown} = {}): void {
-    const text = Scratch.Cast.toString(args.PROFILE_JSON ?? '');
-    let document: unknown;
-    try {
-      document = JSON.parse(text);
-    } catch {
-      this.profileError = {
-        code: 'not-an-object',
-        path: '',
-        message: 'The profile is not valid JSON.'
-      };
+    this.registerProfileText(args.PROFILE_JSON, (document) => document);
+  }
+
+  /**
+   * Registers a profile under the camera id the project names, whatever id the document carries.
+   *
+   * The id in a document is the name the camera had where it was solved. A calibration app knows one
+   * camera and calls it `default`; the app that uses the result may call the same camera `pose`.
+   * Rebinding happens before validation, so the document is checked as the profile it is about to
+   * become rather than as the one it was.
+   */
+  public registerCameraProfileAs(args: {PROFILE_JSON?: unknown; CAMERA_ID?: unknown} = {}): void {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    this.registerProfileText(args.PROFILE_JSON, (document) => rebindCameraId(document, cameraId));
+  }
+
+  /**
+   * Writes the profile registered for a camera to browser storage.
+   *
+   * Only a registered profile can be saved, so whatever reaches storage has already passed
+   * validation. Other windows on the origin are told once the write has committed, not before: a
+   * window that went looking on the strength of an uncommitted write would find nothing and conclude
+   * there was nothing to find.
+   */
+  public async saveCameraProfile(args: {CAMERA_ID?: unknown} = {}): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    const profile = this.profiles.get(cameraId);
+    if (!profile) {
+      this.storedProfileOutcomes.set(cameraId, {state: 'no-profile', detail: ''});
       return;
     }
-    const result = this.profiles.register(document);
-    this.profileError = result.ok ? undefined : result.error;
+    const label = profile.device?.label;
+    const record: StoredCameraProfile = {
+      profileId: profile.profileId,
+      cameraId: profile.cameraId,
+      calibratedAt: profile.calibratedAt,
+      savedAt: new Date().toISOString(),
+      ...(label === undefined ? {} : {deviceLabel: label}),
+      document: serializeCameraIntrinsicProfile(profile)
+    };
+    try {
+      await this.profileStore.put(record);
+    } catch {
+      this.storedProfileOutcomes.set(cameraId, {state: 'unavailable', detail: ''});
+      return;
+    }
+    this.storedProfilesGeneration += 1;
+    this.storedProfileOutcomes.set(cameraId, {state: 'saved', detail: describeStoredProfile(profile)});
+    try {
+      this.profileChannel?.postMessage({profileId: profile.profileId});
+    } catch {
+      // The save itself stands. Another window that missed the message still finds the profile the
+      // next time it restores; it only loses the prompt to look now.
+    }
+  }
+
+  /**
+   * Registers the newest saved profile that fits the camera as it is configured now.
+   *
+   * Fails closed. Only a `compatible` verdict registers anything; `undetermined` is not a weaker yes,
+   * and a camera that has not delivered a frame yet cannot be shown to match any calibration. When
+   * nothing qualifies, whatever is already registered for the camera stays exactly as it was: a
+   * restore that found nothing usable has no business taking away a profile that was.
+   *
+   * Every candidate is judged against the conditions directly, without going through the registry,
+   * so trying a candidate that loses never displaces the registered one even for a moment.
+   */
+  public async restoreStoredCameraProfile(args: {CAMERA_ID?: unknown} = {}): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    let records: StoredCameraProfile[];
+    try {
+      records = await this.profileStore.list();
+    } catch {
+      this.storedProfileOutcomes.set(cameraId, {state: 'unavailable', detail: ''});
+      return;
+    }
+    // Read after the list has arrived, so the verdict is about the camera as it is when it is used.
+    const conditions = this.conditionsOf(cameraId);
+    let incompatible: CompatibilityReport | undefined;
+    let undetermined: CompatibilityReport | undefined;
+    for (const record of [...records].sort(newestFirst)) {
+      const parsed = parseJson(record.document);
+      if (!parsed.ok) continue;
+      const document = rebindCameraId(parsed.value, cameraId);
+      const result = readCameraProfileDocument(document);
+      if (!result.ok) continue;
+      const report = evaluateProfileCompatibility(result.profile, conditions);
+      if (report.state === 'compatible') {
+        this.profiles.register(document);
+        this.storedProfileOutcomes.set(cameraId, {
+          state: 'restored',
+          detail: describeStoredProfile(result.profile)
+        });
+        return;
+      }
+      if (report.state === 'incompatible') incompatible ??= report;
+      else undetermined ??= report;
+    }
+    // A mismatch is reported ahead of an unsettled one. It is a definite reason the saved calibration
+    // does not describe this camera, which a retry once the camera is running would not change.
+    const decisive = incompatible ?? undetermined;
+    this.storedProfileOutcomes.set(
+      cameraId,
+      decisive === undefined
+        ? {state: 'none', detail: ''}
+        : {state: decisive.state as StoredProfileState, detail: compatibilityDetail(decisive)}
+    );
+  }
+
+  public storedCameraProfileResult(args: {CAMERA_ID?: unknown} = {}): string {
+    return this.storedProfileOutcomes.get(normalizeId(args.CAMERA_ID))?.state ?? '';
+  }
+
+  public storedCameraProfileDetail(args: {CAMERA_ID?: unknown} = {}): string {
+    return this.storedProfileOutcomes.get(normalizeId(args.CAMERA_ID))?.detail ?? '';
+  }
+
+  /**
+   * A counter that moves whenever a profile is saved, here or in another window on this origin.
+   *
+   * A project waiting for the calibration app compares this integer rather than polling storage: it
+   * restores when the number moves, and the restore decides whether what arrived is usable.
+   */
+  public storedCameraProfilesGeneration(): number {
+    return this.storedProfilesGeneration;
   }
 
   public forgetCameraProfile(args: {CAMERA_ID?: unknown} = {}): void {
@@ -411,10 +611,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   public cameraProfileCompatibilityDetail(args: {CAMERA_ID?: unknown} = {}): string {
     const cameraId = normalizeId(args.CAMERA_ID);
     const assessment = this.assessmentOf(cameraId);
-    if (assessment === undefined) return '';
-    const findings = decisiveFindings(assessment.compatibility);
-    if (findings.length === 0) return 'The profile matches the camera as configured.';
-    return findings.map((entry) => entry.detail).join(' ');
+    return assessment === undefined ? '' : compatibilityDetail(assessment.compatibility);
   }
 
   public cameraProfileAdaptation(args: {CAMERA_ID?: unknown} = {}): string {
@@ -436,6 +633,40 @@ export class CameraSourceExtension implements TurboWarpExtension {
 
   public cameraConditionsGeneration(args: {CAMERA_ID?: unknown} = {}): number {
     return this.generationOf(normalizeId(args.CAMERA_ID));
+  }
+
+  private registerProfileText(value: unknown, prepare: (document: unknown) => unknown): void {
+    const parsed = parseJson(Scratch.Cast.toString(value ?? ''));
+    if (!parsed.ok) {
+      this.profileError = {
+        code: 'not-an-object',
+        path: '',
+        message: 'The profile is not valid JSON.'
+      };
+      return;
+    }
+    const result = this.profiles.register(prepare(parsed.value));
+    this.profileError = result.ok ? undefined : result.error;
+  }
+
+  /**
+   * Listens for saves made in other windows on this origin.
+   *
+   * Absent where the browser has no BroadcastChannel. The generation then moves only for saves made
+   * here, and a project still finds another window's profile the next time it restores.
+   */
+  private openProfileChannel(): BroadcastChannel | undefined {
+    const Channel = globalThis.BroadcastChannel;
+    if (typeof Channel !== 'function') return undefined;
+    try {
+      const channel = new Channel(cameraProfileChannelName);
+      channel.onmessage = () => {
+        this.storedProfilesGeneration += 1;
+      };
+      return channel;
+    } catch {
+      return undefined;
+    }
   }
 
   /** What the track reports about itself right now. Read only. */
