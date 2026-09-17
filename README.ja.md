@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.12.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.13.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.12.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.13.0
 ```
 
 ## Quick start
@@ -159,6 +159,8 @@ Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いま�
 
 **プロファイルを自分でスケールせず、内部行列を要求すること。** 校正時と違う解像度で届く場合、必要な計算は何が起きたかで変わる。単純な縮小なら`fx`・`fy`・`cx`・`cy`を比率倍するが、cropなら焦点距離はそのままで主点が平行移動する。trackの`resizeMode`を見られるのは本拡張だけなので、両者を区別できるのも本拡張だけ。**利用側がそれぞれ推測すれば、それぞれ違う推測をし、同じカメラがどの拡張から尋ねたかで違う幾何を返すことになる。** `camera intrinsics JSON`は現在のフレームに適合済みの数値を返し、cropやアスペクト変更で主点を置けない場合は空文字を返す。
 
+**フレームの撮影時刻。** カメラがフレームを1枚表示すると、`getFrameSource()`は`frameTime`も返す。`timestampUs`はページの単調時計でのUnix epochからのマイクロ秒、`source`は`requestVideoFrameCallback`の`captureTime`なら`capture`、ブラウザが`presentationTime`しか報告しなければ`presentation`、`presentedFrames`は使用済みのフレームと新しいフレームを見分けるための番号である。同じページのカメラは同じ時計を共有するので、フレームをそのまま並べて比べられる。ほかのコンピュータとは同期していない。時刻はframe sourceを取得した時点で表示されていたフレームのものなので、画素を読む直前に取得すること。無いときは不明であって、現在時刻ではない。
+
 **previewを反転してもフレームは反転しない。** `getFrameSource()`が返す`previewFlip`は、stageがどう描いているかだけを述べる。その裏にあるフレームは常にカメラが撮ったままである。**反転表示したpreview上で拾った座標は、これらのフレームと使う前に戻さなければならない** — previewの座標をそのままsolveへ渡すと、左右反転した姿勢に収束し、しかも再投影誤差は小さいまま出る。`horizontal`は左右反転で、`cv::flip(…, 1)`・ffmpegの`hflip`・CSSの`scaleX(-1)`と同じ。回転は別の関心事なので、同じenumには混ぜていない。
 
 **契約は書き写さずimportすること。** 型は専用のentry pointとして公開してある。
@@ -250,6 +252,8 @@ if <(stored camera profile result for [pose]) = [restored]> then
 **同じ型番のカメラが2台あるとき。** 2台は同じラベルと同じ撮影条件を報告するので、互いの校正が`compatible`になる。`restore stored camera profile calibrated on the device of [CAMERA_ID]`は、記録されたdevice IDがそのカメラの今のデバイスと一致するプロファイルだけを候補にする。device IDはoriginとブラウザのプロファイルごとで、ストレージの範囲と同じである。ファイルから持ち込んだプロファイルには別のブラウザのdevice IDが入っているので、カメラに登録し、`bind camera profile for [CAMERA_ID] to its current device`（`compatible`なものだけを結び付ける）を実行してから保存する。1台のカメラのために校正アプリを開くアプリは、クエリパラメータ`cameraDeviceId`・`cameraWidth`・`cameraHeight`・`cameraFrameRate`でカメラと使うサイズを指定し、`start shared camera [CAMERA_ID] requested by this page`がそのとおりに開始する。
 
 ## 互換性
+
+0.13.0ではframe sourceに`frameTime`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 
 0.12.0ではデバイスで絞る復元、`bind camera profile ... to its current device`、`camera profile ... belongs to its current device?`、`start shared camera [CAMERA_ID] requested by this page`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 

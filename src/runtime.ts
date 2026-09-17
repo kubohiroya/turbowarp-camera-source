@@ -73,6 +73,34 @@ export interface CameraFrameSource {
    */
   readonly previewFlip: Flip;
   readonly deviceId: string;
+  /**
+   * When the frame the element is showing was captured, as of the moment this source was taken.
+   *
+   * Absent until the camera has presented a frame, and where the browser has no
+   * `requestVideoFrameCallback`; absent means unknown, never now. The element can present a newer
+   * frame between taking the source and reading pixels from it, so the time belongs to the frame
+   * presented when the source was taken — take the source immediately before reading pixels.
+   */
+  readonly frameTime?: CameraFrameTime;
+}
+
+/**
+ * The capture time of a presented frame.
+ *
+ * `timestampUs` is microseconds since the Unix epoch on the page's monotonic clock
+ * (`performance.timeOrigin + time`). Cameras on one page share that clock, so their frames can be
+ * compared directly; it is not synchronized with any other computer.
+ */
+export interface CameraFrameTime {
+  readonly timestampUs: number;
+  /**
+   * `capture` is when the frame left the device (`captureTime`). `presentation` is when the browser
+   * presented it (`presentationTime`), later by the capture and decode pipeline, and used only where
+   * the browser reports no capture time.
+   */
+  readonly source: 'capture' | 'presentation';
+  /** Increases with every presented frame, so a frame already used can be recognized. */
+  readonly presentedFrames: number;
 }
 
 export interface CameraLease {

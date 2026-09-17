@@ -33,6 +33,7 @@ import {
 
 export type {CameraAcquireOptions, CameraFrameSource, CameraLease} from './runtime';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
+import {FrameTimeWatcher} from './frame-time';
 
 type BlockTypeName = 'COMMAND' | 'REPORTER' | 'BOOLEAN';
 type ArgumentTypeName = 'STRING';
@@ -71,6 +72,7 @@ interface CameraSession {
   preview: VideoPreview | null;
   startPromise: Promise<void> | null;
   activeDeviceId: string;
+  frameTimes: FrameTimeWatcher | null;
 }
 
 interface BlockPreviewLease {
@@ -920,7 +922,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
       video: null,
       preview: null,
       startPromise: null,
-      activeDeviceId: ''
+      activeDeviceId: '',
+      frameTimes: null
     };
     this.sessions.set(cameraId, session);
     return session;
@@ -940,6 +943,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
         if (!session.active) throw new Error('Camera acquisition was cancelled.');
         session.stream = stream;
         session.video = video;
+        session.frameTimes = new FrameTimeWatcher(video, globalThis.performance?.timeOrigin ?? 0);
         this.watchStreamEnd(session, stream);
         this.updateActiveDevice(session);
         this.cameraFailures.delete(session.cameraId);
@@ -1022,13 +1026,15 @@ export class CameraSourceExtension implements TurboWarpExtension {
     if (!session.video || !session.stream) {
       throw new Error('Shared camera is not running.');
     }
+    const frameTime = session.frameTimes?.latest();
     return Object.freeze({
       kind: 'video',
       element: session.video,
       width: session.video.videoWidth,
       height: session.video.videoHeight,
       previewFlip: this.previewFlip(session),
-      deviceId: session.activeDeviceId
+      deviceId: session.activeDeviceId,
+      ...(frameTime === undefined ? {} : {frameTime})
     });
   }
 
@@ -1045,6 +1051,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.active = false;
     this.nextPreviewBlockRevision(cameraId);
     session.preview?.dispose();
+    session.frameTimes?.dispose();
+    session.frameTimes = null;
     session.stream?.getTracks().forEach((track) => track.stop());
     if (session.video) session.video.srcObject = null;
     session.stream = null;

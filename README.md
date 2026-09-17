@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.12.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.13.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.12.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.13.0
 ```
 
 ## Quick Start
@@ -515,6 +515,8 @@ const assessment = calibration.assessProfile("pose");
 
 **Ask for intrinsics rather than scaling a profile yourself.** When the camera delivers a size the calibration was not solved at, the arithmetic depends on what happened: a pure downscale multiplies `fx`, `fy`, `cx` and `cy`, while a crop leaves the focal lengths alone and shifts the principal point instead. Only this extension sees the track's `resizeMode`, so only it can tell the two apart — and if every consumer guesses, they guess differently and the same camera yields different geometry depending on which extension asked. `camera intrinsics JSON` returns numbers already adapted to the current frame, or an empty string when the difference is a crop or an aspect change and the principal point cannot be placed.
 
+**Frame capture time.** `getFrameSource()` also carries `frameTime` once the camera has presented a frame: `timestampUs` in microseconds since the Unix epoch on the page's monotonic clock, `source` (`capture` for `captureTime` from `requestVideoFrameCallback`, `presentation` where the browser reports only `presentationTime`), and `presentedFrames`, which tells a frame already used from a new one. Cameras on one page share that clock, so their frames can be lined up directly; it is not synchronized with any other computer. Take the frame source immediately before reading pixels: the time belongs to the frame presented when the source was taken. Absent means unknown, never now.
+
 **Turning the preview over does not turn the frames over.** `getFrameSource()` reports `previewFlip`, which describes how the stage is drawing the image and nothing else; the frames behind it are always the ones the camera captured. Coordinates picked off a flipped preview must be turned back before they are used with these frames — a solve fed the preview's coordinates converges on a left-right reflected pose and reports a small reprojection error while doing it. `horizontal` is the left-right mirror, matching `cv::flip(…, 1)`, ffmpeg's `hflip` and CSS `scaleX(-1)`; rotation is a separate concern and is deliberately not folded into the same enum.
 
 **Import these declarations rather than re-writing them.** The contract is published as its own
@@ -648,6 +650,8 @@ profile), and save it. An app that opens the calibration app for one camera name
 `start shared camera [CAMERA_ID] requested by this page` starts it that way.
 
 ## Compatibility
+
+Version 0.13.0 adds `frameTime` to the frame source. No existing block or capability member changes.
 
 Version 0.12.0 adds device-scoped restore, `bind camera profile ... to its current device`,
 `camera profile ... belongs to its current device?` and `start shared camera [CAMERA_ID] requested by this page`.
