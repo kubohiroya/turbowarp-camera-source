@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.9.1/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.10.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.9.1
+pnpm add @kubohiroya/turbowarp-camera-source@0.10.0
 ```
 
 ## Quick Start
@@ -218,6 +218,17 @@ Validates a twcs/camera-intrinsics version 1 document and stores it against the 
 | Opcode | `registerCameraProfile` |
 | `PROFILE_JSON` | String, default: `{}` |
 
+### `register camera profile [PROFILE_JSON] as [CAMERA_ID]`
+
+Registers a profile under the named camera ID, replacing the ID the document carries before it is validated. Use it when a profile was solved under another name, such as `default` in a calibration app. Sets or clears the camera profile error like the plain register block.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `registerCameraProfileAs` |
+| `PROFILE_JSON` | String, default: `{}` |
+| `CAMERA_ID` | String, default: `default` |
+
 ### `forget camera profile for [CAMERA_ID]`
 
 Removes the stored calibration profile for one camera.
@@ -326,6 +337,55 @@ Returns a number that increases whenever something affecting the geometry change
 | Opcode | `cameraConditionsGeneration` |
 | `CAMERA_ID` | String, default: `default` |
 
+### `save camera profile for [CAMERA_ID] to browser storage`
+
+Saves the profile registered for the camera to this origin's browser storage (IndexedDB) and tells other windows on the same origin. Waits until the write commits. The result becomes `saved`, `no-profile` or `unavailable`.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `saveCameraProfile` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `restore stored camera profile for [CAMERA_ID]`
+
+Registers the newest saved profile that is `compatible` with the camera as configured now, under this camera ID. Fails closed: an `undetermined` or `incompatible` profile is never registered and the current registration is left untouched. The result becomes `restored`, `none`, `incompatible`, `undetermined` or `unavailable`.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `restoreStoredCameraProfile` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `stored camera profile result for [CAMERA_ID]`
+
+Returns the outcome of the last save or restore for the camera ID, or an empty string before either has run.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `storedCameraProfileResult` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `stored camera profile detail for [CAMERA_ID]`
+
+Explains the last save or restore: which profile was saved or restored, or why no saved profile fits the camera.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `storedCameraProfileDetail` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `stored camera profiles generation`
+
+A counter that increments whenever a profile is saved in this window or another window on the same origin. It is not reset by loading a project.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `storedCameraProfilesGeneration` |
+
 <!-- END GENERATED BLOCKS -->
 
 ## Runtime API
@@ -421,7 +481,40 @@ own repository and fails in a browser instead.
 
 **"Cannot tell" is a distinct answer from "fits".** Compatibility is `compatible`, `incompatible` or `undetermined`, and unknown never resolves upward. Intrinsics are withheld unless the profile actually fits the camera as configured now: handing them over regardless would let a consumer project with numbers from a different configuration and get plausible, wrong geometry back.
 
+### Browser storage
+
+A profile can be kept in the browser so the next session, or another window, does not need the file
+again. `save camera profile for [CAMERA_ID] to browser storage` writes the registered profile to
+IndexedDB (database `kubohiroya-camera-source`, object store `camera-profiles`, keyed by `profileId`)
+and announces the save on the `kubohiroya-camera-source:camera-profiles` BroadcastChannel.
+`stored camera profiles generation` moves on every save, in this window or any other on the same
+origin, so a project waiting for a calibration app in another window watches one number and restores
+when it changes.
+
+```text
+restore stored camera profile for [pose]
+if <(stored camera profile result for [pose]) = [restored]> then
+  ... skip lens calibration ...
+```
+
+**It is a cache, not a backup.** Storage belongs to one origin in one browser profile, a different
+host or port sees none of it, and the browser may evict it. The exported profile file stays the
+source of truth; keep it.
+
+**Restoring fails closed.** Candidates are tried newest `calibratedAt` first, each rebound to the
+camera ID the block names and judged against that camera as it is configured now. Only a
+`compatible` one is registered. `undetermined` — for example because the camera has not delivered a
+frame yet — is not a weaker yes, and when nothing qualifies the profile already registered for the
+camera is left as it was. The result is `restored`, `none`, `incompatible`, `undetermined` or
+`unavailable`; a save reports `saved`, `no-profile` or `unavailable`.
+
+`register camera profile [PROFILE_JSON] as [CAMERA_ID]` does the same rebinding for a file: a profile
+solved under `default` in a calibration app can be registered as `pose` in the app that uses it.
+
 ## Compatibility
+
+Version 0.10.0 adds browser storage for calibration profiles and `register camera profile as`. No
+existing block or capability member changes.
 
 Unreleased changes are breaking. `CameraFrameSource.mirrored` is replaced by `previewFlip`, which
 names the axis and says that it describes the drawing rather than the pixels. The preview block's

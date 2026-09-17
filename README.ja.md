@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.9.1/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.10.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.9.1
+pnpm add @kubohiroya/turbowarp-camera-source@0.10.0
 ```
 
 ## Quick start
@@ -70,6 +70,7 @@ stop shared camera [pose]
 - `camera device ID at [INDEX]`: 1始まりの位置でカメラdevice IDを返します。
 - `camera device label at [INDEX]`: 1始まりの位置でカメララベルを返します。
 - `register camera profile [PROFILE_JSON]`: 内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。
+- `register camera profile [PROFILE_JSON] as [CAMERA_ID]`: 文書が持つcamera IDを指定したIDへ置き換えてから検証し、登録します。校正アプリで`default`として解いたプロファイルを`pose`として使う場合などに使います。camera profile errorの扱いは通常の登録ブロックと同じです。
 - `forget camera profile for [CAMERA_ID]`: 登録済みプロファイルを破棄します。
 - `camera [CAMERA_ID] is calibrated?`: プロファイルが登録されているかを返します。未登録は正常な状態です。
 - `camera profile JSON for [CAMERA_ID]`: 保存された文書をそのまま返します。表示や書き出し用であって、投影に使う数値ではありません。
@@ -81,6 +82,11 @@ stop shared camera [pose]
 - `camera intrinsics JSON for [CAMERA_ID]`: 現在のフレームに適合済みの内部行列を返します。適合していなければ空文字列です。
 - `camera conditions JSON for [CAMERA_ID]`: カメラが今報告している撮影条件を返します。
 - `camera conditions generation for [CAMERA_ID]`: 幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。
+- `save camera profile for [CAMERA_ID] to browser storage`: そのカメラに登録済みのプロファイルを、このoriginのブラウザストレージ（IndexedDB）へ保存し、同じoriginの他ウィンドウへ通知します。書き込み完了まで待ちます。結果は`saved`／`no-profile`／`unavailable`です。
+- `restore stored camera profile for [CAMERA_ID]`: 保存済みプロファイルのうち、現在のカメラ構成に`compatible`な最新のものをこのcamera IDで登録します。fail closedで、`undetermined`や`incompatible`なものは登録せず、既存の登録にも触れません。結果は`restored`／`none`／`incompatible`／`undetermined`／`unavailable`です。
+- `stored camera profile result for [CAMERA_ID]`: そのcamera IDで直近に行った保存または復元の結果を返します。未実行なら空文字列です。
+- `stored camera profile detail for [CAMERA_ID]`: 直近の保存・復元の説明を返します。保存・復元したプロファイル、またはどの保存済みプロファイルもカメラに適合しない理由です。
+- `stored camera profiles generation`: このウィンドウまたは同じoriginの他ウィンドウでプロファイルが保存されるたびに増えるカウンタです。プロジェクトを読み込んでも戻りません。
 
 <!-- END GENERATED BLOCKS -->
 
@@ -161,7 +167,25 @@ import type {CameraFrameSource, CameraLease} from "@kubohiroya/turbowarp-camera-
 
 **「判定できない」は「適合する」とは別の答え。** 適合性は`compatible`／`incompatible`／`undetermined`の3値で、不明が`compatible`へ格上げされることはない。プロファイルが現在の構成に適合していない限り内部行列は渡さない。渡してしまえば、利用側は別の構成の数値で投影し、**もっともらしく間違った幾何**を得ることになる。
 
+### ブラウザストレージ
+
+プロファイルはブラウザ内に保持でき、次の作業や別ウィンドウでファイルを読み直さずに済む。`save camera profile for [CAMERA_ID] to browser storage`は登録済みプロファイルをIndexedDB（データベース`kubohiroya-camera-source`、object store`camera-profiles`、キーは`profileId`）へ書き込み、BroadcastChannel`kubohiroya-camera-source:camera-profiles`で保存を知らせる。`stored camera profiles generation`は、このウィンドウでも同じoriginの別ウィンドウでも保存のたびに増えるので、別ウィンドウの校正アプリを待つ作品はこの整数だけを見て、動いたら復元すればよい。
+
+```text
+restore stored camera profile for [pose]
+if <(stored camera profile result for [pose]) = [restored]> then
+  ... レンズ校正を省略 ...
+```
+
+**これはキャッシュであってバックアップではない。** ストレージは1つのブラウザプロファイルの1つのoriginに属し、ホストやポートが違えば見えず、ブラウザが消すこともある。**書き出したプロファイルファイルが正本**なので、そちらを残しておくこと。
+
+**復元はfail closedである。** 候補は`calibratedAt`の新しい順に、ブロックで指定したcamera IDへ付け替えたうえで、そのカメラの現在の構成と照合する。登録するのは`compatible`なものだけ。`undetermined`（たとえばカメラがまだフレームを届けていない）は弱いyesではなく、該当がなければそのカメラに登録済みのプロファイルはそのまま残る。結果は`restored`／`none`／`incompatible`／`undetermined`／`unavailable`、保存は`saved`／`no-profile`／`unavailable`を返す。
+
+`register camera profile [PROFILE_JSON] as [CAMERA_ID]`はファイルに対して同じ付け替えを行う。校正アプリで`default`として解いたプロファイルを、利用側の作品で`pose`として登録できる。
+
 ## 互換性
+
+0.10.0では校正プロファイルのブラウザストレージと`register camera profile as`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 
 未リリースの変更は破壊的である。`CameraFrameSource.mirrored`は`previewFlip`へ置き換えた。軸を名指しでき、かつ「描画の話であって画素の話ではない」と言えるためである。previewブロックの`MIRRORED`引数は`PREVIEW_FLIP`へ置き換え、booleanはもう読まない。`acquireCamera`は`previewFlip`を受け取り、`mirrored`は受け付けない。frame sourceのinterfaceを手書きで持っている利用側は、公開した`./runtime`のimportへ移ること。そうしていればこの変更はビルド時に分かった。
 

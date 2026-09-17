@@ -65,6 +65,10 @@
       "en": "Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.",
       "ja": "内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。"
     },
+    "registerCameraProfileAs": {
+      "en": "Registers a profile under the named camera ID, replacing the ID the document carries before it is validated. Use it when a profile was solved under another name, such as `default` in a calibration app. Sets or clears the camera profile error like the plain register block.",
+      "ja": "文書が持つcamera IDを指定したIDへ置き換えてから検証し、登録します。校正アプリで`default`として解いたプロファイルを`pose`として使う場合などに使います。camera profile errorの扱いは通常の登録ブロックと同じです。"
+    },
     "forgetCameraProfile": {
       "en": "Removes the stored calibration profile for one camera.",
       "ja": "登録済みプロファイルを破棄します。"
@@ -108,6 +112,26 @@
     "cameraConditionsGeneration": {
       "en": "Returns a number that increases whenever something affecting the geometry changes. A consumer holding a derived result compares this instead of re-checking every condition.",
       "ja": "幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。"
+    },
+    "saveCameraProfile": {
+      "en": "Saves the profile registered for the camera to this origin's browser storage (IndexedDB) and tells other windows on the same origin. Waits until the write commits. The result becomes `saved`, `no-profile` or `unavailable`.",
+      "ja": "そのカメラに登録済みのプロファイルを、このoriginのブラウザストレージ（IndexedDB）へ保存し、同じoriginの他ウィンドウへ通知します。書き込み完了まで待ちます。結果は`saved`／`no-profile`／`unavailable`です。"
+    },
+    "restoreStoredCameraProfile": {
+      "en": "Registers the newest saved profile that is `compatible` with the camera as configured now, under this camera ID. Fails closed: an `undetermined` or `incompatible` profile is never registered and the current registration is left untouched. The result becomes `restored`, `none`, `incompatible`, `undetermined` or `unavailable`.",
+      "ja": "保存済みプロファイルのうち、現在のカメラ構成に`compatible`な最新のものをこのcamera IDで登録します。fail closedで、`undetermined`や`incompatible`なものは登録せず、既存の登録にも触れません。結果は`restored`／`none`／`incompatible`／`undetermined`／`unavailable`です。"
+    },
+    "storedCameraProfileResult": {
+      "en": "Returns the outcome of the last save or restore for the camera ID, or an empty string before either has run.",
+      "ja": "そのcamera IDで直近に行った保存または復元の結果を返します。未実行なら空文字列です。"
+    },
+    "storedCameraProfileDetail": {
+      "en": "Explains the last save or restore: which profile was saved or restored, or why no saved profile fits the camera.",
+      "ja": "直近の保存・復元の説明を返します。保存・復元したプロファイル、またはどの保存済みプロファイルもカメラに適合しない理由です。"
+    },
+    "storedCameraProfilesGeneration": {
+      "en": "A counter that increments whenever a profile is saved in this window or another window on the same origin. It is not reset by loading a project.",
+      "ja": "このウィンドウまたは同じoriginの他ウィンドウでプロファイルが保存されるたびに増えるカウンタです。プロジェクトを読み込んでも戻りません。"
     }
   }
 }
