@@ -2236,6 +2236,55 @@
   	});
   }
   //#endregion
+  //#region src/frame-time.ts
+  function finite(value) {
+  	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+  }
+  /** The time of one presented frame, or the previous one when the metadata carries no time. */
+  function frameTimeFrom(metadata, timeOriginMs, previous) {
+  	const capture = finite(metadata.captureTime);
+  	const presentation = finite(metadata.presentationTime);
+  	const milliseconds = capture ?? presentation;
+  	if (milliseconds === void 0) return previous;
+  	return Object.freeze({
+  		timestampUs: Math.round((timeOriginMs + milliseconds) * 1e3),
+  		source: capture === void 0 ? "presentation" : "capture",
+  		presentedFrames: finite(metadata.presentedFrames) ?? (previous?.presentedFrames ?? 0) + 1
+  	});
+  }
+  /**
+  * Follows one video element for as long as its camera runs.
+  *
+  * Nothing is recorded where the browser has no `requestVideoFrameCallback`; frame sources then carry
+  * no time, which a consumer has to treat as unknown rather than as now.
+  */
+  var FrameTimeWatcher = class {
+  	constructor(element, timeOriginMs) {
+  		this.disposed = false;
+  		this.element = element;
+  		this.timeOriginMs = timeOriginMs;
+  		this.schedule();
+  	}
+  	latest() {
+  		return this.frame;
+  	}
+  	dispose() {
+  		this.disposed = true;
+  		if (this.handle !== void 0) {
+  			this.element.cancelVideoFrameCallback(this.handle);
+  			this.handle = void 0;
+  		}
+  	}
+  	schedule() {
+  		if (this.disposed || typeof this.element.requestVideoFrameCallback !== "function") return;
+  		this.handle = this.element.requestVideoFrameCallback((_now, metadata) => {
+  			this.handle = void 0;
+  			this.frame = frameTimeFrom(metadata, this.timeOriginMs, this.frame);
+  			this.schedule();
+  		});
+  	}
+  };
+  //#endregion
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
   var menuDefinitions = block_definitions_default.menus;
@@ -2959,7 +3008,8 @@
   			video: null,
   			preview: null,
   			startPromise: null,
-  			activeDeviceId: ""
+  			activeDeviceId: "",
+  			frameTimes: null
   		};
   		this.sessions.set(cameraId, session);
   		return session;
@@ -2978,6 +3028,7 @@
   				if (!session.active) throw new Error("Camera acquisition was cancelled.");
   				session.stream = stream;
   				session.video = video;
+  				session.frameTimes = new FrameTimeWatcher(video, globalThis.performance?.timeOrigin ?? 0);
   				this.watchStreamEnd(session, stream);
   				this.updateActiveDevice(session);
   				this.cameraFailures.delete(session.cameraId);
@@ -3035,13 +3086,15 @@
   	}
   	getFrameSource(session) {
   		if (!session.video || !session.stream) throw new Error("Shared camera is not running.");
+  		const frameTime = session.frameTimes?.latest();
   		return Object.freeze({
   			kind: "video",
   			element: session.video,
   			width: session.video.videoWidth,
   			height: session.video.videoHeight,
   			previewFlip: this.previewFlip(session),
-  			deviceId: session.activeDeviceId
+  			deviceId: session.activeDeviceId,
+  			...frameTime === void 0 ? {} : { frameTime }
   		});
   	}
   	stopWhenUnused(session) {
@@ -3054,6 +3107,8 @@
   		session.active = false;
   		this.nextPreviewBlockRevision(cameraId);
   		session.preview?.dispose();
+  		session.frameTimes?.dispose();
+  		session.frameTimes = null;
   		session.stream?.getTracks().forEach((track) => track.stop());
   		if (session.video) session.video.srcObject = null;
   		session.stream = null;
