@@ -225,6 +225,17 @@
       }
     },
     {
+      "opcode": "cameraProfileYaml",
+      "blockType": "REPORTER",
+      "text": "camera profile YAML for [CAMERA_ID]",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
       "opcode": "cameraProfileError",
       "blockType": "REPORTER",
       "text": "camera profile error",

@@ -9,6 +9,8 @@ import {
 } from './calibration/compatibility';
 import {CameraProfileRegistry, type ProfileAssessment} from './calibration/registry';
 import {readCameraProfileDocument, serializeCameraIntrinsicProfile} from './calibration/profile';
+import {serializeCameraInfoYaml} from './calibration/camera-info';
+import {readProfileText} from './calibration/profile-text';
 import {
   cameraProfileChannelName,
   createIndexedDbCameraProfileStore,
@@ -593,6 +595,19 @@ export class CameraSourceExtension implements TurboWarpExtension {
     return profile ? serializeCameraIntrinsicProfile(profile) : '';
   }
 
+  /**
+   * The registered profile as a ROS `camera_info` YAML document, which is how a calibration is
+   * written to a file or handed to another machine.
+   *
+   * The standard part loads in ROS and OpenCV-based tools as it is. What deciding compatibility needs
+   * and ROS has no place for travels in the `turbowarp_camera_source` mapping, which ROS's reader
+   * does not look at.
+   */
+  public cameraProfileYaml(args: {CAMERA_ID?: unknown} = {}): string {
+    const profile = this.profiles.get(normalizeId(args.CAMERA_ID));
+    return profile ? serializeCameraInfoYaml(profile) : '';
+  }
+
   public cameraProfileError(): string {
     return this.profileError?.code ?? '';
   }
@@ -635,17 +650,20 @@ export class CameraSourceExtension implements TurboWarpExtension {
     return this.generationOf(normalizeId(args.CAMERA_ID));
   }
 
+  /**
+   * Registers profile text, whichever of the two forms an operator was handed.
+   *
+   * A ROS `camera_info` YAML file is what the calibration app writes and what leaves the PC; profile
+   * JSON is what this extension renders and stores. Both reach the same validator, so a file is
+   * accepted or refused for the same reasons whichever form it came in.
+   */
   private registerProfileText(value: unknown, prepare: (document: unknown) => unknown): void {
-    const parsed = parseJson(Scratch.Cast.toString(value ?? ''));
+    const parsed = readProfileText(Scratch.Cast.toString(value ?? ''));
     if (!parsed.ok) {
-      this.profileError = {
-        code: 'not-an-object',
-        path: '',
-        message: 'The profile is not valid JSON.'
-      };
+      this.profileError = parsed.error;
       return;
     }
-    const result = this.profiles.register(prepare(parsed.value));
+    const result = this.profiles.register(prepare(parsed.document));
     this.profileError = result.ok ? undefined : result.error;
   }
 

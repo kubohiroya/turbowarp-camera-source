@@ -72,6 +72,30 @@ describe('the calibration blocks', () => {
     expect(extension.cameraProfileRegistered({CAMERA_ID: broken.cameraId})).toBe(false);
   });
 
+  it('registers a ROS camera_info YAML file, the form a calibration leaves the PC in', () => {
+    const extension = new CameraSourceExtension();
+    const source = document('full.json');
+    extension.registerCameraProfile({PROFILE_JSON: JSON.stringify(source)});
+    const yaml = extension.cameraProfileYaml({CAMERA_ID: source.cameraId});
+    expect(yaml).toMatch(/^image_width: 1920\n/);
+
+    const other = new CameraSourceExtension();
+    other.registerCameraProfileAs({PROFILE_JSON: yaml, CAMERA_ID: 'pose'});
+    expect(other.cameraProfileError()).toBe('');
+    expect(JSON.parse(other.cameraProfileJson({CAMERA_ID: 'pose'}))).toEqual({...source, cameraId: 'pose'});
+    expect(other.cameraProfileYaml({CAMERA_ID: 'pose'})).toContain('camera_name: pose\n');
+  });
+
+  it('names the member at fault in a refused YAML file', () => {
+    const extension = new CameraSourceExtension();
+    extension.registerCameraProfile({
+      PROFILE_JSON: 'image_width: 640\nimage_height: 480\ncamera_name: x\ncamera_matrix: {rows: 3, cols: 3, data: [1, 0, 0]}'
+    });
+    expect(extension.cameraProfileError()).toBe('invalid-value');
+    expect(extension.cameraProfileErrorDetail()).toContain('camera_matrix.data');
+    expect(extension.cameraProfileYaml({CAMERA_ID: 'x'})).toBe('');
+  });
+
   it('reports text that is not JSON as such', () => {
     const extension = new CameraSourceExtension();
     extension.registerCameraProfile({PROFILE_JSON: 'not json'});

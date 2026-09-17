@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.10.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.11.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.10.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.11.0
 ```
 
 ## Quick start
@@ -69,11 +69,12 @@ stop shared camera [pose]
 - `camera device count`: 更新済みカメラデバイス数を返します。
 - `camera device ID at [INDEX]`: 1始まりの位置でカメラdevice IDを返します。
 - `camera device label at [INDEX]`: 1始まりの位置でカメララベルを返します。
-- `register camera profile [PROFILE_JSON]`: 内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。
+- `register camera profile [PROFILE_JSON]`: 内部校正プロファイルを検証して登録します。校正アプリが書き出すROSの`camera_info` YAML（`turbowarp_camera_source`の項目付き）と、`twcs/camera-intrinsics`のJSON、旧`twrmc/camera-calibration`のJSONを受け取ります。
 - `register camera profile [PROFILE_JSON] as [CAMERA_ID]`: 文書が持つcamera IDを指定したIDへ置き換えてから検証し、登録します。校正アプリで`default`として解いたプロファイルを`pose`として使う場合などに使います。camera profile errorの扱いは通常の登録ブロックと同じです。
 - `forget camera profile for [CAMERA_ID]`: 登録済みプロファイルを破棄します。
 - `camera [CAMERA_ID] is calibrated?`: プロファイルが登録されているかを返します。未登録は正常な状態です。
-- `camera profile JSON for [CAMERA_ID]`: 保存された文書をそのまま返します。表示や書き出し用であって、投影に使う数値ではありません。
+- `camera profile JSON for [CAMERA_ID]`: 登録された文書を`twcs/camera-intrinsics`のJSONで返します。表示や保存用であって、投影に使う数値ではありません。ファイルとして渡すには`camera profile YAML`を使います。
+- `camera profile YAML for [CAMERA_ID]`: 登録された文書をROSの`camera_info` YAMLで返します。ファイルへの書き出しやQRコードにはこの形を使います。標準の部分はROSやOpenCV系のツールがそのまま読み、`turbowarp_camera_source`の項目に適合判定に要る校正日時と撮影条件が入ります。
 - `camera profile error`: 直近の登録失敗のコードを返します。成功後は空文字列です。
 - `camera profile error detail`: 直近の登録失敗の位置と理由を返します。
 - `camera profile compatibility for [CAMERA_ID]`: `compatible`／`incompatible`／`undetermined`を返します。
@@ -167,6 +168,65 @@ import type {CameraFrameSource, CameraLease} from "@kubohiroya/turbowarp-camera-
 
 **「判定できない」は「適合する」とは別の答え。** 適合性は`compatible`／`incompatible`／`undetermined`の3値で、不明が`compatible`へ格上げされることはない。プロファイルが現在の構成に適合していない限り内部行列は渡さない。渡してしまえば、利用側は別の構成の数値で投影し、**もっともらしく間違った幾何**を得ることになる。
 
+### 校正ファイル
+
+PCの外へ出る校正（ファイルやQRコード）は、ROSの`camera_info` YAMLで書く。ROSの`camera_calibration_parsers`が読み書きする形式で、OpenCV系の処理、ROS／ROS 2のドライバ、SLAMツールがそのまま読める。`camera profile YAML for [CAMERA_ID]`は登録済みのプロファイルをこの形で返し、`register camera profile`はプロファイルJSONと同じようにこれを読む。
+
+```yaml
+image_width: 1280
+image_height: 720
+camera_name: stage-left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [940.25, 0, 639.5, 0, 939.5, 359.5, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.32, 0.11, 0.0002, -0.0003, -0.018]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [940.25, 0, 639.5, 0, 0, 939.5, 359.5, 0, 0, 0, 1, 0]
+turbowarp_camera_source:
+  schema: "twcs/camera-intrinsics"
+  version: 1
+  profileId: "run-2026-09-15-a"
+  calibratedAt: "2026-09-15T04:05:06Z"
+  producer: "chessboard calibration"
+  undistorted: false
+  capture:
+    resizeMode: "none"
+    zoom: 1
+    focusMode: "manual"
+  quality:
+    sampleCount: 24
+    reprojectionErrorPx: 0.28
+```
+
+**標準の部分はROSのキーと形そのままである。** 歪みモデルは、`brown-conrady`の5係数（4係数は`k3 = 0`を足して書く）⇔`plumb_bob`、8係数⇔`rational_polynomial`、`kannala-brandt`⇔`equidistant`と対応する。ROSには「歪みなし」のモデルが無いので、歪みの無い画像は5つの0の`plumb_bob`で書き、読むと`none`に戻る。
+
+**ROSに置き場の無い情報は`turbowarp_camera_source`の下に入れる。** 校正日時、どの校正か、適合判定に使う撮影条件は、プロファイルがまだ使えるかを決めるのに要る。項目名はプロファイルのもので、撮影条件は`MediaTrackSettings`の名前である。ROSの読み込み処理はキーを名前で引くだけでこの項目を見ないので、ファイルはROSでもそのまま読める。この項目の無い素のROSファイルは`missing-field`で拒否する。校正日時を捏造すれば「分からない」が記録に化けるからである。
+
+**読み込みはJSONと同じくfail closedである。** ほかのトップレベルのキー、単位行列でない平行化行列（ステレオの組のもの）、ビニングや切り出した関心領域、固定値の違う内部行列、ROSが定めていない係数の数は、該当する項目を示して拒否する。値そのものはJSONと同じ検証器を通る。読めるYAMLはyaml-cppとPyYAMLが書くもの（ブロックとフローのコレクション、引用符、コメント）で、アンカー、エイリアス、タグ、ブロックスカラー、複数文書は推測せずに拒否する。
+
+同じ規則を、TurboWarpの外のコード（校正アプリが書いたファイルを確かめるテストなど）のために関数として公開している。
+
+```ts
+import {
+  readProfileText,
+  readCameraProfileDocument,
+  serializeCameraInfoYaml,
+  evaluateProfileCompatibility,
+  readCameraConditions
+} from "@kubohiroya/turbowarp-camera-source/profile";
+```
+
 ### ブラウザストレージ
 
 プロファイルはブラウザ内に保持でき、次の作業や別ウィンドウでファイルを読み直さずに済む。`save camera profile for [CAMERA_ID] to browser storage`は登録済みプロファイルをIndexedDB（データベース`kubohiroya-camera-source`、object store`camera-profiles`、キーは`profileId`）へ書き込み、BroadcastChannel`kubohiroya-camera-source:camera-profiles`で保存を知らせる。`stored camera profiles generation`は、このウィンドウでも同じoriginの別ウィンドウでも保存のたびに増えるので、別ウィンドウの校正アプリを待つ作品はこの整数だけを見て、動いたら復元すればよい。
@@ -184,6 +244,8 @@ if <(stored camera profile result for [pose]) = [restored]> then
 `register camera profile [PROFILE_JSON] as [CAMERA_ID]`はファイルに対して同じ付け替えを行う。校正アプリで`default`として解いたプロファイルを、利用側の作品で`pose`として登録できる。
 
 ## 互換性
+
+0.11.0では校正ファイルをROSの`camera_info` YAMLで読み書きするようにした。`camera profile YAML`を追加し、`register camera profile`はYAMLも受け取り、処理だけを持つ関数を`./profile`で公開した。既存のブロックとcapabilityのメンバーは変えていない。
 
 0.10.0では校正プロファイルのブラウザストレージと`register camera profile as`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 

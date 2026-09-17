@@ -24,6 +24,7 @@ describe('the published runtime sub-entry', () => {
     expect(Object.keys(packageMetadata.exports)).toEqual([
       './camera-source.js',
       './runtime',
+      './profile',
       './package.json'
     ]);
   });

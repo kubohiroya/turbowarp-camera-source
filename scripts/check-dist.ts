@@ -64,8 +64,13 @@ for (const identifier of forbiddenIdentifiers) {
  * committed `dist`, so growth is visible whether or not this fires.
  *
  * At the time of writing the bundle is roughly 67 kB with no runtime dependencies.
+ *
+ * Raised from 96 KiB to 128 KiB in 0.11.0, deliberately. Calibration files became ROS `camera_info`
+ * YAML, and reading them takes a YAML reader and the camera_info mapping, written here rather than
+ * pulled in: about 30 kB unminified and 7.5 kB gzipped, taking the bundle to about 113 kB. Still no
+ * runtime dependency.
  */
-const maximumBundleBytes = 98_304;
+const maximumBundleBytes = 131_072;
 const bundleBytes = Buffer.byteLength(bundle);
 
 if (bundleBytes > maximumBundleBytes) {

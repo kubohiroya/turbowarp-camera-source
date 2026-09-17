@@ -1,0 +1,47 @@
+%YAML 1.2
+---
+image_width: 1920
+image_height: 1080
+camera_name: stage-left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1400.5, 0, 959.5, 0, 1399.25, 539.5, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.32115, 0.11042, 0.00021, -0.00034, -0.01877]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1400.5, 0, 959.5, 0, 0, 1399.25, 539.5, 0, 0, 0, 1, 0]
+binning_x: 0
+binning_y: 0
+roi:
+  x_offset: 0
+  y_offset: 0
+  height: 0
+  width: 0
+  do_rectify: false
+turbowarp_camera_source:
+  schema: twcs/camera-intrinsics
+  version: 1
+  profileId: 'run-2026-09-15-b'
+  calibratedAt: "2026-09-15T04:05:06.125Z"
+  producer: chessboard calibration
+  undistorted: false
+  capture:
+    resizeMode: none
+    zoom: 1
+    focusMode: manual
+    focusDistance: 0.4
+  quality:
+    sampleCount: 24
+    reprojectionErrorPx: 0.284
+  device:
+    label: HD Pro Webcam C920

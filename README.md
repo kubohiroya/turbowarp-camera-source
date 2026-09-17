@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.10.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.11.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.10.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.11.0
 ```
 
 ## Quick Start
@@ -210,7 +210,7 @@ Returns the one-based camera device label at the requested index when the browse
 
 ### `register camera profile [PROFILE_JSON]`
 
-Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.
+Validates a calibration and stores it against the camera it names. Accepts a ROS camera_info YAML file carrying the turbowarp_camera_source mapping, as the calibration app writes it, as well as twcs/camera-intrinsics version 1 JSON and the legacy twrmc/camera-calibration JSON. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.
 
 | Property | Value |
 |---|---|
@@ -251,12 +251,22 @@ Reports whether a calibration profile is stored for the camera. An uncalibrated 
 
 ### `camera profile JSON for [CAMERA_ID]`
 
-Returns the stored profile as JSON, or an empty string when the camera has none.
+Returns the stored profile as twcs/camera-intrinsics JSON, or an empty string when the camera has none. For a file to hand to another machine or tool, use camera profile YAML.
 
 | Property | Value |
 |---|---|
 | Type | Reporter |
 | Opcode | `cameraProfileJson` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile YAML for [CAMERA_ID]`
+
+Returns the stored profile as a ROS camera_info YAML document, or an empty string when the camera has none. This is the form to write to a file or show as a QR code: ROS and OpenCV-based tools read the standard part as it is, and the turbowarp_camera_source mapping carries the calibration time and camera settings compatibility needs.
+
+| Property | Value |
+|---|---|
+| Type | Reporter |
+| Opcode | `cameraProfileYaml` |
 | `CAMERA_ID` | String, default: `default` |
 
 ### `camera profile error`
@@ -481,6 +491,82 @@ own repository and fails in a browser instead.
 
 **"Cannot tell" is a distinct answer from "fits".** Compatibility is `compatible`, `incompatible` or `undetermined`, and unknown never resolves upward. Intrinsics are withheld unless the profile actually fits the camera as configured now: handing them over regardless would let a consumer project with numbers from a different configuration and get plausible, wrong geometry back.
 
+### Calibration files
+
+A calibration that leaves the PC — a file, or a QR code — is a ROS `camera_info` YAML document, the
+format ROS's `camera_calibration_parsers` reads and writes and that OpenCV-based pipelines, ROS and
+ROS 2 drivers and SLAM tools load as it is. `camera profile YAML for [CAMERA_ID]` renders the
+registered profile that way, and `register camera profile` reads it back as well as profile JSON.
+
+```yaml
+image_width: 1280
+image_height: 720
+camera_name: stage-left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [940.25, 0, 639.5, 0, 939.5, 359.5, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.32, 0.11, 0.0002, -0.0003, -0.018]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [940.25, 0, 639.5, 0, 0, 939.5, 359.5, 0, 0, 0, 1, 0]
+turbowarp_camera_source:
+  schema: "twcs/camera-intrinsics"
+  version: 1
+  profileId: "run-2026-09-15-a"
+  calibratedAt: "2026-09-15T04:05:06Z"
+  producer: "chessboard calibration"
+  undistorted: false
+  capture:
+    resizeMode: "none"
+    zoom: 1
+    focusMode: "manual"
+  quality:
+    sampleCount: 24
+    reprojectionErrorPx: 0.28
+```
+
+**The standard part is ROS's, key for key.** Distortion models map as `brown-conrady` with five
+coefficients (four are written with `k3 = 0`) ⇔ `plumb_bob`, eight ⇔ `rational_polynomial`, and
+`kannala-brandt` ⇔ `equidistant`. A lens-free image is `plumb_bob` with five zeros, since ROS has no
+model for none, and reads back as `none`.
+
+**What ROS has no place for travels under `turbowarp_camera_source`.** When the camera was
+calibrated, which run it was, and the capture settings compatibility is decided on are required to
+tell whether a profile still fits; their member names are the profile's, and the capture members
+are `MediaTrackSettings` names. ROS's reader looks keys up by name and ignores this one, so the file
+still loads in ROS. A plain ROS file without it is refused with `missing-field`: inventing a
+calibration time would turn "unknown" into a record.
+
+**Reading fails closed, like JSON.** Other top-level keys, a rectification other than identity (a
+stereo pair's), binning or a cropped region of interest, a calibration matrix whose fixed entries are
+wrong, and a coefficient count ROS does not define are refused with the member that failed. The
+values themselves then go through the same validator as JSON. The reader takes the YAML that
+yaml-cpp and PyYAML write — block and flow collections, quotes, comments — and refuses anchors,
+aliases, tags, block scalars and multiple documents rather than guessing.
+
+The same rules are published as plain functions for code outside TurboWarp, such as a test that checks
+a file a calibration app wrote:
+
+```ts
+import {
+  readProfileText,
+  readCameraProfileDocument,
+  serializeCameraInfoYaml,
+  evaluateProfileCompatibility,
+  readCameraConditions
+} from "@kubohiroya/turbowarp-camera-source/profile";
+```
+
 ### Browser storage
 
 A profile can be kept in the browser so the next session, or another window, does not need the file
@@ -512,6 +598,10 @@ camera is left as it was. The result is `restored`, `none`, `incompatible`, `und
 solved under `default` in a calibration app can be registered as `pose` in the app that uses it.
 
 ## Compatibility
+
+Version 0.11.0 writes and reads calibration files as ROS `camera_info` YAML: `camera profile YAML`
+is new, `register camera profile` also accepts YAML, and the pure functions are published under
+`./profile`. No existing block or capability member changes.
 
 Version 0.10.0 adds browser storage for calibration profiles and `register camera profile as`. No
 existing block or capability member changes.

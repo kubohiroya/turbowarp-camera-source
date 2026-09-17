@@ -62,8 +62,8 @@
       "ja": "1始まりの位置でカメララベルを返します。"
     },
     "registerCameraProfile": {
-      "en": "Validates a twcs/camera-intrinsics version 1 document and stores it against the camera it names. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.",
-      "ja": "内部校正プロファイルを検証して登録します。現行の`twcs/camera-intrinsics`と、旧`twrmc/camera-calibration`のどちらの文書も受け取ります。"
+      "en": "Validates a calibration and stores it against the camera it names. Accepts a ROS camera_info YAML file carrying the turbowarp_camera_source mapping, as the calibration app writes it, as well as twcs/camera-intrinsics version 1 JSON and the legacy twrmc/camera-calibration JSON. Nothing is stored unless the whole document passes, and the profile in force for that camera is replaced.",
+      "ja": "内部校正プロファイルを検証して登録します。校正アプリが書き出すROSの`camera_info` YAML（`turbowarp_camera_source`の項目付き）と、`twcs/camera-intrinsics`のJSON、旧`twrmc/camera-calibration`のJSONを受け取ります。"
     },
     "registerCameraProfileAs": {
       "en": "Registers a profile under the named camera ID, replacing the ID the document carries before it is validated. Use it when a profile was solved under another name, such as `default` in a calibration app. Sets or clears the camera profile error like the plain register block.",
@@ -78,8 +78,12 @@
       "ja": "プロファイルが登録されているかを返します。未登録は正常な状態です。"
     },
     "cameraProfileJson": {
-      "en": "Returns the stored profile as JSON, or an empty string when the camera has none.",
-      "ja": "保存された文書をそのまま返します。表示や書き出し用であって、投影に使う数値ではありません。"
+      "en": "Returns the stored profile as twcs/camera-intrinsics JSON, or an empty string when the camera has none. For a file to hand to another machine or tool, use camera profile YAML.",
+      "ja": "登録された文書を`twcs/camera-intrinsics`のJSONで返します。表示や保存用であって、投影に使う数値ではありません。ファイルとして渡すには`camera profile YAML`を使います。"
+    },
+    "cameraProfileYaml": {
+      "en": "Returns the stored profile as a ROS camera_info YAML document, or an empty string when the camera has none. This is the form to write to a file or show as a QR code: ROS and OpenCV-based tools read the standard part as it is, and the turbowarp_camera_source mapping carries the calibration time and camera settings compatibility needs.",
+      "ja": "登録された文書をROSの`camera_info` YAMLで返します。ファイルへの書き出しやQRコードにはこの形を使います。標準の部分はROSやOpenCV系のツールがそのまま読み、`turbowarp_camera_source`の項目に適合判定に要る校正日時と撮影条件が入ります。"
     },
     "cameraProfileError": {
       "en": "Returns the code of the last rejected profile document, or an empty string when the last one was accepted.",
