@@ -38,7 +38,7 @@ function splitLines(source) {
     const lines = [];
     let started = false;
     source
-        .replace(/^﻿/, '')
+        .replace(/^\uFEFF/, '')
         .split(/\r\n|\r|\n/)
         .forEach((raw, index) => {
         const number = index + 1;

@@ -1110,7 +1110,7 @@
   function splitLines(source) {
   	const lines = [];
   	let started = false;
-  	source.replace(/^﻿/, "").split(/\r\n|\r|\n/).forEach((raw, index) => {
+  	source.replace(/^\uFEFF/, "").split(/\r\n|\r|\n/).forEach((raw, index) => {
   		const number = index + 1;
   		if (/\t/.test(raw.match(/^\s*/)[0])) throw new YamlError("Tabs cannot indent YAML.", number);
   		const text = stripComment(raw).trimEnd();
