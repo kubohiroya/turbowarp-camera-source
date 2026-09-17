@@ -17,6 +17,17 @@
       }
     },
     {
+      "opcode": "startRequestedSharedCamera",
+      "blockType": "COMMAND",
+      "text": "start shared camera [CAMERA_ID] requested by this page",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
       "opcode": "stopSharedCamera",
       "blockType": "COMMAND",
       "text": "stop shared camera [CAMERA_ID]",
@@ -328,6 +339,39 @@
       "opcode": "restoreStoredCameraProfile",
       "blockType": "COMMAND",
       "text": "restore stored camera profile for [CAMERA_ID]",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
+      "opcode": "restoreStoredCameraProfileForDevice",
+      "blockType": "COMMAND",
+      "text": "restore stored camera profile calibrated on the device of [CAMERA_ID]",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
+      "opcode": "bindCameraProfileToDevice",
+      "blockType": "COMMAND",
+      "text": "bind camera profile for [CAMERA_ID] to its current device",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
+      "opcode": "cameraProfileOnDevice",
+      "blockType": "BOOLEAN",
+      "text": "camera profile for [CAMERA_ID] belongs to its current device?",
       "arguments": {
         "CAMERA_ID": {
           "type": "STRING",

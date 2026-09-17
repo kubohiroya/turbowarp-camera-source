@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.11.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.12.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.11.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.12.0
 ```
 
 ## Quick Start
@@ -68,6 +68,16 @@ Starts or keeps a named shared MediaDevices camera stream.
 | Opcode | `startSharedCamera` |
 | `CAMERA_ID` | String, default: `default` |
 | `DEVICE_ID` | String, default: `` |
+
+### `start shared camera [CAMERA_ID] requested by this page`
+
+Starts the camera the page's query parameters name: `cameraDeviceId` exactly, and `cameraWidth`, `cameraHeight` and `cameraFrameRate` as ideal values. Without them it behaves like `start shared camera` with no device. An app with several USB cameras opens another app on the same origin, such as the lens calibration app, for one of them this way.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `startRequestedSharedCamera` |
+| `CAMERA_ID` | String, default: `default` |
 
 ### `stop shared camera [CAMERA_ID]`
 
@@ -367,6 +377,36 @@ Registers the newest saved profile that is `compatible` with the camera as confi
 | Opcode | `restoreStoredCameraProfile` |
 | `CAMERA_ID` | String, default: `default` |
 
+### `restore stored camera profile calibrated on the device of [CAMERA_ID]`
+
+Like `restore stored camera profile`, but considers only profiles calibrated on the device this camera is running on now, so two cameras of the same model never receive each other's calibration. Device IDs are scoped to the origin and browser profile, as browser storage is. A camera that is not running gives `undetermined`; `none` says how many saved profiles belong to other devices.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `restoreStoredCameraProfileForDevice` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `bind camera profile for [CAMERA_ID] to its current device`
+
+Records the device this camera is running on in its registered profile, for a profile the operator has assigned to this camera, such as one loaded from a file. Only a profile `compatible` with the camera as it is now is bound; otherwise nothing changes. Save the profile afterwards to keep the binding.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `bindCameraProfileToDevice` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `camera profile for [CAMERA_ID] belongs to its current device?`
+
+Whether the registered profile was calibrated on, or bound to, the device this camera is running on now.
+
+| Property | Value |
+|---|---|
+| Type | Boolean |
+| Opcode | `cameraProfileOnDevice` |
+| `CAMERA_ID` | String, default: `default` |
+
 ### `stored camera profile result for [CAMERA_ID]`
 
 Returns the outcome of the last save or restore for the camera ID, or an empty string before either has run.
@@ -597,7 +637,21 @@ camera is left as it was. The result is `restored`, `none`, `incompatible`, `und
 `register camera profile [PROFILE_JSON] as [CAMERA_ID]` does the same rebinding for a file: a profile
 solved under `default` in a calibration app can be registered as `pose` in the app that uses it.
 
+**Two cameras of the same model.** They report the same label and the same capture conditions, so
+each one's calibration is `compatible` with the other. `restore stored camera profile calibrated on
+the device of [CAMERA_ID]` only considers profiles whose recorded device ID is the one the camera is
+running on. Device IDs are scoped to the origin and browser profile, which is also where the storage
+lives. A profile brought in from a file carries another browser's device ID: register it for the
+camera, `bind camera profile for [CAMERA_ID] to its current device` (which binds only a `compatible`
+profile), and save it. An app that opens the calibration app for one camera names that camera and the size it uses in the
+`cameraDeviceId`, `cameraWidth`, `cameraHeight` and `cameraFrameRate` query parameters, and
+`start shared camera [CAMERA_ID] requested by this page` starts it that way.
+
 ## Compatibility
+
+Version 0.12.0 adds device-scoped restore, `bind camera profile ... to its current device`,
+`camera profile ... belongs to its current device?` and `start shared camera [CAMERA_ID] requested by this page`.
+No existing block or capability member changes.
 
 Version 0.11.0 writes and reads calibration files as ROS `camera_info` YAML: `camera profile YAML`
 is new, `register camera profile` also accepts YAML, and the pure functions are published under

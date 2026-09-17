@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.11.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.12.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.11.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.12.0
 ```
 
 ## Quick start
@@ -55,6 +55,7 @@ stop shared camera [pose]
 <!-- BEGIN GENERATED BLOCKS -->
 
 - `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`: 名前付き共有カメラを開始します。
+- `start shared camera [CAMERA_ID] requested by this page`: ページのクエリパラメータが指定するカメラを開始します。`cameraDeviceId`は厳密に、`cameraWidth`・`cameraHeight`・`cameraFrameRate`は理想値として要求します。指定がなければ、デバイスを指定しない`start shared camera`と同じです。複数のUSBカメラを使うアプリが、同じoriginの別のアプリ（レンズ校正アプリなど）をそのうち1台のために開くときの指定方法です。
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
 - `shared camera [CAMERA_ID] is running?`: 指定した共有カメラが起動中かを返します。
 - `shared camera [CAMERA_ID] error code`: 直近の開始失敗コードを返します。開始成功後は空文字列です。
@@ -85,6 +86,9 @@ stop shared camera [pose]
 - `camera conditions generation for [CAMERA_ID]`: 幾何に影響する条件が変わるたびに増える整数を返します。frame rateでは動きません。
 - `save camera profile for [CAMERA_ID] to browser storage`: そのカメラに登録済みのプロファイルを、このoriginのブラウザストレージ（IndexedDB）へ保存し、同じoriginの他ウィンドウへ通知します。書き込み完了まで待ちます。結果は`saved`／`no-profile`／`unavailable`です。
 - `restore stored camera profile for [CAMERA_ID]`: 保存済みプロファイルのうち、現在のカメラ構成に`compatible`な最新のものをこのcamera IDで登録します。fail closedで、`undetermined`や`incompatible`なものは登録せず、既存の登録にも触れません。結果は`restored`／`none`／`incompatible`／`undetermined`／`unavailable`です。
+- `restore stored camera profile calibrated on the device of [CAMERA_ID]`: `restore stored camera profile`と同じですが、このカメラが今動いているデバイスで校正したプロファイルだけを候補にします。同じ型番のカメラどうしで校正を取り違えません。device IDはブラウザストレージと同じくoriginとブラウザのプロファイルごとです。カメラが動いていなければ`undetermined`、`none`のときは他のデバイスのプロファイルが何件あったかを説明に含めます。
+- `bind camera profile for [CAMERA_ID] to its current device`: 登録済みプロファイルに、このカメラが今動いているデバイスを記録します。ファイルから読んだものなど、操作者がこのカメラのものと指定したプロファイルのためのブロックです。現在のカメラに`compatible`なときだけ記録し、そうでなければ何も変えません。記録を残すには続けて保存します。
+- `camera profile for [CAMERA_ID] belongs to its current device?`: 登録済みプロファイルが、このカメラが今動いているデバイスで校正された、または結び付けられたものかを返します。
 - `stored camera profile result for [CAMERA_ID]`: そのcamera IDで直近に行った保存または復元の結果を返します。未実行なら空文字列です。
 - `stored camera profile detail for [CAMERA_ID]`: 直近の保存・復元の説明を返します。保存・復元したプロファイル、またはどの保存済みプロファイルもカメラに適合しない理由です。
 - `stored camera profiles generation`: このウィンドウまたは同じoriginの他ウィンドウでプロファイルが保存されるたびに増えるカウンタです。プロジェクトを読み込んでも戻りません。
@@ -243,7 +247,11 @@ if <(stored camera profile result for [pose]) = [restored]> then
 
 `register camera profile [PROFILE_JSON] as [CAMERA_ID]`はファイルに対して同じ付け替えを行う。校正アプリで`default`として解いたプロファイルを、利用側の作品で`pose`として登録できる。
 
+**同じ型番のカメラが2台あるとき。** 2台は同じラベルと同じ撮影条件を報告するので、互いの校正が`compatible`になる。`restore stored camera profile calibrated on the device of [CAMERA_ID]`は、記録されたdevice IDがそのカメラの今のデバイスと一致するプロファイルだけを候補にする。device IDはoriginとブラウザのプロファイルごとで、ストレージの範囲と同じである。ファイルから持ち込んだプロファイルには別のブラウザのdevice IDが入っているので、カメラに登録し、`bind camera profile for [CAMERA_ID] to its current device`（`compatible`なものだけを結び付ける）を実行してから保存する。1台のカメラのために校正アプリを開くアプリは、クエリパラメータ`cameraDeviceId`・`cameraWidth`・`cameraHeight`・`cameraFrameRate`でカメラと使うサイズを指定し、`start shared camera [CAMERA_ID] requested by this page`がそのとおりに開始する。
+
 ## 互換性
+
+0.12.0ではデバイスで絞る復元、`bind camera profile ... to its current device`、`camera profile ... belongs to its current device?`、`start shared camera [CAMERA_ID] requested by this page`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 
 0.11.0では校正ファイルをROSの`camera_info` YAMLで読み書きするようにした。`camera profile YAML`を追加し、`register camera profile`はYAMLも受け取り、処理だけを持つ関数を`./profile`で公開した。既存のブロックとcapabilityのメンバーは変えていない。
 

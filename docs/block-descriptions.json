@@ -5,6 +5,10 @@
       "en": "Starts or keeps a named shared MediaDevices camera stream.",
       "ja": "名前付き共有カメラを開始します。"
     },
+    "startRequestedSharedCamera": {
+      "en": "Starts the camera the page's query parameters name: `cameraDeviceId` exactly, and `cameraWidth`, `cameraHeight` and `cameraFrameRate` as ideal values. Without them it behaves like `start shared camera` with no device. An app with several USB cameras opens another app on the same origin, such as the lens calibration app, for one of them this way.",
+      "ja": "ページのクエリパラメータが指定するカメラを開始します。`cameraDeviceId`は厳密に、`cameraWidth`・`cameraHeight`・`cameraFrameRate`は理想値として要求します。指定がなければ、デバイスを指定しない`start shared camera`と同じです。複数のUSBカメラを使うアプリが、同じoriginの別のアプリ（レンズ校正アプリなど）をそのうち1台のために開くときの指定方法です。"
+    },
     "stopSharedCamera": {
       "en": "Stops a named shared camera stream and releases its tracks.",
       "ja": "名前付き共有カメラを停止し、MediaStreamTrackを解放します。"
@@ -124,6 +128,18 @@
     "restoreStoredCameraProfile": {
       "en": "Registers the newest saved profile that is `compatible` with the camera as configured now, under this camera ID. Fails closed: an `undetermined` or `incompatible` profile is never registered and the current registration is left untouched. The result becomes `restored`, `none`, `incompatible`, `undetermined` or `unavailable`.",
       "ja": "保存済みプロファイルのうち、現在のカメラ構成に`compatible`な最新のものをこのcamera IDで登録します。fail closedで、`undetermined`や`incompatible`なものは登録せず、既存の登録にも触れません。結果は`restored`／`none`／`incompatible`／`undetermined`／`unavailable`です。"
+    },
+    "restoreStoredCameraProfileForDevice": {
+      "en": "Like `restore stored camera profile`, but considers only profiles calibrated on the device this camera is running on now, so two cameras of the same model never receive each other's calibration. Device IDs are scoped to the origin and browser profile, as browser storage is. A camera that is not running gives `undetermined`; `none` says how many saved profiles belong to other devices.",
+      "ja": "`restore stored camera profile`と同じですが、このカメラが今動いているデバイスで校正したプロファイルだけを候補にします。同じ型番のカメラどうしで校正を取り違えません。device IDはブラウザストレージと同じくoriginとブラウザのプロファイルごとです。カメラが動いていなければ`undetermined`、`none`のときは他のデバイスのプロファイルが何件あったかを説明に含めます。"
+    },
+    "bindCameraProfileToDevice": {
+      "en": "Records the device this camera is running on in its registered profile, for a profile the operator has assigned to this camera, such as one loaded from a file. Only a profile `compatible` with the camera as it is now is bound; otherwise nothing changes. Save the profile afterwards to keep the binding.",
+      "ja": "登録済みプロファイルに、このカメラが今動いているデバイスを記録します。ファイルから読んだものなど、操作者がこのカメラのものと指定したプロファイルのためのブロックです。現在のカメラに`compatible`なときだけ記録し、そうでなければ何も変えません。記録を残すには続けて保存します。"
+    },
+    "cameraProfileOnDevice": {
+      "en": "Whether the registered profile was calibrated on, or bound to, the device this camera is running on now.",
+      "ja": "登録済みプロファイルが、このカメラが今動いているデバイスで校正された、または結び付けられたものかを返します。"
     },
     "storedCameraProfileResult": {
       "en": "Returns the outcome of the last save or restore for the camera ID, or an empty string before either has run.",
