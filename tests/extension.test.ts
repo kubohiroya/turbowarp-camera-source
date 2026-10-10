@@ -463,6 +463,98 @@ describe('CameraSourceExtension', () => {
     expect(extension.isCameraRunning()).toBe(false);
   });
 
+  it('adopts a stream the caller supplies without opening a camera', async () => {
+    const hostStream = stream('host-device');
+    const getUserMedia = vi.fn(async () => hostStream);
+    vi.stubGlobal('navigator', {mediaDevices: {getUserMedia, enumerateDevices: vi.fn()}});
+    const sourceVideo = video();
+    vi.stubGlobal('document', {createElement: vi.fn(() => sourceVideo)});
+
+    const extension = new CameraSourceExtension();
+    const lease = await extension.adoptCamera({cameraId: 'pose', stream: hostStream});
+
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(sourceVideo.srcObject).toBe(hostStream);
+    expect(lease.getFrameSource().element).toBe(sourceVideo);
+    expect(lease.getFrameSource().deviceId).toBe('host-device');
+
+    // Releasing the last lease ends the session but must leave the caller's tracks running.
+    // Stopping one cannot be undone, and the caller may still be showing the same stream itself.
+    await lease.release();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+    expect(hostStream.stop).not.toHaveBeenCalled();
+  });
+
+  it('reports an ended adopted track as stopped', async () => {
+    const hostStream = stream('host-device');
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => hostStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    await extension.adoptCamera({cameraId: 'pose', stream: hostStream});
+
+    // The ended handling is wired in the acquisition path, so adoption has to reach it too or a
+    // camera the user revoked goes on reading as running.
+    hostStream.end();
+
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+    expect(hostStream.stop).not.toHaveBeenCalled();
+  });
+
+  it('shares an adopted stream between consumers and refuses a second stream for the id', async () => {
+    const hostStream = stream('host-device');
+    const otherStream = stream('other-device');
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => hostStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    const first = await extension.adoptCamera({cameraId: 'pose', stream: hostStream});
+    // Adopting the same stream again is what the caller already asked for, so it joins.
+    const second = await extension.adoptCamera({cameraId: 'pose', stream: hostStream});
+    // A different stream under the same id would answer the caller with somebody else's frames.
+    await expect(
+      extension.adoptCamera({cameraId: 'pose', stream: otherStream})
+    ).rejects.toThrow(/already runs another stream/u);
+
+    await first.release();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
+    await second.release();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+    expect(hostStream.stop).not.toHaveBeenCalled();
+  });
+
+  it('still stops its own stream when the session was not adopted', async () => {
+    const cameraStream = stream('owned-device');
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(async () => cameraStream), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    const lease = await extension.acquireCamera({cameraId: 'pose'});
+    await lease.release();
+
+    expect(cameraStream.getTracks()[0]?.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an adoption that is not given a stream', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: {getUserMedia: vi.fn(), enumerateDevices: vi.fn()}
+    });
+    vi.stubGlobal('document', {createElement: vi.fn(() => video())});
+
+    const extension = new CameraSourceExtension();
+    await expect(
+      extension.adoptCamera({cameraId: 'pose'} as unknown as Parameters<
+        typeof extension.adoptCamera
+      >[0])
+    ).rejects.toThrow(TypeError);
+  });
+
   it('uploads preview frames directly from video and mirrors with drawable scale', async () => {
     const cameraStream = stream('preview-device');
     const sourceVideo = video();
