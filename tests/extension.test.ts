@@ -1,5 +1,9 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {CameraSourceExtension} from '../src/extension.js';
+import {
+  BLOCK_ICON_URI,
+  CameraSourceExtension,
+  EXTENSION_DOCS_URI
+} from '../src/extension.js';
 import type {CameraRenderer} from '../src/video-preview.js';
 
 function scratch(runtime: Record<string, unknown> = {}) {
@@ -154,6 +158,21 @@ describe('CameraSourceExtension', () => {
     expect(extension.cameraFrameWidth()).toBe(0);
     expect(extension.cameraFrameHeight()).toBe(0);
     expect(extension.cameraFrameRate()).toBe(0);
+  });
+
+  // A host that bundles several extensions builds its palette out of getInfo(), and draws the
+  // documentation button only for the members that name a page. Camera Source shipped without
+  // either field, so it was the one bundled extension with no icon and no way back to its guide.
+  it('names its documentation page and its palette icon', () => {
+    const extension = new CameraSourceExtension();
+    const info = extension.getInfo() as {docsURI: string; blockIconURI: string};
+    expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-camera-source/');
+    expect(info.docsURI).toBe(EXTENSION_DOCS_URI);
+    expect(info.blockIconURI).toBe(BLOCK_ICON_URI);
+    expect(info.blockIconURI.startsWith('data:image/svg+xml,')).toBe(true);
+    expect(decodeURIComponent(info.blockIconURI.slice('data:image/svg+xml,'.length))).toMatch(
+      /^<svg [^>]*viewBox="0 0 64 64"[^>]*>.*<\/svg>$/u
+    );
   });
 
   it('shows, updates, and hides one block-owned GPU preview lease', async () => {

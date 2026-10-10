@@ -2288,6 +2288,13 @@
   //#region src/extension.ts
   var blockDefinitions = block_definitions_default.blocks;
   var menuDefinitions = block_definitions_default.menus;
+  /**
+  * The documentation site this extension's palette button opens, and the icon the palette draws
+  * on every block. Hosts that bundle several extensions read both out of `getInfo()`, so a
+  * bundled Camera Source without them loses its docs button in the host's palette.
+  */
+  var EXTENSION_DOCS_URI = "https://kubohiroya.github.io/turbowarp-camera-source/";
+  var BLOCK_ICON_URI = `data:image/svg+xml,${encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><g fill=\"none\" stroke=\"#fff\" stroke-width=\"5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h24a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V24a4 4 0 0 1 4-4Z\"/><path d=\"m40 29 14-9v24l-14-9\"/></g></svg>")}`;
   var defaultCameraId = "default";
   function mediaDevices() {
   	const devices = globalThis.navigator?.mediaDevices;
@@ -2469,6 +2476,8 @@
   		return {
   			id: extensionConfig.id,
   			name: Scratch.translate(block_definitions_default.extensionName),
+  			docsURI: EXTENSION_DOCS_URI,
+  			blockIconURI: BLOCK_ICON_URI,
   			blocks: blockDefinitions.map((block) => this.toScratchBlock(block)),
   			menus: Object.fromEntries(Object.entries(menuDefinitions).map(([id, menu]) => [id, {
   				acceptReporters: menu.acceptReporters,

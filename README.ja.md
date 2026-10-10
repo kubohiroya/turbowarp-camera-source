@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.14.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.15.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.14.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.15.0
 ```
 
 ## Quick start
@@ -278,6 +278,10 @@ if <(stored camera profile result for [pose]) = [restored]> then
 **同じ型番のカメラが2台あるとき。** 2台は同じラベルと同じ撮影条件を報告するので、互いの校正が`compatible`になる。`restore stored camera profile calibrated on the device of [CAMERA_ID]`は、記録されたdevice IDがそのカメラの今のデバイスと一致するプロファイルだけを候補にする。device IDはoriginとブラウザのプロファイルごとで、ストレージの範囲と同じである。ファイルから持ち込んだプロファイルには別のブラウザのdevice IDが入っているので、カメラに登録し、`bind camera profile for [CAMERA_ID] to its current device`（`compatible`なものだけを結び付ける）を実行してから保存する。1台のカメラのために校正アプリを開くアプリは、クエリパラメータ`cameraDeviceId`・`cameraWidth`・`cameraHeight`・`cameraFrameRate`でカメラと使うサイズを指定し、`start shared camera [CAMERA_ID] requested by this page`がそのとおりに開始する。
 
 ## 互換性
+
+0.15.0では`getInfo()`に`docsURI`と`blockIconURI`を宣言した。この拡張を同梱するホストが、
+パレットのアイコンとドキュメントボタンを描けるようになる。既存のブロックとcapabilityのメンバーは
+変えていない。
 
 0.14.0では呼び出し側が持っているstreamを共有する`adoptCamera`と、`./runtime`に`CameraAdoptOptions`・
 `CameraLeaseOptions`の宣言を追加した。`CameraAcquireOptions`のメンバーは変えていない。既存のブロックと
