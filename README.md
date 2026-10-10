@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.14.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.15.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.14.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.15.0
 ```
 
 ## Quick Start
@@ -679,6 +679,10 @@ profile), and save it. An app that opens the calibration app for one camera name
 `start shared camera [CAMERA_ID] requested by this page` starts it that way.
 
 ## Compatibility
+
+Version 0.15.0 declares `docsURI` and `blockIconURI` in `getInfo()`, so a host that
+bundles this extension can draw its palette icon and its documentation button. No existing block
+or capability member changes.
 
 Version 0.14.0 adds `adoptCamera` for sharing a stream the caller already holds, and the
 `CameraAdoptOptions` and `CameraLeaseOptions` declarations to `./runtime`. `CameraAcquireOptions`

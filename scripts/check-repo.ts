@@ -114,7 +114,7 @@ if (policy.packageName !== manifest.name) {
 // One declaration, used for both the manifest check and the pinned CDN URL below. They were two
 // literals and the message quoted a third, older one, so a bump could -- and did -- leave the three
 // disagreeing about which version this repository is on.
-const releaseVersion = "0.14.0";
+const releaseVersion = "0.15.0";
 
 if (manifest.version !== releaseVersion) {
   throw new Error(`package.json version must be ${releaseVersion}.`);
@@ -171,6 +171,7 @@ for (const expected of [
   "stopSharedCamera",
   "acquireCamera",
   "adoptCamera",
+  "https://kubohiroya.github.io/turbowarp-camera-source/",
 ]) {
   requireText(bundle, expected, "dist/camera-source.js");
 }
