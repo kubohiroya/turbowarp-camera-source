@@ -27,11 +27,19 @@ import {toFlip, type Flip} from './flip';
 import {
   cameraSourceRuntimeKey,
   type CameraAcquireOptions,
+  type CameraAdoptOptions,
   type CameraFrameSource,
-  type CameraLease
+  type CameraLease,
+  type CameraLeaseOptions
 } from './runtime';
 
-export type {CameraAcquireOptions, CameraFrameSource, CameraLease} from './runtime';
+export type {
+  CameraAcquireOptions,
+  CameraAdoptOptions,
+  CameraFrameSource,
+  CameraLease,
+  CameraLeaseOptions
+} from './runtime';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 import {FrameTimeWatcher} from './frame-time';
 
@@ -73,6 +81,14 @@ interface CameraSession {
   startPromise: Promise<void> | null;
   activeDeviceId: string;
   frameTimes: FrameTimeWatcher | null;
+  /**
+   * Whether the stream came from the caller rather than from this extension.
+   *
+   * The one thing it decides is whether ending the session stops the tracks. Everything downstream
+   * of the stream -- the video element, the preview, the frame times, the frame source -- is the
+   * same either way, which is why adopting reuses that path instead of parallelling it.
+   */
+  adopted: boolean;
 }
 
 interface BlockPreviewLease {
@@ -159,7 +175,7 @@ function requestedPreviewFlip(args: {PREVIEW_FLIP?: unknown}): Flip {
 }
 
 /** The preview flip a consumer asked for through the runtime API. */
-function previewFlipOf(options: CameraAcquireOptions): Flip {
+function previewFlipOf(options: CameraLeaseOptions): Flip {
   return toFlip(options.previewFlip);
 }
 
@@ -351,12 +367,42 @@ export class CameraSourceExtension implements TurboWarpExtension {
   public async acquireCamera(options: CameraAcquireOptions = {}): Promise<CameraLease> {
     const cameraId = normalizeId(options.cameraId);
     const session = this.session(cameraId);
-    const token = Symbol(String(options.owner ?? 'camera-lease'));
     if (session.startPromise) {
       await session.startPromise;
     } else if (!session.stream) {
       await this.start(session, options);
     }
+    return this.lease(session, options);
+  }
+
+  /**
+   * Shares a stream the caller already holds, under a camera id, without opening a camera.
+   *
+   * Refuses when the id already runs a different stream rather than quietly joining it: the caller
+   * asked for its own stream to be shared, and answering with somebody else's would leave it
+   * believing a stream is in use that nobody reads. Adopting the same stream twice is the one case
+   * that joins, because that is what the caller asked for and already got.
+   */
+  public async adoptCamera(options: CameraAdoptOptions): Promise<CameraLease> {
+    const stream = options?.stream;
+    if (typeof stream !== 'object' || stream === null || typeof stream.getTracks !== 'function') {
+      throw new TypeError('Camera Source adoptCamera requires a MediaStream.');
+    }
+    const cameraId = normalizeId(options.cameraId);
+    const session = this.session(cameraId);
+    if (session.startPromise) await session.startPromise;
+    if (session.stream && session.stream !== stream) {
+      throw new Error(
+        `Camera id ${cameraId} already runs another stream. Release its leases before adopting.`
+      );
+    }
+    if (!session.stream) await this.adopt(session, stream);
+    return this.lease(session, options);
+  }
+
+  private lease(session: CameraSession, options: CameraLeaseOptions): CameraLease {
+    const cameraId = session.cameraId;
+    const token = Symbol(String(options.owner ?? 'camera-lease'));
     session.leases.add(token);
     try {
       if (options.preview === true) {
@@ -923,10 +969,51 @@ export class CameraSourceExtension implements TurboWarpExtension {
       preview: null,
       startPromise: null,
       activeDeviceId: '',
-      frameTimes: null
+      frameTimes: null,
+      adopted: false
     };
     this.sessions.set(cameraId, session);
     return session;
+  }
+
+  /**
+   * Brings a caller's stream into a session, taking the same path `start` takes after acquisition.
+   *
+   * `adopted` is set before anything can fail, so no failure path can reach the tracks.
+   */
+  private async adopt(session: CameraSession, stream: MediaStream): Promise<void> {
+    session.adopted = true;
+    session.startPromise = (async () => {
+      let video: HTMLVideoElement | null = null;
+      try {
+        if (!session.active) throw new Error('Camera adoption was cancelled.');
+        video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await video.play();
+        if (!session.active) throw new Error('Camera adoption was cancelled.');
+        session.stream = stream;
+        session.video = video;
+        session.frameTimes = new FrameTimeWatcher(video, globalThis.performance?.timeOrigin ?? 0);
+        this.watchStreamEnd(session, stream);
+        this.updateActiveDevice(session);
+        this.cameraFailures.delete(session.cameraId);
+      } catch (error) {
+        // Detach only. These tracks belong to the caller even when attaching them failed.
+        if (video) video.srcObject = null;
+        throw error;
+      }
+    })();
+    try {
+      await session.startPromise;
+    } catch (error) {
+      if (this.sessions.get(session.cameraId) === session) {
+        this.stopCameraSession(session.cameraId);
+      }
+      this.cameraFailures.set(session.cameraId, cameraFailure(error));
+      throw error;
+    }
   }
 
   private async start(session: CameraSession, options: CameraAcquireOptions): Promise<void> {
@@ -1053,7 +1140,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.preview?.dispose();
     session.frameTimes?.dispose();
     session.frameTimes = null;
-    session.stream?.getTracks().forEach((track) => track.stop());
+    // An adopted stream is detached and left running. Stopping a track cannot be undone and takes
+    // the frames away from every other consumer of that stream, so only the side that opened it can
+    // know when that is right.
+    if (!session.adopted) session.stream?.getTracks().forEach((track) => track.stop());
     if (session.video) session.video.srcObject = null;
     session.stream = null;
     session.video = null;

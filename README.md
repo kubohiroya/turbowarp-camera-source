@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.13.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.14.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.13.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.14.0
 ```
 
 ## Quick Start
@@ -469,6 +469,35 @@ await qrLease.release();
 await poseLease.release();
 ```
 
+Use `adoptCamera()` instead when the consumer already holds a `MediaStream` — one obtained
+through the `<usermedia>` capability element, from another frame, or from a test fixture.
+Camera Source shares it under a `cameraId` exactly as an acquired stream, and every consumer
+reads it through the same `getFrameSource()`.
+
+**Camera Source never stops the tracks of an adopted stream.** Releasing the last lease ends
+the session and detaches the stream, leaving the caller to stop it when it is finished with the
+camera. Stopping a track cannot be undone and takes the frames away from every other consumer
+of the same stream, so the side that opened it is the only side that can know when that is
+right. An acquired stream is still stopped by Camera Source as before.
+
+```js
+if (typeof cameraSource.adoptCamera === "function") {
+  const hostLease = await cameraSource.adoptCamera({
+    owner: "app-shell",
+    cameraId: "pose",
+    stream: streamTheHostAlreadyHolds,
+  });
+  const frame = hostLease.getFrameSource();
+  await hostLease.release();
+}
+```
+
+Feature detect the method. This surface is narrowed by shape rather than by a version, so a
+consumer compiled against the current declarations can still meet a build that predates it.
+Adopting a second, different stream under a `cameraId` that already runs one is refused:
+answering the caller with somebody else's frames would leave it believing its own stream is in
+use. Adopting the same stream again joins the session.
+
 `preview: true` opts that lease into the GPU-backed stage preview. The dedicated video skin uploads
 the shared `HTMLVideoElement` with `texImage2D(video)` and mirrors by changing the preview drawable's
 X scale. It does not call `drawImage()`, `getImageData()`, or scan frame pixels on the CPU. The option
@@ -650,6 +679,10 @@ profile), and save it. An app that opens the calibration app for one camera name
 `start shared camera [CAMERA_ID] requested by this page` starts it that way.
 
 ## Compatibility
+
+Version 0.14.0 adds `adoptCamera` for sharing a stream the caller already holds, and the
+`CameraAdoptOptions` and `CameraLeaseOptions` declarations to `./runtime`. `CameraAcquireOptions`
+keeps every member it had. No existing block or capability member changes.
 
 Version 0.13.0 adds `frameTime` to the frame source. No existing block or capability member changes.
 

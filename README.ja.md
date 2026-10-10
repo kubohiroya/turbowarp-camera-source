@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.13.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.14.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.13.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.14.0
 ```
 
 ## Quick start
@@ -121,6 +121,32 @@ await previewLease.release();
 await qrLease.release();
 await poseLease.release();
 ```
+
+consumerが`MediaStream`を既に持っている場合は`adoptCamera()`を使います。`<usermedia>` capability
+elementで取得したもの、別フレームから渡されたもの、テスト用の作りものでも同じです。Camera Sourceは
+それを`cameraId`のもとで共有し、どのconsumerも同じ`getFrameSource()`から読みます。
+
+**採用したstreamのtrackをCamera Sourceは止めません。** 最後のleaseを解放するとセッションは終わり、
+streamはdetachされます。カメラを使い終えたときに止めるのは呼び出し側です。trackの停止は取り消せず、
+同じstreamを見ているほかのconsumer全員からフレームを奪うので、それが正しいときを知りうるのは
+streamを開いた側だけです。自分で取得したstreamは従来どおりCamera Sourceが止めます。
+
+```js
+if (typeof cameraSource.adoptCamera === "function") {
+  const hostLease = await cameraSource.adoptCamera({
+    owner: "app-shell",
+    cameraId: "pose",
+    stream: streamTheHostAlreadyHolds,
+  });
+  const frame = hostLease.getFrameSource();
+  await hostLease.release();
+}
+```
+
+このメソッドはfeature detectしてください。このsurfaceはversionではなく形で絞られるため、現行の宣言に
+対してコンパイルしたconsumerが、それより前のビルドに出会うことがあります。既に別のstreamが動いている
+`cameraId`へ2つめを採用しようとすると拒否します。呼び出し側に他人のフレームを返すと、自分のstreamが
+使われていると誤解させるためです。同じstreamをもう一度採用した場合はそのセッションに参加します。
 
 `preview: true`を指定したleaseは、GPU-backed stage previewを利用します。専用video skinは共有
 `HTMLVideoElement`を`texImage2D(video)`でアップロードし、preview drawableのX scaleで左右反転します。
@@ -252,6 +278,10 @@ if <(stored camera profile result for [pose]) = [restored]> then
 **同じ型番のカメラが2台あるとき。** 2台は同じラベルと同じ撮影条件を報告するので、互いの校正が`compatible`になる。`restore stored camera profile calibrated on the device of [CAMERA_ID]`は、記録されたdevice IDがそのカメラの今のデバイスと一致するプロファイルだけを候補にする。device IDはoriginとブラウザのプロファイルごとで、ストレージの範囲と同じである。ファイルから持ち込んだプロファイルには別のブラウザのdevice IDが入っているので、カメラに登録し、`bind camera profile for [CAMERA_ID] to its current device`（`compatible`なものだけを結び付ける）を実行してから保存する。1台のカメラのために校正アプリを開くアプリは、クエリパラメータ`cameraDeviceId`・`cameraWidth`・`cameraHeight`・`cameraFrameRate`でカメラと使うサイズを指定し、`start shared camera [CAMERA_ID] requested by this page`がそのとおりに開始する。
 
 ## 互換性
+
+0.14.0では呼び出し側が持っているstreamを共有する`adoptCamera`と、`./runtime`に`CameraAdoptOptions`・
+`CameraLeaseOptions`の宣言を追加した。`CameraAcquireOptions`のメンバーは変えていない。既存のブロックと
+capabilityのメンバーは変えていない。
 
 0.13.0ではframe sourceに`frameTime`を追加した。既存のブロックとcapabilityのメンバーは変えていない。
 

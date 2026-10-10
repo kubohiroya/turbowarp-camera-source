@@ -44,16 +44,38 @@ export const cameraSourceCapabilityVersion = 1 as const;
  */
 export type Flip = 'none' | 'horizontal' | 'vertical' | 'both';
 
-export interface CameraAcquireOptions {
+/** What taking a lease needs, however the stream behind it was obtained. */
+export interface CameraLeaseOptions {
   /** Free text naming the caller. Appears in diagnostics; never used to decide anything. */
   owner?: string;
   /** The role name of the stream, such as `pose` or `qr`. Callers naming the same one share it. */
   cameraId?: string;
-  deviceId?: string;
-  video?: MediaTrackConstraints | boolean;
   /** How this consumer wants the stage preview drawn. Only meaningful together with `preview`. */
   previewFlip?: Flip;
   preview?: boolean;
+}
+
+export interface CameraAcquireOptions extends CameraLeaseOptions {
+  deviceId?: string;
+  video?: MediaTrackConstraints | boolean;
+}
+
+/**
+ * What adopting a stream the caller already holds needs.
+ *
+ * No `deviceId` or `video`: the stream exists, so there is nothing left to constrain. Which device
+ * it came from is readable from the track, and `CameraFrameSource.deviceId` reports it.
+ */
+export interface CameraAdoptOptions extends CameraLeaseOptions {
+  /**
+   * The stream to share. Camera Source never stops its tracks.
+   *
+   * Releasing the last lease ends the session and detaches the stream, leaving the caller to stop
+   * it when it is finished with the camera. Stopping a track cannot be undone and takes the frames
+   * away from every other consumer of the same stream, so the side that opened it is the only side
+   * that can know when that is right.
+   */
+  stream: MediaStream;
 }
 
 export interface CameraFrameSource {
@@ -116,6 +138,15 @@ export interface CameraLease {
  */
 export interface CameraSourceRuntime {
   acquireCamera(options?: CameraAcquireOptions): Promise<CameraLease>;
+  /**
+   * Shares a stream the caller already obtained, instead of opening a camera.
+   *
+   * Optional because this surface is narrowed by shape rather than by a version, so a consumer
+   * compiled against these declarations can still meet a build that predates the method. Feature
+   * detect it: `typeof runtime.adoptCamera === 'function'`. A caller reaching for it is already
+   * feature detecting whatever produced the stream.
+   */
+  adoptCamera?(options: CameraAdoptOptions): Promise<CameraLease>;
 }
 
 /**

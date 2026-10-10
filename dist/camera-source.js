@@ -2518,9 +2518,31 @@
   	async acquireCamera(options = {}) {
   		const cameraId = normalizeId(options.cameraId);
   		const session = this.session(cameraId);
-  		const token = Symbol(String(options.owner ?? "camera-lease"));
   		if (session.startPromise) await session.startPromise;
   		else if (!session.stream) await this.start(session, options);
+  		return this.lease(session, options);
+  	}
+  	/**
+  	* Shares a stream the caller already holds, under a camera id, without opening a camera.
+  	*
+  	* Refuses when the id already runs a different stream rather than quietly joining it: the caller
+  	* asked for its own stream to be shared, and answering with somebody else's would leave it
+  	* believing a stream is in use that nobody reads. Adopting the same stream twice is the one case
+  	* that joins, because that is what the caller asked for and already got.
+  	*/
+  	async adoptCamera(options) {
+  		const stream = options?.stream;
+  		if (typeof stream !== "object" || stream === null || typeof stream.getTracks !== "function") throw new TypeError("Camera Source adoptCamera requires a MediaStream.");
+  		const cameraId = normalizeId(options.cameraId);
+  		const session = this.session(cameraId);
+  		if (session.startPromise) await session.startPromise;
+  		if (session.stream && session.stream !== stream) throw new Error(`Camera id ${cameraId} already runs another stream. Release its leases before adopting.`);
+  		if (!session.stream) await this.adopt(session, stream);
+  		return this.lease(session, options);
+  	}
+  	lease(session, options) {
+  		const cameraId = session.cameraId;
+  		const token = Symbol(String(options.owner ?? "camera-lease"));
   		session.leases.add(token);
   		try {
   			if (options.preview === true) {
@@ -3009,10 +3031,47 @@
   			preview: null,
   			startPromise: null,
   			activeDeviceId: "",
-  			frameTimes: null
+  			frameTimes: null,
+  			adopted: false
   		};
   		this.sessions.set(cameraId, session);
   		return session;
+  	}
+  	/**
+  	* Brings a caller's stream into a session, taking the same path `start` takes after acquisition.
+  	*
+  	* `adopted` is set before anything can fail, so no failure path can reach the tracks.
+  	*/
+  	async adopt(session, stream) {
+  		session.adopted = true;
+  		session.startPromise = (async () => {
+  			let video = null;
+  			try {
+  				if (!session.active) throw new Error("Camera adoption was cancelled.");
+  				video = document.createElement("video");
+  				video.muted = true;
+  				video.playsInline = true;
+  				video.srcObject = stream;
+  				await video.play();
+  				if (!session.active) throw new Error("Camera adoption was cancelled.");
+  				session.stream = stream;
+  				session.video = video;
+  				session.frameTimes = new FrameTimeWatcher(video, globalThis.performance?.timeOrigin ?? 0);
+  				this.watchStreamEnd(session, stream);
+  				this.updateActiveDevice(session);
+  				this.cameraFailures.delete(session.cameraId);
+  			} catch (error) {
+  				if (video) video.srcObject = null;
+  				throw error;
+  			}
+  		})();
+  		try {
+  			await session.startPromise;
+  		} catch (error) {
+  			if (this.sessions.get(session.cameraId) === session) this.stopCameraSession(session.cameraId);
+  			this.cameraFailures.set(session.cameraId, cameraFailure(error));
+  			throw error;
+  		}
   	}
   	async start(session, options) {
   		session.startPromise = (async () => {
@@ -3109,7 +3168,7 @@
   		session.preview?.dispose();
   		session.frameTimes?.dispose();
   		session.frameTimes = null;
-  		session.stream?.getTracks().forEach((track) => track.stop());
+  		if (!session.adopted) session.stream?.getTracks().forEach((track) => track.stop());
   		if (session.video) session.video.srcObject = null;
   		session.stream = null;
   		session.video = null;
