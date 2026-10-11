@@ -30,13 +30,13 @@ or select separate cameras for separate roles.
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.15.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.16.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.15.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.16.0
 ```
 
 ## Quick Start
@@ -708,6 +708,15 @@ profile), and save it. An app that opens the calibration app for one camera name
 `start shared camera [CAMERA_ID] requested by this page` starts it that way.
 
 ## Compatibility
+
+Version 0.16.0 adds three blocks that place the browser's own camera button on the stage:
+`start shared camera [CAMERA_ID] from the browser's camera button`, `hide the camera button for
+shared camera [CAMERA_ID]` and `browser's camera button available?`. They exist for a `.sb3` opened
+in the editor, where the document belongs to TurboWarp and no host above the project can place a
+capability element. The stream arrives through `adoptCamera` without `getUserMedia` being called,
+and a camera id that already runs a stream joins it rather than asking again. A refusal, a browser
+without the element and a failed open all land in `shared camera error code`, so the ordinary
+`start shared camera` route stays available. No existing block or capability member changes.
 
 Version 0.15.0 declares `docsURI` and `blockIconURI` in `getInfo()`, so a host that
 bundles this extension can draw its palette icon and its documentation button. No existing block
