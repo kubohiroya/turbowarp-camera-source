@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.15.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.16.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.15.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.16.0
 ```
 
 ## Quick start
@@ -281,6 +281,15 @@ if <(stored camera profile result for [pose]) = [restored]> then
 **同じ型番のカメラが2台あるとき。** 2台は同じラベルと同じ撮影条件を報告するので、互いの校正が`compatible`になる。`restore stored camera profile calibrated on the device of [CAMERA_ID]`は、記録されたdevice IDがそのカメラの今のデバイスと一致するプロファイルだけを候補にする。device IDはoriginとブラウザのプロファイルごとで、ストレージの範囲と同じである。ファイルから持ち込んだプロファイルには別のブラウザのdevice IDが入っているので、カメラに登録し、`bind camera profile for [CAMERA_ID] to its current device`（`compatible`なものだけを結び付ける）を実行してから保存する。1台のカメラのために校正アプリを開くアプリは、クエリパラメータ`cameraDeviceId`・`cameraWidth`・`cameraHeight`・`cameraFrameRate`でカメラと使うサイズを指定し、`start shared camera [CAMERA_ID] requested by this page`がそのとおりに開始する。
 
 ## 互換性
+
+0.16.0では、ブラウザ自身のカメラボタンをステージに置く3つのブロックを追加した。
+`start shared camera [CAMERA_ID] from the browser's camera button`、`hide the camera button for
+shared camera [CAMERA_ID]`、`browser's camera button available?`である。エディタで開いた`.sb3`の
+ように、ドキュメントがTurboWarpのもので、作品の上にcapability elementを置くhostが居ない場合の
+ためのものである。streamは`getUserMedia`を呼ばずに`adoptCamera`を通って届き、すでにstreamを持つ
+カメラIDは訊き直さずそのstreamに合流する。拒否、要素を持たないブラウザ、取得失敗はいずれも
+`shared camera error code`に載るので、通常の`start shared camera`の経路は残る。既存のブロックと
+capabilityのメンバーは変えていない。
 
 0.15.0では`getInfo()`に`docsURI`と`blockIconURI`を宣言した。この拡張を同梱するホストが、
 パレットのアイコンとドキュメントボタンを描けるようになる。既存のブロックとcapabilityのメンバーは
