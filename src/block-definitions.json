@@ -28,6 +28,34 @@
       }
     },
     {
+      "opcode": "startSharedCameraFromCameraButton",
+      "blockType": "COMMAND",
+      "text": "start shared camera [CAMERA_ID] from the browser's camera button",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
+      "opcode": "hideCameraButton",
+      "blockType": "COMMAND",
+      "text": "hide the camera button for shared camera [CAMERA_ID]",
+      "arguments": {
+        "CAMERA_ID": {
+          "type": "STRING",
+          "defaultValue": "default"
+        }
+      }
+    },
+    {
+      "opcode": "cameraButtonAvailable",
+      "blockType": "BOOLEAN",
+      "text": "browser's camera button available?",
+      "arguments": {}
+    },
+    {
       "opcode": "stopSharedCamera",
       "blockType": "COMMAND",
       "text": "stop shared camera [CAMERA_ID]",

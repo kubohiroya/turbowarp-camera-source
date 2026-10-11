@@ -79,6 +79,35 @@ Starts the camera the page's query parameters name: `cameraDeviceId` exactly, an
 | Opcode | `startRequestedSharedCamera` |
 | `CAMERA_ID` | String, default: `default` |
 
+### `start shared camera [CAMERA_ID] from the browser's camera button`
+
+Places the browser's own camera button on the stage and waits for the operator to answer it, then shares the stream it returns under this camera id without calling getUserMedia. For a .sb3 opened in the editor, where no host above the project can place the element. When the camera id already runs a stream -- a packaged work whose host adopted one -- this joins that stream instead of asking again. A refusal leaves the work running: the camera does not start, `shared camera error code` reads `usermedia-cancelled`, and `start shared camera` is still available. Browsers without the element report `usermedia-unsupported`.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `startSharedCameraFromCameraButton` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `hide the camera button for shared camera [CAMERA_ID]`
+
+Removes a camera button still waiting for an answer. The script waiting on it continues, with `usermedia-cancelled` as the camera's error code. The stop sign and loading another project remove it too.
+
+| Property | Value |
+|---|---|
+| Type | Command |
+| Opcode | `hideCameraButton` |
+| `CAMERA_ID` | String, default: `default` |
+
+### `browser's camera button available?`
+
+Whether this browser has the camera button element (`<usermedia>`, Chrome 151 and later). Check it before offering the button, and fall back to `start shared camera` where it is false.
+
+| Property | Value |
+|---|---|
+| Type | Boolean |
+| Opcode | `cameraButtonAvailable` |
+
 ### `stop shared camera [CAMERA_ID]`
 
 Stops a named shared camera stream and releases its tracks.

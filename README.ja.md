@@ -56,6 +56,9 @@ stop shared camera [pose]
 
 - `start shared camera [CAMERA_ID] with device ID [DEVICE_ID]`: 名前付き共有カメラを開始します。
 - `start shared camera [CAMERA_ID] requested by this page`: ページのクエリパラメータが指定するカメラを開始します。`cameraDeviceId`は厳密に、`cameraWidth`・`cameraHeight`・`cameraFrameRate`は理想値として要求します。指定がなければ、デバイスを指定しない`start shared camera`と同じです。複数のUSBカメラを使うアプリが、同じoriginの別のアプリ（レンズ校正アプリなど）をそのうち1台のために開くときの指定方法です。
+- `start shared camera [CAMERA_ID] from the browser's camera button`: ブラウザ自身のカメラボタンをステージに置き、操作者が答えるまで待って、返ってきたstreamをこのカメラIDで共有します（`getUserMedia`は呼びません）。エディタで開いた`.sb3`のように、作品の上に要素を置くhostが居ない場合のためのブロックです。そのカメラIDがすでにstreamを持つとき——hostが採用したpackaged作品——は、訊き直さずそのstreamに合流します。拒否されても作品は動き続けます。カメラは起動せず、`shared camera error code`は`usermedia-cancelled`になり、`start shared camera`も使えます。要素を持たないブラウザでは`usermedia-unsupported`を報告します。
+- `hide the camera button for shared camera [CAMERA_ID]`: まだ答えを待っているカメラボタンを取り除きます。待っていたスクリプトは続行し、カメラのエラーコードは`usermedia-cancelled`になります。停止ボタンや別の作品の読み込みでも取り除かれます。
+- `browser's camera button available?`: このブラウザがカメラボタンの要素（`<usermedia>`、Chrome 151以降）を持つかどうかです。ボタンを出す前に確認し、偽のときは`start shared camera`に落としてください。
 - `stop shared camera [CAMERA_ID]`: 名前付き共有カメラを停止し、MediaStreamTrackを解放します。
 - `shared camera [CAMERA_ID] is running?`: 指定した共有カメラが起動中かを返します。
 - `shared camera [CAMERA_ID] error code`: 直近の開始失敗コードを返します。開始成功後は空文字列です。

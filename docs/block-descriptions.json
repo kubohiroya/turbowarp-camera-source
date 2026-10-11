@@ -152,6 +152,18 @@
     "storedCameraProfilesGeneration": {
       "en": "A counter that increments whenever a profile is saved in this window or another window on the same origin. It is not reset by loading a project.",
       "ja": "このウィンドウまたは同じoriginの他ウィンドウでプロファイルが保存されるたびに増えるカウンタです。プロジェクトを読み込んでも戻りません。"
+    },
+    "startSharedCameraFromCameraButton": {
+      "en": "Places the browser's own camera button on the stage and waits for the operator to answer it, then shares the stream it returns under this camera id without calling getUserMedia. For a .sb3 opened in the editor, where no host above the project can place the element. When the camera id already runs a stream -- a packaged work whose host adopted one -- this joins that stream instead of asking again. A refusal leaves the work running: the camera does not start, `shared camera error code` reads `usermedia-cancelled`, and `start shared camera` is still available. Browsers without the element report `usermedia-unsupported`.",
+      "ja": "ブラウザ自身のカメラボタンをステージに置き、操作者が答えるまで待って、返ってきたstreamをこのカメラIDで共有します（`getUserMedia`は呼びません）。エディタで開いた`.sb3`のように、作品の上に要素を置くhostが居ない場合のためのブロックです。そのカメラIDがすでにstreamを持つとき——hostが採用したpackaged作品——は、訊き直さずそのstreamに合流します。拒否されても作品は動き続けます。カメラは起動せず、`shared camera error code`は`usermedia-cancelled`になり、`start shared camera`も使えます。要素を持たないブラウザでは`usermedia-unsupported`を報告します。"
+    },
+    "hideCameraButton": {
+      "en": "Removes a camera button still waiting for an answer. The script waiting on it continues, with `usermedia-cancelled` as the camera's error code. The stop sign and loading another project remove it too.",
+      "ja": "まだ答えを待っているカメラボタンを取り除きます。待っていたスクリプトは続行し、カメラのエラーコードは`usermedia-cancelled`になります。停止ボタンや別の作品の読み込みでも取り除かれます。"
+    },
+    "cameraButtonAvailable": {
+      "en": "Whether this browser has the camera button element (`<usermedia>`, Chrome 151 and later). Check it before offering the button, and fall back to `start shared camera` where it is false.",
+      "ja": "このブラウザがカメラボタンの要素（`<usermedia>`、Chrome 151以降）を持つかどうかです。ボタンを出す前に確認し、偽のときは`start shared camera`に落としてください。"
     }
   }
 }

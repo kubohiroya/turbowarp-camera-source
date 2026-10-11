@@ -13,6 +13,11 @@
       ]
     },
     {
+      "opcode": "cameraButtonAvailable",
+      "blockType": "BOOLEAN",
+      "arguments": []
+    },
+    {
       "opcode": "cameraConditionsGeneration",
       "blockType": "REPORTER",
       "arguments": [
@@ -218,6 +223,16 @@
       ]
     },
     {
+      "opcode": "hideCameraButton",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
       "opcode": "hideCameraPreview",
       "blockType": "COMMAND",
       "arguments": [
@@ -331,6 +346,16 @@
         },
         {
           "id": "DEVICE_ID",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "opcode": "startSharedCameraFromCameraButton",
+      "blockType": "COMMAND",
+      "arguments": [
+        {
+          "id": "CAMERA_ID",
           "type": "STRING"
         }
       ]

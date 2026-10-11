@@ -25,6 +25,11 @@ import {
 } from './runtime-capability';
 import {toFlip, type Flip} from './flip';
 import {
+  requestUserMedia,
+  supportsUserMediaElement,
+  type UserMediaRequest
+} from './user-media';
+import {
   cameraSourceRuntimeKey,
   type CameraAcquireOptions,
   type CameraAdoptOptions,
@@ -273,6 +278,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly blockPreviewLeases = new Map<string, BlockPreviewLease>();
   private readonly blockPreviewRevisions = new Map<string, number>();
   private readonly cameraFailures = new Map<string, CameraFailure>();
+  private readonly cameraButtons = new Map<string, UserMediaRequest>();
   private readonly profiles = new CameraProfileRegistry();
   private readonly generations = new Map<string, number>();
   private readonly lastConditions = new Map<string, string>();
@@ -507,6 +513,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public stopAllCameras(): void {
+    for (const request of [...this.cameraButtons.values()]) request.dismiss();
+    this.cameraButtons.clear();
     for (const cameraId of [...this.sessions.keys()]) {
       this.stopCameraSession(cameraId);
     }
@@ -686,6 +694,109 @@ export class CameraSourceExtension implements TurboWarpExtension {
       ...requestedCamera(globalThis.location?.search ?? '')
     });
     this.blockLeases.set(cameraId, lease);
+  }
+
+  /** Whether this browser has the camera button element at all. */
+  public cameraButtonAvailable(): boolean {
+    return supportsUserMediaElement();
+  }
+
+  /**
+   * Starts a camera from the browser's own camera button, rather than from `getUserMedia`.
+   *
+   * For a `.sb3` opened in the editor. The document belongs to TurboWarp there, so no host above
+   * the project can place a capability element -- and without one, the browser-managed handover is
+   * closed to the work entirely. #39 kept this element out of the extension so that no extension
+   * could manufacture an operator's intent; placing a block *is* that intent, and the browser still
+   * collects the click and draws the prompt. What the block does is put the element where it can be
+   * clicked.
+   *
+   * A camera id that already runs a stream joins it: a packaged work's host adopted one before the
+   * project started, and asking again would only refuse (`adoptCamera` guards an id against a
+   * second stream). So the same project runs in both distributions with this block in it.
+   *
+   * Nothing here throws into the project. A refusal, an unsupported browser and a failed open all
+   * land in `shared camera error code`, and `start shared camera` remains available.
+   */
+  public async startSharedCameraFromCameraButton(args: {CAMERA_ID?: unknown} = {}): Promise<void> {
+    const cameraId = normalizeId(args.CAMERA_ID);
+    if (this.blockLeases.has(cameraId)) return;
+    if (this.sessions.get(cameraId)?.stream) {
+      // Somebody else already opened this id. Join it instead of asking for a second stream.
+      this.blockLeases.set(cameraId, await this.acquireCamera({owner: 'camera-source-block', cameraId}));
+      return;
+    }
+    if (!supportsUserMediaElement()) {
+      this.cameraFailures.set(cameraId, {
+        code: 'usermedia-unsupported',
+        message: 'This browser has no camera button element.'
+      });
+      return;
+    }
+    const container = this.cameraButtonContainer();
+    if (!container) {
+      this.cameraFailures.set(cameraId, {
+        code: 'usermedia-no-stage',
+        message: 'The stage the camera button would be placed on was not found.'
+      });
+      return;
+    }
+    this.cameraButtons.get(cameraId)?.dismiss();
+    const request = requestUserMedia({
+      document,
+      container,
+      label: Scratch.translate('Allow the camera')
+    });
+    this.cameraButtons.set(cameraId, request);
+    const outcome = await request.settled;
+    if (this.cameraButtons.get(cameraId) === request) this.cameraButtons.delete(cameraId);
+    if (outcome.kind === 'cancelled') {
+      this.cameraFailures.set(cameraId, {
+        code: 'usermedia-cancelled',
+        message: 'The camera was not allowed.'
+      });
+      return;
+    }
+    if (outcome.kind === 'error') {
+      this.cameraFailures.set(cameraId, {code: outcome.code, message: outcome.message});
+      return;
+    }
+    try {
+      // The tracks belong to the element's caller, which is this block; `adoptCamera` never stops
+      // an adopted stream, so stopping it stays this extension's own decision through the lease.
+      this.blockLeases.set(
+        cameraId,
+        await this.adoptCamera({owner: 'camera-source-block', cameraId, stream: outcome.stream})
+      );
+    } catch (error) {
+      outcome.stream.getTracks().forEach((track) => track.stop());
+      this.cameraFailures.set(cameraId, cameraFailure(error));
+    }
+  }
+
+  /** Removes a camera button still waiting for an answer; the script waiting on it continues. */
+  public hideCameraButton(args: {CAMERA_ID?: unknown} = {}): void {
+    this.cameraButtons.get(normalizeId(args.CAMERA_ID))?.dismiss();
+  }
+
+  /**
+   * Where the camera button goes: the element that holds the stage canvas.
+   *
+   * The preview is a renderer skin, so the extension has had no DOM of its own to hang this on. A
+   * capability element cannot be drawn into WebGL, and the editor's own layout is not ours to
+   * restructure, so it is placed over the canvas and centred, with the element keeping its own look.
+   */
+  private cameraButtonContainer(): Element | null {
+    const renderer = Scratch.vm.runtime.renderer as CameraRenderer | undefined;
+    const canvas = renderer?.gl?.canvas as {parentElement?: Element | null} | undefined;
+    const parent = canvas?.parentElement ?? null;
+    if (!parent) return null;
+    // A statically positioned parent would place the element against the page, not the stage.
+    const style = (parent as Element & {style?: CSSStyleDeclaration}).style;
+    const computed = (globalThis as {getComputedStyle?: (element: Element) => CSSStyleDeclaration})
+      .getComputedStyle?.(parent);
+    if (style && computed?.position === 'static') style.position = 'relative';
+    return parent;
   }
 
   private async restoreStoredProfile(cameraId: string, sameDevice: boolean): Promise<void> {
