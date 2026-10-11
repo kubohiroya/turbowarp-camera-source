@@ -45,6 +45,30 @@
   			} }
   		},
   		{
+  			"opcode": "startSharedCameraFromCameraButton",
+  			"blockType": "COMMAND",
+  			"text": "start shared camera [CAMERA_ID] from the browser's camera button",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "hideCameraButton",
+  			"blockType": "COMMAND",
+  			"text": "hide the camera button for shared camera [CAMERA_ID]",
+  			"arguments": { "CAMERA_ID": {
+  				"type": "STRING",
+  				"defaultValue": "default"
+  			} }
+  		},
+  		{
+  			"opcode": "cameraButtonAvailable",
+  			"blockType": "BOOLEAN",
+  			"text": "browser's camera button available?",
+  			"arguments": {}
+  		},
+  		{
   			"opcode": "stopSharedCamera",
   			"blockType": "COMMAND",
   			"text": "stop shared camera [CAMERA_ID]",
@@ -2052,6 +2076,72 @@
   	return flip === "vertical" || flip === "both";
   }
   //#endregion
+  //#region src/user-media.ts
+  /** Whether this browser has the capability element at all. */
+  function supportsUserMediaElement(view = globalThis) {
+  	return "HTMLUserMediaElement" in view;
+  }
+  /**
+  * Places `<usermedia>` in `container` and resolves once the operator has answered.
+  *
+  * No styling is applied beyond taking the element out of the document flow: the element enforces
+  * its own contrast and size rules, and a stylesheet fighting them is how a prompt stops opening.
+  */
+  function requestUserMedia(options) {
+  	const element = options.document.createElement("usermedia");
+  	const button = options.document.createElement("button");
+  	button.type = "button";
+  	button.textContent = options.label;
+  	element.append(button);
+  	element.style.position = "absolute";
+  	element.style.left = "50%";
+  	element.style.top = "50%";
+  	element.style.transform = "translate(-50%, -50%)";
+  	element.style.zIndex = "2";
+  	try {
+  		element.setConstraints?.({ video: {} });
+  	} catch {}
+  	let settle = () => {};
+  	const settled = new Promise((resolve) => {
+  		settle = resolve;
+  	});
+  	let done = false;
+  	const finish = (outcome) => {
+  		if (done) return;
+  		done = true;
+  		element.remove();
+  		settle(outcome);
+  	};
+  	element.addEventListener("stream", () => {
+  		const stream = element.stream;
+  		if (stream && typeof stream.getTracks === "function") finish({
+  			kind: "stream",
+  			stream
+  		});
+  		else finish({
+  			kind: "error",
+  			code: "usermedia-empty",
+  			message: "The camera button returned no stream."
+  		});
+  	});
+  	element.addEventListener("cancel", () => finish({ kind: "cancelled" }));
+  	element.addEventListener("error", (event) => {
+  		const detail = event.error;
+  		const code = typeof detail?.name === "string" && detail.name.length > 0 ? detail.name : "usermedia-error";
+  		const message = typeof detail?.message === "string" && detail.message.length > 0 ? detail.message : "The camera button could not open the camera.";
+  		finish({
+  			kind: "error",
+  			code,
+  			message
+  		});
+  	});
+  	options.container.append(element);
+  	return Object.freeze({
+  		dismiss: () => finish({ kind: "cancelled" }),
+  		settled
+  	});
+  }
+  //#endregion
   //#region src/video-preview.ts
   var videoLayer = "video";
   var haveCurrentData = 2;
@@ -2431,6 +2521,7 @@
   		this.blockPreviewLeases = /* @__PURE__ */ new Map();
   		this.blockPreviewRevisions = /* @__PURE__ */ new Map();
   		this.cameraFailures = /* @__PURE__ */ new Map();
+  		this.cameraButtons = /* @__PURE__ */ new Map();
   		this.profiles = new CameraProfileRegistry();
   		this.generations = /* @__PURE__ */ new Map();
   		this.lastConditions = /* @__PURE__ */ new Map();
@@ -2628,6 +2719,8 @@
   		return this.devices[indexFrom(args.INDEX)]?.label ?? "";
   	}
   	stopAllCameras() {
+  		for (const request of [...this.cameraButtons.values()]) request.dismiss();
+  		this.cameraButtons.clear();
   		for (const cameraId of [...this.sessions.keys()]) this.stopCameraSession(cameraId);
   		this.blockLeases.clear();
   		this.blockPreviewLeases.clear();
@@ -2773,6 +2866,105 @@
   			...requestedCamera(globalThis.location?.search ?? "")
   		});
   		this.blockLeases.set(cameraId, lease);
+  	}
+  	/** Whether this browser has the camera button element at all. */
+  	cameraButtonAvailable() {
+  		return supportsUserMediaElement();
+  	}
+  	/**
+  	* Starts a camera from the browser's own camera button, rather than from `getUserMedia`.
+  	*
+  	* For a `.sb3` opened in the editor. The document belongs to TurboWarp there, so no host above
+  	* the project can place a capability element -- and without one, the browser-managed handover is
+  	* closed to the work entirely. #39 kept this element out of the extension so that no extension
+  	* could manufacture an operator's intent; placing a block *is* that intent, and the browser still
+  	* collects the click and draws the prompt. What the block does is put the element where it can be
+  	* clicked.
+  	*
+  	* A camera id that already runs a stream joins it: a packaged work's host adopted one before the
+  	* project started, and asking again would only refuse (`adoptCamera` guards an id against a
+  	* second stream). So the same project runs in both distributions with this block in it.
+  	*
+  	* Nothing here throws into the project. A refusal, an unsupported browser and a failed open all
+  	* land in `shared camera error code`, and `start shared camera` remains available.
+  	*/
+  	async startSharedCameraFromCameraButton(args = {}) {
+  		const cameraId = normalizeId(args.CAMERA_ID);
+  		if (this.blockLeases.has(cameraId)) return;
+  		if (this.sessions.get(cameraId)?.stream) {
+  			this.blockLeases.set(cameraId, await this.acquireCamera({
+  				owner: "camera-source-block",
+  				cameraId
+  			}));
+  			return;
+  		}
+  		if (!supportsUserMediaElement()) {
+  			this.cameraFailures.set(cameraId, {
+  				code: "usermedia-unsupported",
+  				message: "This browser has no camera button element."
+  			});
+  			return;
+  		}
+  		const container = this.cameraButtonContainer();
+  		if (!container) {
+  			this.cameraFailures.set(cameraId, {
+  				code: "usermedia-no-stage",
+  				message: "The stage the camera button would be placed on was not found."
+  			});
+  			return;
+  		}
+  		this.cameraButtons.get(cameraId)?.dismiss();
+  		const request = requestUserMedia({
+  			document,
+  			container,
+  			label: Scratch.translate("Allow the camera")
+  		});
+  		this.cameraButtons.set(cameraId, request);
+  		const outcome = await request.settled;
+  		if (this.cameraButtons.get(cameraId) === request) this.cameraButtons.delete(cameraId);
+  		if (outcome.kind === "cancelled") {
+  			this.cameraFailures.set(cameraId, {
+  				code: "usermedia-cancelled",
+  				message: "The camera was not allowed."
+  			});
+  			return;
+  		}
+  		if (outcome.kind === "error") {
+  			this.cameraFailures.set(cameraId, {
+  				code: outcome.code,
+  				message: outcome.message
+  			});
+  			return;
+  		}
+  		try {
+  			this.blockLeases.set(cameraId, await this.adoptCamera({
+  				owner: "camera-source-block",
+  				cameraId,
+  				stream: outcome.stream
+  			}));
+  		} catch (error) {
+  			outcome.stream.getTracks().forEach((track) => track.stop());
+  			this.cameraFailures.set(cameraId, cameraFailure(error));
+  		}
+  	}
+  	/** Removes a camera button still waiting for an answer; the script waiting on it continues. */
+  	hideCameraButton(args = {}) {
+  		this.cameraButtons.get(normalizeId(args.CAMERA_ID))?.dismiss();
+  	}
+  	/**
+  	* Where the camera button goes: the element that holds the stage canvas.
+  	*
+  	* The preview is a renderer skin, so the extension has had no DOM of its own to hang this on. A
+  	* capability element cannot be drawn into WebGL, and the editor's own layout is not ours to
+  	* restructure, so it is placed over the canvas and centred, with the element keeping its own look.
+  	*/
+  	cameraButtonContainer() {
+  		const parent = (Scratch.vm.runtime.renderer?.gl?.canvas)?.parentElement ?? null;
+  		if (!parent) return null;
+  		const style = parent.style;
+  		const computed = globalThis.getComputedStyle?.(parent);
+  		if (style && computed?.position === "static") style.position = "relative";
+  		return parent;
   	}
   	async restoreStoredProfile(cameraId, sameDevice) {
   		let records;
