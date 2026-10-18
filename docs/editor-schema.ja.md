@@ -1,5 +1,7 @@
 # 段階1: Camera Source固定profile契約
 
+> 現在のGit依存固定・実解決・検証結果は[editor-schema-publication.ja.md](editor-schema-publication.ja.md)と同名JSONを参照。以下は依存更新前の採取履歴として保持する。
+
 追跡: https://github.com/kubohiroya/turbowarp-camera-source/issues/47 。共通親はextension-data-editor #18。
 
 `./editor-schema`はcameraProfileSchemaBundles.twcs/legacy/ros、decodeCameraProfileSource、readCameraProfileInput、validateCameraProfileInputを公開する。既存./profileにもreadCameraInfoDocumentを追加し、raw ROS mappingを文字列へ戻さず同じowner規則で検証できる。
