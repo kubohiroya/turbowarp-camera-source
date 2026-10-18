@@ -1,0 +1,15 @@
+# 段階1: Camera Source固定profile契約
+
+追跡: https://github.com/kubohiroya/turbowarp-camera-source/issues/47 。共通親はextension-data-editor #18。
+
+`./editor-schema`はcameraProfileSchemaBundles.twcs/legacy/ros、decodeCameraProfileSource、readCameraProfileInput、validateCameraProfileInputを公開する。既存./profileにもreadCameraInfoDocumentを追加し、raw ROS mappingを文字列へ戻さず同じowner規則で検証できる。
+
+既存twcs JSON Schemaを正本として再利用する。legacy/ROSは新しい固定の入力形状Schemaと現行parserの純粋検証を合成する。行列の許容誤差、歪み係数数、時刻・禁止キー・識別子等は現行ownerが判定する。legacyのworld poseは既存readerと同じ扱いを維持し、fusion用の幾何制約を追加しない。
+
+Camera Source自身が受理するJSONはtwcsとlegacy。camerasource/camera-intrinsicsはCamera Calibration側の固有variantであり、このownerの受理範囲へ追加しない。ROSは既存のbrace判定と専用YAML parserを使い、raw dataとsource/format/variantを保持する。readCameraProfileInputが返す正規化profileは別の検証結果で、編集データへ置換しない。
+
+確認: 型検査、既存profile/ROS/Schemaと新adapterの101テスト、Vite＋既存runtime/profile emit＋独立JS/型/resource build、srcなしDOM/Reactなし隔離importとskipLibCheck:false consumer型検査が成功。カメラ取得やprofile登録を呼ばない。
+
+Git consumer用prepareは固定commitから生成物をbuildする。source-revision.txtがGit archiveで全文SHAへ展開された場合だけprepackをarchive buildへ分け、Git metadataを必要とするrepo/docs検査を実行しない。通常checkoutからのprepack/releaseは従来の全checkを維持する。依存版はmanifest/lockへ固定する。
+
+段階2のフォーム登録・owner encode、後段の候補UIは追加しない。既定OFFのGUIフラグを維持し、新入口の利用停止/本Issueのcommit revertでrollbackできる。保存済みsourceの移行は不要。

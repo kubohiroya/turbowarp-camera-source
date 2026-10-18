@@ -13,6 +13,7 @@
 export {
   CAMERA_INFO_EXTENSION_KEY,
   readCameraInfoYaml,
+  readCameraInfoDocument,
   serializeCameraInfoYaml,
   type CameraInfoReadResult
 } from './calibration/camera-info.js';

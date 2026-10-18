@@ -23,14 +23,19 @@
       "types": "./dist/profile.d.ts",
       "import": "./dist/profile.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./editor-schema": {
+      "types": "./lib-editor/src/editor-schema.d.ts",
+      "import": "./lib-editor/src/editor-schema.js"
+    }
   },
   "files": [
     "dist/",
     "schemas/",
     "README.md",
     "README.ja.md",
-    "LICENSE"
+    "LICENSE",
+    "lib-editor/"
   ],
   "unpkg": "./dist/camera-source.js",
   "jsdelivr": "./dist/camera-source.js",
@@ -45,7 +50,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
-    "build": "vite build && tsc -p tsconfig.lib.json",
+    "build": "vite build && tsc -p tsconfig.lib.json && npm run build:editor",
     "lint": "eslint src tests vite.config.ts",
     "format": "eslint src tests vite.config.ts --fix",
     "test": "vitest run",
@@ -57,7 +62,9 @@
     "release:check": "pnpm publish --dry-run --access public --no-git-checks",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test && pnpm run docs:check && pnpm run docs:pages:check && pnpm run check:dist && pnpm run repo:check && pnpm run pack:check",
     "check:dist": "pnpm run build && node scripts/check-dist.ts",
-    "prepack": "pnpm run check"
+    "prepack": "node scripts/prepack.mjs",
+    "build:editor": "tsc -p tsconfig.editor.json",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -78,5 +85,8 @@
     "camera",
     "media-devices",
     "getusermedia"
-  ]
+  ],
+  "dependencies": {
+    "@kubohiroya/turbowarp-extension-data-editor": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#a1ab4f4f5b384eef08ef26e544186ee9d8ad4543"
+  }
 }

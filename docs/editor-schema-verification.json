@@ -1,0 +1,42 @@
+{
+  "stage": "S1-4/p",
+  "repository": "turbowarp-camera-source",
+  "issue": "https://github.com/kubohiroya/turbowarp-camera-source/issues/47",
+  "base": "beece9042d782e30b393a65fcb2d6916589dd063",
+  "branch": "feat/schema/stage1-camera-source",
+  "targeted_tests_passed": 101,
+  "typecheck": "passed",
+  "existing_build_and_editor_emit": "passed",
+  "source_absent_isolated_import": "passed",
+  "isolated_no_DOM_skipLibCheck_false": "passed",
+  "resolved_dependencies": {
+    "@kubohiroya/turbowarp-extension-data-editor": {
+      "version": "0.1.0",
+      "resolved_path": "/private/tmp/schema-stage1-worktrees-20261018/camera-source/node_modules/.pnpm/@kubohiroya+turbowarp-extension-data-editor@https+++codeload.github.com+kubohiroya+turb_5f902832b16dc00a1fc95546529ab82c/node_modules/@kubohiroya/turbowarp-extension-data-editor",
+      "manifest_sha256": "3e86db1bf667088a7a87ada19fc11573082918335dd281073464ca4fcebf74da",
+      "specifier": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#a1ab4f4f5b384eef08ef26e544186ee9d8ad4543"
+    }
+  },
+  "emitted_sha256": {
+    "lib-editor/schemas/camera-intrinsics-v1.json": "db7e43097fe3091fcbdaf218c4174fb5324a85433b20b7155da5199012a7258f",
+    "lib-editor/schemas/editor-legacy-calibration.json": "7c147b707b403fc6c37acce09388ad29bff8215fac5723ad9731e7c62af4eb79",
+    "lib-editor/schemas/editor-ros-camera-info.json": "008a718df73bc696da5e7c2a4abf4937ac6b95bb2ac3051b657546b06743c1a9",
+    "lib-editor/src/calibration/camera-info.d.ts": "8cdf9d544fed4a0dfe6d14c834b8d47778f339edf8e31607a4ff21cf0917a3a5",
+    "lib-editor/src/calibration/camera-info.js": "9aa954cab4376557d158c391f34ed0a07a247a97df64662dab9c1dc6ba6fae6f",
+    "lib-editor/src/calibration/profile.d.ts": "b185ae42a274323ee8bb435cac13626118470a0e2dd3d025f86b6b03177e87db",
+    "lib-editor/src/calibration/profile.js": "dd7a6e205e2651fc279c4981b3bec6adb2a616bb8d2592d99e30af8d526e7377",
+    "lib-editor/src/calibration/types.d.ts": "bb2aa9ada5302da446c7e4e7645b0a5399533b8c29c0461a7d8075542aa9a847",
+    "lib-editor/src/calibration/types.js": "721b4ef1eeb9146db146a26eeed9c4e420d657cd9b44004275dd45967e61eea4",
+    "lib-editor/src/calibration/yaml.d.ts": "ebae6119eec3715485a9afb883dd1e17545eaacba3b5aa0c3eba5b49ba11a8bb",
+    "lib-editor/src/calibration/yaml.js": "a8e1a21352246d54084dbf38c49a37f7e17f3991df83dad9d727b32c00ef2563",
+    "lib-editor/src/editor-schema.d.ts": "4e7a9f17e0a45ea9a46482467e78bb93825eb924ef63573a7e8ecb2de3d74650",
+    "lib-editor/src/editor-schema.js": "73ca0a437d5fdf8229dbe388324db04d6ada251f3ba32fc90d9842cf90c81ee5"
+  },
+  "scope": {
+    "new_extension_editor_registration": false,
+    "schema_authoring_UI": false,
+    "arbitrary_schema_UI": false,
+    "GUI_dependency_change": false,
+    "cause_investigation": false
+  }
+}
