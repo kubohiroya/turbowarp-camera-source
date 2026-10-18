@@ -131,6 +131,10 @@ export function readCameraInfoYaml(text) {
         }
         throw error;
     }
+    return readCameraInfoDocument(parsed);
+}
+/** Validate a raw ROS mapping without serializing or replacing the editable data. */
+export function readCameraInfoDocument(parsed) {
     try {
         return { ok: true, document: toProfileDocument(parsed) };
     }
