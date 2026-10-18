@@ -2,9 +2,9 @@
   "stage": "S1-4/p",
   "repository": "turbowarp-camera-source",
   "issue": "https://github.com/kubohiroya/turbowarp-camera-source/issues/47",
-  "base": "beece9042d782e30b393a65fcb2d6916589dd063",
+  "base": "9a9a5c905271e603af9a08142527e8a4aace8dec",
   "branch": "feat/schema/stage1-camera-source",
-  "targeted_tests_passed": 101,
+  "targeted_tests_passed": 102,
   "typecheck": "passed",
   "existing_build_and_editor_emit": "passed",
   "source_absent_isolated_import": "passed",
@@ -14,7 +14,8 @@
       "version": "0.1.0",
       "resolved_path": "/private/tmp/schema-stage1-worktrees-20261018/camera-source/node_modules/.pnpm/@kubohiroya+turbowarp-extension-data-editor@https+++codeload.github.com+kubohiroya+turb_5f902832b16dc00a1fc95546529ab82c/node_modules/@kubohiroya/turbowarp-extension-data-editor",
       "manifest_sha256": "3e86db1bf667088a7a87ada19fc11573082918335dd281073464ca4fcebf74da",
-      "specifier": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#a1ab4f4f5b384eef08ef26e544186ee9d8ad4543"
+      "specifier": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#a1ab4f4f5b384eef08ef26e544186ee9d8ad4543",
+      "via": "@kubohiroya/turbowarp-camera-source"
     }
   },
   "emitted_sha256": {
@@ -29,9 +30,35 @@
     "lib-editor/src/calibration/types.js": "721b4ef1eeb9146db146a26eeed9c4e420d657cd9b44004275dd45967e61eea4",
     "lib-editor/src/calibration/yaml.d.ts": "ebae6119eec3715485a9afb883dd1e17545eaacba3b5aa0c3eba5b49ba11a8bb",
     "lib-editor/src/calibration/yaml.js": "a8e1a21352246d54084dbf38c49a37f7e17f3991df83dad9d727b32c00ef2563",
-    "lib-editor/src/editor-schema.d.ts": "4e7a9f17e0a45ea9a46482467e78bb93825eb924ef63573a7e8ecb2de3d74650",
-    "lib-editor/src/editor-schema.js": "73ca0a437d5fdf8229dbe388324db04d6ada251f3ba32fc90d9842cf90c81ee5"
+    "lib-editor/src/editor-schema.d.ts": "c59a95b4c8e8527facec744ef98bc011947e3489ac9211cbe33d73ec8fe72311",
+    "lib-editor/src/editor-schema.js": "4d37eab495c4dd3401ffb5568cad81b0227ec079fb5e2313145dab8e14d5acf8"
   },
+  "source_sha256": {
+    "src/calibration/adaptation.ts": "f40bb8a1c6942f99b97ddb646c5ea4cd72112218b6498a05e8dba89038719908",
+    "src/calibration/camera-info.ts": "17e94ef2ea466e50cd6b680a4b356369905da286820398d71f4ae1cd8e3e8697",
+    "src/calibration/compatibility.ts": "51cac44364e15b63460edf50ecc7d9360faea2c2f6a47e053100c267421aac5e",
+    "src/calibration/conditions.ts": "773c036ae57ad91b7014b93c60a7dbf9ab0df6d70f8aa9b379a25f22e7d79bcd",
+    "src/calibration/profile-text.ts": "a70e95f17d7d74702e8ef2b11e6012d8a4102ea0e43d09866d90bbb8669de9fd",
+    "src/calibration/profile.ts": "0a3d25840dad252d0512de83d1a13bd1b0736909f8b5638ce1ae823bd52f1ae4",
+    "src/calibration/registry.ts": "6742f34fe5add335bfb10987235b26adfb212433673a862c0800fb2688f93aae",
+    "src/calibration/store.ts": "b37f9479ba6dccbf502f749d47a72bd43e91a0cfbea4ebde60790089f76a1b1a",
+    "src/calibration/types.ts": "27d678b88496c8c4167a97fcacc924c7e842ceb029e7c231e1ecd10114098044",
+    "src/calibration/yaml.ts": "17f4c2a04d3bafc5e67b45b62ed03d83612835be3df46004baf0bacd46893ef5",
+    "src/config.ts": "4eacc1992dcdac85b17bb38df875578a05c73441f150a2d24932962054fd9f7d",
+    "src/editor-schema.ts": "5b3286b5e6cfa3e93babab4de565341cd7d8b3ee5b28489b153c621e922bf8b7",
+    "src/extension.ts": "def562870e73c956968c7faeb63af6f62a7bd53ed97545e60f5a8e5e9909e5dc",
+    "src/flip.ts": "9f8bc949e149c16eac189fcf6171eff8d463136796b5e5ea8f236a8b16217517",
+    "src/frame-time.ts": "532fb25fddcea7aa4c661d7548dadd4cb322dcb6908ebb941ea401c946b51a5e",
+    "src/globals.d.ts": "fdc88886bfb7568957d5929497fc8ee8dc3594bae1e65cd4cfb36c0494a66f15",
+    "src/index.ts": "6a11d3235ee371be31428fa60b7f6d51779fa371994a70572ae874977550092d",
+    "src/profile.ts": "a319f50af69b48786b8351e8b0cdf3a9ccda1e53240432f9c90ed407a56ea932",
+    "src/runtime-capability.ts": "c7f045e815b045d394b0c3f397274d604a1b7e5693ccbaa8ee45d2e8ded25237",
+    "src/runtime.ts": "3624c6c44dbed53398caa88bdf24a0b784b712222dcff21f1402a9ddfc269185",
+    "src/user-media.ts": "4808dbeba93c7f263b6abb8f597310b6b8a5ca3f2bd06a3bc54388b9691e6c4b",
+    "src/video-preview.ts": "6c0abc967a3c12c6f4bd62a2bf172e408d02c56f7c6f36c0d2e261aa93d08bc0"
+  },
+  "source_emit_hash_matches": 13,
+  "side_effect_guarded_isolated_import": "0 DOM/VM/network global accesses; React absent",
   "scope": {
     "new_extension_editor_registration": false,
     "schema_authoring_UI": false,

@@ -28,7 +28,14 @@ it('raw ROS mappings remain editable while validation uses a separate normalized
     const source=serializeCameraInfoYaml(profile.profile);compare(source);
     const decoded=decodeCameraProfileSource(source);expect(decoded.variantId).toBe('ros');expect(decoded.data).toHaveProperty('camera_matrix');expect(decoded.data).not.toHaveProperty('intrinsics');
     const validation=readCameraProfileInput(decoded.data);expect(validation.ok).toBe(true);if(validation.ok)expect(validation.profile).not.toBe(decoded.data);
-    compare(source.replace('image_width: ', 'unknown_width: '));
+    compare(source.replace('image_width: ', 'unknown_width: '));compare(' '.repeat(65536)+'\n'+source);
   }
   for(const name of readdirSync(new URL('camera-info/',base)))compare(readFileSync(new URL('camera-info/'+name,base),'utf8'));
+});
+
+import {validateCameraProfileSource} from '../src/editor-schema.js';
+it('source boundary keeps decode/unknown-variant diagnostics safe and preserves source', () => {
+ for(const source of ['{private malformed','{"schema":"private-unknown","version":1}']) {const result=validateCameraProfileSource(source,context);expect(result.source).toBe(source);expect(result.result.kind).toBe('invalid');expect(JSON.stringify(result.result)).not.toContain('private');}
+ const unknown=validateCameraProfileSource('{"schema":"unknown"}',context);expect(unknown.result.diagnostics[0]?.code).toBe('variant-unrecognized');expect(unknown.result.diagnostics[0]?.scope.identity.variantId).toBe('unrecognized');
+ const source=readFileSync(new URL('valid/minimal.json',base),'utf8');expect(validateCameraProfileSource(source,context).result.kind).toBe('valid');expect(validateCameraProfileSource('\ufeff'+source,context).result.kind).toBe('valid');
 });

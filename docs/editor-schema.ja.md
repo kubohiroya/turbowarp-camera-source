@@ -13,3 +13,11 @@ Camera Source自身が受理するJSONはtwcsとlegacy。camerasource/camera-int
 Git consumer用prepareは固定commitから生成物をbuildする。source-revision.txtがGit archiveで全文SHAへ展開された場合だけprepackをarchive buildへ分け、Git metadataを必要とするrepo/docs検査を実行しない。通常checkoutからのprepack/releaseは従来の全checkを維持する。依存版はmanifest/lockへ固定する。
 
 段階2のフォーム登録・owner encode、後段の候補UIは追加しない。既定OFFのGUIフラグを維持し、新入口の利用停止/本Issueのcommit revertでrollbackできる。保存済みsourceの移行は不要。
+
+## S1-5の最終確認
+
+対象は合計102ケース（増分検証を含む）。srcを除いた実packageでReact不在・DOM/VM/通信globalアクセス0、skipLibCheck:falseの型検査を確認し、独立生成13ファイルを再emitと全SHA-256照合した。16契約の横断fixtureと依存artifact照合の記録は共通repoのschema-stage1-*.jsonを参照。既存生成基準は保持する。
+
+validateCameraProfileSourceを追加し、形式不正・未知variantでも元sourceを保持した安全な診断を返す。raw parser例外を診断へ混ぜない。
+
+既存readerと同じtrim/BOM処理をparse前だけに適用し、返すsourceは原文のままとする。ROSの長さ条件はtrim後に判定される従来挙動を維持し、64 KiBを超える前後空白で受理を狭めない。回帰fixtureを追加確認した。
