@@ -10,7 +10,7 @@
  *
  * Nothing here touches a camera, a document, or the VM.
  */
-export { CAMERA_INFO_EXTENSION_KEY, readCameraInfoYaml, serializeCameraInfoYaml, type CameraInfoReadResult } from './calibration/camera-info.js';
+export { CAMERA_INFO_EXTENSION_KEY, readCameraInfoYaml, readCameraInfoDocument, serializeCameraInfoYaml, type CameraInfoReadResult } from './calibration/camera-info.js';
 export { readProfileText, type ProfileTextResult } from './calibration/profile-text.js';
 export { CAMERA_INTRINSIC_PROFILE_SCHEMA, CAMERA_INTRINSIC_PROFILE_VERSION, readCameraProfileDocument, serializeCameraIntrinsicProfile } from './calibration/profile.js';
 export { evaluateProfileCompatibility } from './calibration/compatibility.js';

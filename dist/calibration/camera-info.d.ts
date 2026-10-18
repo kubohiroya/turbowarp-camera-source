@@ -29,4 +29,6 @@ export declare function serializeCameraInfoYaml(profile: CameraIntrinsicProfileV
  * place that decides whether a calibration is acceptable.
  */
 export declare function readCameraInfoYaml(text: string): CameraInfoReadResult;
+/** Validate a raw ROS mapping without serializing or replacing the editable data. */
+export declare function readCameraInfoDocument(parsed: unknown): CameraInfoReadResult;
 //# sourceMappingURL=camera-info.d.ts.map

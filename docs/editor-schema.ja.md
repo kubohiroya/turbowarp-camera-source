@@ -1,0 +1,27 @@
+> 現在のCI修正・依存artifactの検証は [editor-schema-ci-fix-20261018.ja.md](editor-schema-ci-fix-20261018.ja.md) / [JSON](editor-schema-ci-fix-20261018.json) を参照。以下の旧pin・検証結果は採取時の履歴として保持する。
+
+# 段階1: Camera Source固定profile契約
+
+> 現在のGit依存固定・実解決・検証結果は[editor-schema-publication.ja.md](editor-schema-publication.ja.md)と同名JSONを参照。以下は依存更新前の採取履歴として保持する。
+
+追跡: https://github.com/kubohiroya/turbowarp-camera-source/issues/47 。共通親はextension-data-editor #18。
+
+`./editor-schema`はcameraProfileSchemaBundles.twcs/legacy/ros、decodeCameraProfileSource、readCameraProfileInput、validateCameraProfileInputを公開する。既存./profileにもreadCameraInfoDocumentを追加し、raw ROS mappingを文字列へ戻さず同じowner規則で検証できる。
+
+既存twcs JSON Schemaを正本として再利用する。legacy/ROSは新しい固定の入力形状Schemaと現行parserの純粋検証を合成する。行列の許容誤差、歪み係数数、時刻・禁止キー・識別子等は現行ownerが判定する。legacyのworld poseは既存readerと同じ扱いを維持し、fusion用の幾何制約を追加しない。
+
+Camera Source自身が受理するJSONはtwcsとlegacy。camerasource/camera-intrinsicsはCamera Calibration側の固有variantであり、このownerの受理範囲へ追加しない。ROSは既存のbrace判定と専用YAML parserを使い、raw dataとsource/format/variantを保持する。readCameraProfileInputが返す正規化profileは別の検証結果で、編集データへ置換しない。
+
+確認: 型検査、既存profile/ROS/Schemaと新adapterの101テスト、Vite＋既存runtime/profile emit＋独立JS/型/resource build、srcなしDOM/Reactなし隔離importとskipLibCheck:false consumer型検査が成功。カメラ取得やprofile登録を呼ばない。
+
+Git consumer用prepareは固定commitから生成物をbuildする。source-revision.txtがGit archiveで全文SHAへ展開された場合だけprepackをarchive buildへ分け、Git metadataを必要とするrepo/docs検査を実行しない。通常checkoutからのprepack/releaseは従来の全checkを維持する。依存版はmanifest/lockへ固定する。
+
+段階2のフォーム登録・owner encode、後段の候補UIは追加しない。既定OFFのGUIフラグを維持し、新入口の利用停止/本Issueのcommit revertでrollbackできる。保存済みsourceの移行は不要。
+
+## S1-5の最終確認
+
+対象は合計102ケース（増分検証を含む）。srcを除いた実packageでReact不在・DOM/VM/通信globalアクセス0、skipLibCheck:falseの型検査を確認し、独立生成13ファイルを再emitと全SHA-256照合した。16契約の横断fixtureと依存artifact照合の記録は共通repoのschema-stage1-*.jsonを参照。既存生成基準は保持する。
+
+validateCameraProfileSourceを追加し、形式不正・未知variantでも元sourceを保持した安全な診断を返す。raw parser例外を診断へ混ぜない。
+
+既存readerと同じtrim/BOM処理をparse前だけに適用し、返すsourceは原文のままとする。ROSの長さ条件はtrim後に判定される従来挙動を維持し、64 KiBを超える前後空白で受理を狭めない。回帰fixtureを追加確認した。

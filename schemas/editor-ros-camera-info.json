@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kubohiroya.github.io/turbowarp-camera-source/schema/editor-ros-camera-info.json",
+  "title": "Raw ROS camera_info shape (owner validates matrices and metadata)",
+  "type": "object",
+  "required": [
+    "image_width",
+    "image_height",
+    "camera_name",
+    "camera_matrix",
+    "distortion_coefficients",
+    "turbowarp_camera_source"
+  ],
+  "properties": {
+    "image_width": true,
+    "image_height": true,
+    "camera_name": true,
+    "camera_matrix": true,
+    "distortion_model": true,
+    "distortion_coefficients": true,
+    "rectification_matrix": true,
+    "projection_matrix": true,
+    "binning_x": true,
+    "binning_y": true,
+    "roi": true,
+    "turbowarp_camera_source": true
+  },
+  "additionalProperties": false
+}

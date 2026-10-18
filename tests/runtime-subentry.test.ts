@@ -14,18 +14,24 @@ import {extensionConfig} from '../src/config.js';
  * throughout. The entry is therefore guarded here rather than trusted to stay right.
  */
 describe('the published runtime sub-entry', () => {
-  it('is exposed under ./runtime, alongside the bundle and nothing else', () => {
+  it('keeps the runtime and explicit pure editor entry separate', () => {
     expect(packageMetadata.exports['./runtime']).toEqual({
       types: './dist/runtime.d.ts',
       import: './dist/runtime.js'
     });
     // No "." entry: the bundle is loaded by URL from TurboWarp rather than imported, and exposing it
     // would let one stray bare import pull the whole extension into a consumer's bundle.
+    expect(packageMetadata.exports['./editor-schema']).toEqual({
+      types: './lib-editor/src/editor-schema.d.ts',
+      import: './lib-editor/src/editor-schema.js'
+    });
+    expect(packageMetadata.files).toContain('lib-editor/');
     expect(Object.keys(packageMetadata.exports)).toEqual([
       './camera-source.js',
       './runtime',
       './profile',
-      './package.json'
+      './package.json',
+      './editor-schema'
     ]);
   });
 

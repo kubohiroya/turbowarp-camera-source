@@ -1673,6 +1673,10 @@
   		};
   		throw error;
   	}
+  	return readCameraInfoDocument(parsed);
+  }
+  /** Validate a raw ROS mapping without serializing or replacing the editable data. */
+  function readCameraInfoDocument(parsed) {
   	try {
   		return {
   			ok: true,
