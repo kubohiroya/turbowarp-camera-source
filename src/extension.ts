@@ -1,3 +1,4 @@
+import {registerSourceEditors} from './source-editors.js';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
 import type {UsableIntrinsics} from './calibration/adaptation';
@@ -299,7 +300,10 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly profileChannel: BroadcastChannel | undefined;
   private storedProfilesGeneration = 0;
 
+  private readonly removeSourceEditors: () => void;
+
   public constructor(options: CameraSourceExtensionOptions = {}) {
+    this.removeSourceEditors = registerSourceEditors(Scratch);
     this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
     this.profileChannel = this.openProfileChannel();
     Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
@@ -523,6 +527,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public readonly dispose = (): void => {
+    this.removeSourceEditors();
     this.stopAllCameras();
     // Only withdraw the capability if it is still the one this instance published. A reloaded
     // project builds a new extension before the old one is disposed, and deleting the key blindly
