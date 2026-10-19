@@ -55,6 +55,147 @@
   	license: "MPL-2.0",
   	unsandboxed: true
   };
+  var block_editor_fixed_inputs_schema_default = {
+  	$schema: "https://json-schema.org/draft/2020-12/schema",
+  	$id: "https://kubohiroya.github.io/turbowarp-camera-source/schemas/block-editor-fixed-inputs.schema.json",
+  	$defs: { "showCameraPreview": {
+  		"type": "object",
+  		"properties": { "PREVIEW_FLIP": {
+  			"type": "string",
+  			"enum": [
+  				"none",
+  				"horizontal",
+  				"vertical",
+  				"both"
+  			]
+  		} },
+  		"additionalProperties": false
+  	} }
+  };
+  /** Canonical fixed field fragments; URI is identity only, never fetched. */
+  function fixedInputBundle(opcode, argument) {
+  	const source = {
+  		repository: "turbowarp-camera-source",
+  		path: "schemas/block-editor-fixed-inputs.schema.json",
+  		symbol: `#/$defs/${opcode}/properties/${argument}`
+  	};
+  	const definitions = block_editor_fixed_inputs_schema_default.$defs;
+  	return {
+  		identity: {
+  			ownerId: "turbowarp-camera-source",
+  			contractId: "fixed-inputs",
+  			revision: "1",
+  			variantId: opcode + "." + argument
+  		},
+  		dialect: "2020-12",
+  		root: {
+  			retrievalUri: block_editor_fixed_inputs_schema_default.$id,
+  			document: definitions[opcode].properties[argument],
+  			artifact: {
+  				role: "canonical-schema",
+  				source
+  			}
+  		},
+  		resources: [],
+  		provenance: {
+  			canonicalSources: [source, ...[{
+  				"repository": "turbowarp-camera-source",
+  				"path": "src/flip.ts",
+  				"symbol": "FLIPS / isFlip / toFlip"
+  			}]],
+  			generatedFiles: [{
+  				repository: "turbowarp-camera-source",
+  				path: "docs/schemas/block-editor-fixed-inputs.schema.json"
+  			}],
+  			generationSources: [{
+  				repository: "turbowarp-camera-source",
+  				path: "scripts/generate-fixed-input-docs.mjs"
+  			}],
+  			referenceSchemas: []
+  		}
+  	};
+  }
+  var invalid = () => [{ message: "Invalid fixed input." }];
+  function enumBinding(opcode, argument, choices, normalization) {
+  	const project = (value) => {
+  		if (typeof value !== "string") return value;
+  		const normalized = normalization === "none" ? value : normalization === "trim" ? value.trim() : value.trim().toLowerCase();
+  		return choices.includes(normalized) ? normalized : value;
+  	};
+  	return {
+  		argument,
+  		schemaBundle: fixedInputBundle(opcode, argument),
+  		control: {
+  			label: argument,
+  			kind: "enum",
+  			choices: choices.map((value) => ({ value }))
+  		},
+  		read: project,
+  		encode(value) {
+  			if (typeof value !== "string" || !choices.includes(value)) throw new TypeError("Choose a known value.");
+  			return value;
+  		},
+  		validateCandidate(candidate, _context, finalSnapshot) {
+  			try {
+  				return typeof candidate === "string" && choices.includes(candidate) && ownerCheck(opcode, argument, candidate, finalSnapshot) ? [] : invalid();
+  			} catch {
+  				return invalid();
+  			}
+  		}
+  	};
+  }
+  function ownerCheck(_opcode, _argument, _candidate, _snapshot) {
+  	return true;
+  }
+  var extensionId = "kubohiroyacamerasource";
+  var validationContext = () => ({
+  	consumerId: "turbowarp-camera-source",
+  	nowMs: 0,
+  	settings: null
+  });
+  var fixedInputEditors = [{
+  	apiVersion: 1,
+  	extensionId,
+  	editorId: "showCameraPreview-fixed",
+  	opcodes: [`${extensionId}_showCameraPreview`],
+  	contractId: "turbowarp-camera-source/showCameraPreview",
+  	contractRevision: "1",
+  	validationContext,
+  	readOnlyArguments: [],
+  	bindings: [enumBinding("showCameraPreview", "PREVIEW_FLIP", [
+  		"none",
+  		"horizontal",
+  		"vertical",
+  		"both"
+  	], "none")]
+  }];
+  /** Register metadata only; the GUI startup capability owns editor activation. */
+  function registerFixedInputEditors(scratch, definitions, runtimeOverride) {
+  	const host = scratch;
+  	const api = host.gui?.blockEditors;
+  	if (!definitions.length || api?.apiVersion !== 1 || typeof api.registerFixedInputEditor !== "function") return () => {};
+  	const runtime = runtimeOverride ?? host.vm?.runtime;
+  	const removers = [];
+  	let active = true;
+  	const dispose = () => {
+  		if (!active) return;
+  		active = false;
+  		runtime?.off?.("RUNTIME_DISPOSED", dispose);
+  		for (const remove of removers.splice(0).reverse()) remove();
+  	};
+  	try {
+  		for (const definition of definitions) {
+  			const remove = api.registerFixedInputEditor.call(api, definition);
+  			if (typeof remove !== "function") throw new TypeError("Invalid fixed input registration disposer.");
+  			removers.push(remove);
+  		}
+  		runtime?.on?.("RUNTIME_DISPOSED", dispose);
+  	} catch (error) {
+  		dispose();
+  		throw error;
+  	}
+  	return dispose;
+  }
   var require_code$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
   	Object.defineProperty(exports, "__esModule", { value: true });
   	exports.regexpCode = exports.getEsmExportName = exports.getProperty = exports.safeStringify = exports.stringify = exports.strConcat = exports.addCodeArg = exports.str = exports._ = exports.nil = exports._Code = exports.Name = exports.IDENTIFIER = exports._CodeOrName = void 0;
@@ -10874,7 +11015,9 @@
   		this.devices = [];
   		this.storedProfileOutcomes = /* @__PURE__ */ new Map();
   		this.storedProfilesGeneration = 0;
+  		this.removeFixedEditors = () => {};
   		this.dispose = () => {
+  			this.removeFixedEditors();
   			this.removeSourceEditors();
   			this.stopAllCameras();
   			const runtime = Scratch.vm.runtime;
@@ -10890,25 +11033,31 @@
   			this.storedProfileOutcomes.clear();
   		};
   		this.removeSourceEditors = registerSourceEditors(Scratch);
-  		this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
-  		this.profileChannel = this.openProfileChannel();
-  		Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
-  		this.capability = createRuntimeCapability({
-  			registerProfile: (document) => this.profiles.register(document),
-  			forgetProfile: (cameraId) => this.profiles.forget(cameraId),
-  			profileFor: (cameraId) => this.profiles.get(cameraId),
-  			calibratedCameras: () => this.profiles.cameraIds(),
-  			assessProfile: (cameraId) => {
-  				return this.assessmentOf(cameraId);
-  			},
-  			intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
-  			conditionsFor: (cameraId) => this.conditionsOf(cameraId),
-  			conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-  		});
-  		Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
-  		Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
-  		Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
-  		Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
+  		try {
+  			this.removeFixedEditors = registerFixedInputEditors(Scratch, fixedInputEditors);
+  			this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
+  			this.profileChannel = this.openProfileChannel();
+  			Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
+  			this.capability = createRuntimeCapability({
+  				registerProfile: (document) => this.profiles.register(document),
+  				forgetProfile: (cameraId) => this.profiles.forget(cameraId),
+  				profileFor: (cameraId) => this.profiles.get(cameraId),
+  				calibratedCameras: () => this.profiles.cameraIds(),
+  				assessProfile: (cameraId) => {
+  					return this.assessmentOf(cameraId);
+  				},
+  				intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
+  				conditionsFor: (cameraId) => this.conditionsOf(cameraId),
+  				conditionsGeneration: (cameraId) => this.generationOf(cameraId)
+  			});
+  			Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
+  			Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
+  			Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
+  			Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
+  		} catch (error) {
+  			this.dispose();
+  			throw error;
+  		}
   	}
   	getInfo() {
   		return {

@@ -54,7 +54,7 @@
     "lint": "eslint src tests vite.config.ts",
     "format": "eslint src tests vite.config.ts --fix",
     "test": "vitest run",
-    "docs": "node scripts/generate-readme.ts",
+    "docs": "node scripts/generate-readme.ts && node scripts/generate-fixed-input-docs.mjs",
     "docs:check": "pnpm run docs && git diff --exit-code -- README.md README.ja.md",
     "docs:pages:check": "node scripts/check-pages.ts",
     "repo:check": "node scripts/check-repo.ts",
@@ -88,6 +88,6 @@
     "getusermedia"
   ],
   "dependencies": {
-    "@kubohiroya/turbowarp-extension-data-editor": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#76fa1d50a3c188082ceef723ea018a9d8769ea6e"
+    "@kubohiroya/turbowarp-extension-data-editor": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#485f0e550e622235624b5e9176820161aeeba252"
   }
 }

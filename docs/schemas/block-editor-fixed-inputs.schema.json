@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kubohiroya.github.io/turbowarp-camera-source/schemas/block-editor-fixed-inputs.schema.json",
+  "$defs": {
+    "showCameraPreview": {
+      "type": "object",
+      "properties": {
+        "PREVIEW_FLIP": {
+          "type": "string",
+          "enum": [
+            "none",
+            "horizontal",
+            "vertical",
+            "both"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
