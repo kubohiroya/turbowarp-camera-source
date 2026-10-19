@@ -26,13 +26,13 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.17.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.17.1/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.17.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.17.1
 ```
 
 ## Quick start
@@ -332,3 +332,5 @@ GitHub Pages用の静的サイトは`docs/`にあり、英語版は`docs/index.h
 ## ライセンス
 
 SPDX-License-Identifier: MPL-2.0
+
+固定入力の編集は拡張構築時の任意editor APIを使います。後からのAPI追加・差替えにはGUI再読込と拡張インスタンス再構築が必要です。Dialogs/FixedInputsは起動時既定OFFです。未変更rawは保持し、reporterは評価しません。機器・sessionの実行条件は実行時検証の責務です。固定fieldのSchema正本は`schemas/block-editor-fixed-inputs.schema.json`、`docs/schemas/`は`scripts/generate-fixed-input-docs.mjs`による生成物です。Schema URIは識別子で、編集時に取得しません。

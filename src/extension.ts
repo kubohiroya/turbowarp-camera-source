@@ -1,3 +1,4 @@
+import {fixedInputEditors, registerFixedInputEditors} from './fixed-input-editors.js';
 import {registerSourceEditors} from './source-editors.js';
 import {extensionConfig} from './config';
 import definitions from './block-definitions.json';
@@ -301,32 +302,39 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private storedProfilesGeneration = 0;
 
   private readonly removeSourceEditors: () => void;
+  private removeFixedEditors: () => void = () => {};
 
   public constructor(options: CameraSourceExtensionOptions = {}) {
     this.removeSourceEditors = registerSourceEditors(Scratch);
-    this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
-    this.profileChannel = this.openProfileChannel();
-    Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
-    // Published unconditionally. It was once behind a startup flag, on the reasoning that consumer
-    // extensions are its audience and the path was unproven -- but the extensions that would prove
-    // it are the ones the missing key turned away, and an absent key is indistinguishable from
-    // Camera Source not being loaded. Withholding it bought nothing and cost a diagnosis.
-    this.capability = createRuntimeCapability({
-        registerProfile: (document) => this.profiles.register(document),
-        forgetProfile: (cameraId) => this.profiles.forget(cameraId),
-        profileFor: (cameraId) => this.profiles.get(cameraId),
-        calibratedCameras: () => this.profiles.cameraIds(),
-        assessProfile: (cameraId) => {
-          return this.assessmentOf(cameraId);
-        },
-        intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
-        conditionsFor: (cameraId) => this.conditionsOf(cameraId),
-      conditionsGeneration: (cameraId) => this.generationOf(cameraId)
-    });
-    Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
-    Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
-    Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
-    Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
+    try {
+      this.removeFixedEditors = registerFixedInputEditors(Scratch, fixedInputEditors);
+      this.profileStore = options.profileStore ?? createIndexedDbCameraProfileStore();
+      this.profileChannel = this.openProfileChannel();
+      Scratch.vm.runtime[cameraSourceRuntimeKey] = this;
+      // Published unconditionally. It was once behind a startup flag, on the reasoning that consumer
+      // extensions are its audience and the path was unproven -- but the extensions that would prove
+      // it are the ones the missing key turned away, and an absent key is indistinguishable from
+      // Camera Source not being loaded. Withholding it bought nothing and cost a diagnosis.
+      this.capability = createRuntimeCapability({
+          registerProfile: (document) => this.profiles.register(document),
+          forgetProfile: (cameraId) => this.profiles.forget(cameraId),
+          profileFor: (cameraId) => this.profiles.get(cameraId),
+          calibratedCameras: () => this.profiles.cameraIds(),
+          assessProfile: (cameraId) => {
+            return this.assessmentOf(cameraId);
+          },
+          intrinsicsFor: (cameraId) => this.intrinsicsOf(cameraId),
+          conditionsFor: (cameraId) => this.conditionsOf(cameraId),
+        conditionsGeneration: (cameraId) => this.generationOf(cameraId)
+      });
+      Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
+      Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
+      Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
+      Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
 
   public getInfo(): Record<string, unknown> {
@@ -527,6 +535,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public readonly dispose = (): void => {
+    this.removeFixedEditors();
     this.removeSourceEditors();
     this.stopAllCameras();
     // Only withdraw the capability if it is still the one this instance published. A reloaded
