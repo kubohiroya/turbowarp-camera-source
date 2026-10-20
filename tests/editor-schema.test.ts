@@ -16,7 +16,7 @@ function compare(source: string) {
   try {decoded=decodeCameraProfileSource(source);}catch{expect(expected.ok).toBe(false);return;}
   const before=JSON.stringify(decoded.data);
   const result=validateSchemaInput(compiled[decoded.variantId]!,decoded.data as never,{context,ownerValidate:validateCameraProfileInput});
-  expect(result.kind==='valid').toBe(expected.ok);expect(JSON.stringify(decoded.data)).toBe(before);expect(decoded.source).toBe(source);
+  expect(result.kind==='valid').toBe(expected.ok);expect(validateCameraProfileSource(source,context).result.kind==='valid').toBe(expected.ok);expect(JSON.stringify(decoded.data)).toBe(before);expect(decoded.source).toBe(source);
 }
 it('all existing valid/invalid/legacy JSON fixtures match the actual profile reader',()=>{
   for(const directory of ['valid','invalid','legacy'])for(const name of readdirSync(new URL(directory+'/',base)).filter(n=>n.endsWith('.json')))compare(readFileSync(new URL(directory+'/'+name,base),'utf8'));
@@ -38,4 +38,14 @@ it('source boundary keeps decode/unknown-variant diagnostics safe and preserves 
  for(const source of ['{private malformed','{"schema":"private-unknown","version":1}']) {const result=validateCameraProfileSource(source,context);expect(result.source).toBe(source);expect(result.result.kind).toBe('invalid');expect(JSON.stringify(result.result)).not.toContain('private');}
  const unknown=validateCameraProfileSource('{"schema":"unknown"}',context);expect(unknown.result.diagnostics[0]?.code).toBe('variant-unrecognized');expect(unknown.result.diagnostics[0]?.scope.identity.variantId).toBe('unrecognized');
  const source=readFileSync(new URL('valid/minimal.json',base),'utf8');expect(validateCameraProfileSource(source,context).result.kind).toBe('valid');expect(validateCameraProfileSource('\ufeff'+source,context).result.kind).toBe('valid');
+});
+
+
+it('the lightweight source boundary keeps owner acceptance identical for all profile fixtures', () => {
+  for (const directory of ['valid', 'invalid', 'legacy']) for (const name of readdirSync(new URL(directory + '/', base)).filter(name => name.endsWith('.json'))) {
+    const source = readFileSync(new URL(directory + '/' + name, base), 'utf8');
+    const read = readProfileText(source);
+    const expected = read.ok ? readCameraProfileDocument(read.document) : read;
+    expect(validateCameraProfileSource(source, context).result.kind === 'valid').toBe(expected.ok);
+  }
 });

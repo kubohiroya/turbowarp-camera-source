@@ -1,7 +1,3 @@
-import {
-  compileSchemaBundle,
-  validateSchemaInput,
-} from '@kubohiroya/turbowarp-extension-data-editor/schema';
 import type {
   SchemaValidationContext,
   SchemaJsonValue,
@@ -91,13 +87,10 @@ export function decodeCameraProfileSource(source: string) {
   return { source, format: json ? ('json' as const) : ('yaml' as const), variantId, data };
 }
 
-const sourceCompilations = Object.fromEntries(
-  Object.entries(cameraProfileSchemaBundles).map(([key, bundle]) => [
-    key,
-    compileSchemaBundle(bundle),
-  ]),
-);
-/** Safe source boundary: preserve raw input separately from diagnostics and normalized values. */
+/** Decode and apply the runtime owner's pure rules to the exact commit candidate.
+ * The common GUI compiles the supplied SchemaBundle and checks schema constraints separately.
+ * This boundary deliberately performs no schema compilation or GUI initialization.
+ */
 export function validateCameraProfileSource(source: string, context: SchemaValidationContext) {
   let consumerId: string | undefined;
   try {
@@ -128,13 +121,19 @@ export function validateCameraProfileSource(source: string, context: SchemaValid
     ];
     return { source, result: { kind: 'invalid' as const, diagnostics } };
   }
-  const compilation = sourceCompilations[decoded.variantId]!;
-  if (compilation.kind !== 'compiled') return { ...decoded, result: compilation };
+  const result = validateCameraProfileInput(decoded.data as SchemaJsonValue, context);
   return {
     ...decoded,
-    result: validateSchemaInput(compilation.validator, decoded.data as SchemaJsonValue, {
-      context,
-      ownerValidate: validateCameraProfileInput,
-    }),
+    result: result.kind === 'valid'
+      ? {kind: 'valid' as const, diagnostics: []}
+      : {kind: 'invalid' as const, diagnostics: result.issues.map(issue => ({
+          scope: {
+            identity: cameraProfileSchemaBundles[decoded.variantId].identity,
+            ...(consumerId === undefined ? {} : {consumerId}),
+          },
+          phase: 'owner' as const,
+          code: issue.ruleId,
+          dataPath: issue.dataPath,
+        }))},
   };
 }

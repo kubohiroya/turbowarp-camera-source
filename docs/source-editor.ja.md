@@ -1,3 +1,5 @@
+> 現在の依存境界と共通layoutの接続は [editor-runtime-boundary.ja.md](editor-runtime-boundary.ja.md) を参照。以下の公開pinと採取結果は段階2の履歴として保持する。
+
 # Source/Form編集の接続（段階2）
 
 `src/source-editors.ts` は `Scratch.gui?.blockEditors.registerSourceEditor` が存在する場合だけ登録する。旧GUIでは登録を省略し、既存ブロックの実行APIを維持する。GUI側の起動時フラグ `blockEditorSourceForms` は既定OFFで、既存 `blockEditorDialogs` と同時に有効な場合だけ新APIを公開する。
