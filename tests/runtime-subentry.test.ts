@@ -31,7 +31,8 @@ describe('the published runtime sub-entry', () => {
       './runtime',
       './profile',
       './package.json',
-      './editor-schema'
+      './editor-schema',
+      './editor-metadata'
     ]);
   });
 

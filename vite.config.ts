@@ -24,6 +24,10 @@ export default defineConfig({
       generateBundle(_options, bundle) {
         for (const output of Object.values(bundle)) {
           if (output.type === 'chunk') {
+            // Editor packages belong to the host GUI, never to standalone camera playback.
+            const editorDependency = Object.keys(output.modules).find(id =>
+              /(?:^|\/)node_modules\/(?:.*\/)?(?:@kubohiroya\/turbowarp-extension-data-editor|ajv|ajv-formats|yaml|react|react-dom|@rjsf\/[^/]+)(?:\/|$)/u.test(id));
+            if (editorDependency) this.error(`Camera runtime includes an editor dependency: ${editorDependency}`);
             output.code = output.code.replace(/^[ \t]*\/\/#(?:end)?region\b[^\r\n]*(?:\r?\n|$)/gmu, '');
           }
         }

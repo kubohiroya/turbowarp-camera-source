@@ -1,4 +1,4 @@
-import {createBlockEditorService} from '@kubohiroya/turbowarp-extension-data-editor/rjsf';
+import {createBlockEditorService, createSourceEditor} from '@kubohiroya/turbowarp-extension-data-editor/rjsf';
 import {expect, it} from 'vitest';
 import {createSourceEditorOptions, registerSourceEditors} from '../src/source-editors.js';
 import definitions from '../src/block-definitions.json';
@@ -58,4 +58,27 @@ it('registers and resolves every fully qualified opcode through the actual commo
   }
   remove(); remove();
   for (const option of options) for (const opcode of option.opcodes) expect(service.registry.resolve(opcode)).toBeUndefined();
+});
+
+
+it('passes declarative layout metadata without changing schema or decoded data', () => {
+  const binding = createSourceEditorOptions()[0]!.bindings[0]!;
+  for (const variant of binding.variants) {
+    expect(variant.uiSchema?.['ui:options']).toHaveProperty('extensionDataLayout.version', 1);
+    expect(variant.schemaBundle.root.document).not.toHaveProperty('ui:options');
+  }
+});
+
+it('the common prepared service validates hidden schema fields and preserves raw no-op data', () => {
+  const options = createSourceEditorOptions()[0]!;
+  const definition = createSourceEditor(options);
+  const source = '\ufeff  ' + readFileSync(new URL('./fixtures/calibration/valid/minimal.json', import.meta.url), 'utf8') + '  ';
+  const snapshot = {targetId: 'target', blockId: 'profile', revision: 'r1', opcode: options.opcodes[0]!, arguments: {PROFILE_JSON: {kind: 'literal' as const, value: source}}};
+  const draft = definition.read(snapshot);
+  expect(definition.prepareSave(draft, snapshot)).toMatchObject({kind: 'ready', changes: []});
+  const data = JSON.parse(source.trim());
+  data.intrinsics.fx = -1;
+  const invalid = JSON.stringify(data);
+  expect(definition.prepareSave({sources: {PROFILE_JSON: {mode: 'source', source: invalid, sourceEdited: true}}}, snapshot).kind).toBe('invalid');
+  expect(snapshot.arguments.PROFILE_JSON.value).toBe(source);
 });
