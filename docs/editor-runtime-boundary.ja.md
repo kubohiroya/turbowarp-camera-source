@@ -50,9 +50,10 @@ data-editor `0.2.1` は型検査・共通サービスとの開発時検証だけ
 
 - 変更境界: 型検査、対象editor／metadataテスト、変更ファイルのESLint。
 - 既存runtime: extension、許可ブロック、profileブロック、ROS YAML、profile、registry、適合性、保存、互換性の9ファイル189テスト。
+- 共通#49のローカルbuildとのJSDOM統合: `node scripts/check-common-layout.mjs /path/to/built/data-editor`。twcs／legacy／ROSの独自Tree、twcsの標準RJSFの4経路で3タブ・group・grid・no-op原文保持を確認。twcsは両描画経路でタブをまたいだ2項目変更が一度のcommitとなり、pure owner検証に成功。全3variantと入れ子objectのlayout field参照がSchemaと一致。依存pinは変更せず、ローカルoverlay検証として扱う。
 - 隔離consumer: `npm pack --ignore-scripts` のtarballを `npm install --omit=dev --ignore-scripts --offline` で導入。Camera Source一つだけが導入され、metadataをimportできた。兄弟checkout依存は使わない。
 
-ここでのstream／GUI確認はテスト代替であり、実カメラ・実Editor・packaged作品の実ブラウザ表示は未確認である。共通layoutの実表示、非表示タブのエラー誘導、Cancel、Undo／RedoのGUI統合確認は、#49およびGUI側の検証結果と合わせてリリース前に確認する。
+ここでのstream／GUI確認はテスト代替であり、実カメラ・実Editor・packaged作品の実ブラウザ表示は未確認である。共通layoutの実ブラウザ表示、非表示タブのエラー誘導、Cancel、Undo／RedoのGUI統合確認は、#49およびGUI側の検証結果と合わせてリリース前に確認する。
 
 運用ログ:
 - 2026-10-20 start: #52の最新要件とmainを確認し、独立worktreeで実装開始。
