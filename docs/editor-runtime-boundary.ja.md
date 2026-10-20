@@ -24,7 +24,7 @@ Camera Source内の利用箇所は `source-editors.ts`、対応テスト、公�
 
 data-editor `0.2.1` は型検査・共通サービスとの開発時検証だけに使い、`devDependencies` へ移す。production依存および自動導入するpeer依存は設けない。生成JSは共通packageに依存しない。生成 `.d.ts` の共通型を使うTypeScript consumerは、自身の開発依存にdata-editorを追加する。共通GUIは従来どおり自身の依存として同基盤を所有する。ビルド済みnpm成果物を利用し、source archiveの開発ビルドに必要な依存と再生時の依存を区別する。
 
-公開済み `0.17.1` を上書きしない。本作業のmanifest versionは公開前のままとし、リリース時に新しいexact version、lock、配布物を一組で更新する。app等のpin変更はそのリリース後に別工程として行う。
+公開済み `0.17.1` を保持し、リリース版 `0.18.0` のexact version、lock、配布物を一組で更新する。app等のpin変更はnpm公開後に行う。
 
 ## 共通layout #49との接続
 
@@ -58,3 +58,7 @@ data-editor `0.2.1` は型検査・共通サービスとの開発時検証だけ
 運用ログ:
 - 2026-10-20 start: #52の最新要件とmainを確認し、独立worktreeで実装開始。
 - 2026-10-20 done (local): runtime依存除去、軽量metadata入口、共通layout宣言、既存入口の移行文書と配布物を作成。GitHub write／公開は未実施。
+
+## 0.18.0 の公開
+
+編集用依存を外す版を0.18.0として公開する。`./editor-schema` のpure owner検証と共通Schema診断の責務変更を含むため、旧診断phase/codeを使うconsumerは上記移行手順に従う。問題時は0.17.1のexact pin・lock・生成物へ一組で戻す。
