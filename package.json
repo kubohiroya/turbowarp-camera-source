@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "description": "A TurboWarp capability extension for sharing one MediaDevices camera stream across extensions.",
   "type": "module",
@@ -82,7 +82,7 @@
     "vite": "^8.2.2",
     "vitest": "^4.1.10",
     "react-dom": "18.3.1",
-    "@kubohiroya/turbowarp-extension-data-editor": "0.2.1"
+    "@kubohiroya/turbowarp-extension-data-editor": "0.3.0"
   },
   "keywords": [
     "turbowarp",
@@ -91,11 +91,5 @@
     "camera",
     "media-devices",
     "getusermedia"
-  ],
-  "gitHead": "e23f2e1e3db28c5b7e0290949cf99004b689d90c",
-  "x-turbowarp-source": {
-    "revision": "e23f2e1e3db28c5b7e0290949cf99004b689d90c",
-    "revisionRole": "base-commit",
-    "sourceState": "local-release-overlay"
-  }
+  ]
 }
