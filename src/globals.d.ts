@@ -3,11 +3,13 @@ interface TurboWarpExtension {
 }
 
 interface ScratchTranslate {
+  readonly language?: string;
   (text: string): string;
   (message: {default: string; description?: string}, placeholders?: Record<string, string | number>): string;
 }
 
 interface ScratchApi {
+  gui?: {cameraControls?: import('./camera-controls-host.js').CameraControlsHost};
   extensions: {
     unsandboxed: boolean;
     register(extension: TurboWarpExtension): void;

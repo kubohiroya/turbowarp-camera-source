@@ -16,6 +16,787 @@
   	license: "MPL-2.0",
   	unsandboxed: true
   };
+  var registry = Symbol.for("@kubohiroya/turbowarp-app-shell/runtime-controls-dock/v1");
+  var edges = [
+  	"top",
+  	"bottom",
+  	"left",
+  	"right"
+  ];
+  /** App-neutral, optional controls for standalone players that have no Editor toolbar. */
+  function createRuntimeControlsDock(options) {
+  	const { document } = options;
+  	const view = document.defaultView;
+  	const labels = /^ja(?:-|$)/iu.test(options.locale || document.documentElement.lang || view?.navigator.language || "") ? {
+  		tools: "ツール",
+  		settings: "Dockの設定",
+  		edge: "表示位置",
+  		autoHide: "自動的に隠す",
+  		close: "閉じる",
+  		top: "上",
+  		bottom: "下",
+  		left: "左",
+  		right: "右"
+  	} : {
+  		tools: "Tools",
+  		settings: "Dock settings",
+  		edge: "Position",
+  		autoHide: "Automatically hide",
+  		close: "Close",
+  		top: "Top",
+  		bottom: "Bottom",
+  		left: "Left",
+  		right: "Right"
+  	};
+  	const storageKey = options.storageKey || "turbowarp.runtime-controls-dock.v1";
+  	let edge = "bottom";
+  	let autoHide = true;
+  	try {
+  		const stored = JSON.parse(view?.localStorage.getItem(storageKey) || "null");
+  		if (stored && edges.includes(stored.edge)) edge = stored.edge;
+  		if (typeof stored?.autoHide === "boolean") autoHide = stored.autoHide;
+  	} catch {}
+  	const root = document.createElement("div");
+  	root.setAttribute("data-runtime-controls-dock", "true");
+  	const style = document.createElement("style");
+  	style.textContent = `[data-runtime-controls-dock] {position:fixed;z-index:2147483000;display:flex;align-items:center;gap:4px;font:14px/1.4 sans-serif;color:#25354a;max-width:100vw;max-height:100vh}
+  [data-runtime-controls-dock][hidden], [data-runtime-controls-dock] [hidden] {display:none!important}
+  [data-runtime-controls-dock] button, [data-runtime-controls-dock] select {font:inherit;color:inherit;cursor:pointer}
+  [data-runtime-controls-dock] button:focus-visible, [data-runtime-controls-dock] select:focus-visible {outline:3px solid #2864bd;outline-offset:2px}
+  [data-runtime-dock-bar] {display:flex;gap:6px;padding:8px;border:1px solid #9aa8b8;border-radius:14px;background:#f5f8fceF;box-shadow:0 3px 16px #0003;backdrop-filter:blur(16px);overflow:auto;max-width:calc(100vw - 16px);max-height:calc(100vh - 48px)}
+  [data-runtime-dock-bar] button {min-width:48px;min-height:48px;border:1px solid transparent;border-radius:8px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px}
+  [data-runtime-dock-bar] button:hover {background:#dae5f4}
+  [data-runtime-dock-bar] button[aria-expanded=true] {border-color:#2864bd;background:#e8effb}
+  [data-runtime-dock-icon] {font-size:24px;line-height:1}
+  [data-runtime-dock-handle] {min-width:48px;min-height:28px;border:1px solid #9aa8b8;border-radius:8px;background:#f5f8fc;color:#25354a}
+  [data-runtime-dock-settings] {position:fixed;z-index:2147483001;box-sizing:border-box;width:280px;max-width:calc(100vw - 24px);padding:16px;border:1px solid #9aa8b8;border-radius:12px;background:#fff;box-shadow:0 4px 16px #0003;display:flex;flex-direction:column;gap:12px}
+  [data-runtime-dock-panel] {box-sizing:border-box;display:flex;flex-direction:column;width:min(28rem,calc(100vw - 24px));background:#fff;color:#25354a;border:1px solid #9aa8b8;border-radius:12px;box-shadow:0 4px 16px #0003;z-index:2147483001!important;font:14px/1.5 sans-serif;overflow:hidden!important}
+  [data-runtime-dock-panel][hidden] {display:none!important}
+  [data-runtime-dock-panel] > :first-child {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-bottom:1px solid #d8e0ea}
+  [data-runtime-dock-panel] > :nth-child(2) {overflow:auto;min-height:0;padding:0 16px}
+  [data-runtime-dock-panel] > :last-child {padding:12px 16px;border-top:1px solid #d8e0ea}
+  [data-runtime-dock-panel] h2 {font-size:18px;margin:0}
+  [data-runtime-dock-panel] h3 {font-size:15px}
+  [data-runtime-dock-panel] button {font:inherit;min-height:36px;padding:6px 10px;margin:3px;border:1px solid #9aa8b8;border-radius:6px;background:#f5f8fc;color:#25354a;cursor:pointer}
+  [data-runtime-dock-panel] button[aria-checked=true] {border-color:#2864bd;box-shadow:inset 0 0 0 1px #2864bd;background:#e8effb}
+  [data-runtime-dock-panel] button:focus-visible {outline:3px solid #2864bd;outline-offset:1px}
+  [data-runtime-dock-settings] label {display:flex;align-items:center;justify-content:space-between;gap:12px}
+  [data-runtime-dock-settings] select, [data-runtime-dock-settings] button {min-height:36px;padding:6px 10px;border:1px solid #9aa8b8;border-radius:6px;background:#f5f8fc}
+  `;
+  	const handle = document.createElement("button");
+  	handle.type = "button";
+  	handle.textContent = labels.tools;
+  	handle.setAttribute("data-runtime-dock-handle", "true");
+  	handle.setAttribute("aria-label", labels.tools);
+  	const bar = document.createElement("div");
+  	bar.setAttribute("data-runtime-dock-bar", "true");
+  	bar.setAttribute("role", "toolbar");
+  	bar.setAttribute("aria-label", labels.tools);
+  	const settings = document.createElement("div");
+  	settings.setAttribute("data-runtime-dock-settings", "true");
+  	settings.setAttribute("role", "dialog");
+  	settings.setAttribute("aria-label", labels.settings);
+  	const heading = document.createElement("strong");
+  	heading.textContent = labels.settings;
+  	const edgeLabel = document.createElement("label");
+  	edgeLabel.textContent = labels.edge;
+  	const edgeSelect = document.createElement("select");
+  	edgeSelect.setAttribute("aria-label", labels.edge);
+  	for (const position of edges) {
+  		const option = document.createElement("option");
+  		option.value = position;
+  		option.textContent = labels[position];
+  		edgeSelect.append(option);
+  	}
+  	edgeLabel.append(edgeSelect);
+  	const autoLabel = document.createElement("label");
+  	autoLabel.textContent = labels.autoHide;
+  	const autoCheck = document.createElement("input");
+  	autoCheck.type = "checkbox";
+  	autoLabel.append(autoCheck);
+  	const close = document.createElement("button");
+  	close.type = "button";
+  	close.textContent = labels.close;
+  	settings.append(heading, edgeLabel, autoLabel, close);
+  	const gear = document.createElement("button");
+  	gear.type = "button";
+  	gear.textContent = "⚙";
+  	gear.setAttribute("aria-label", labels.settings);
+  	gear.title = labels.settings;
+  	root.append(style, handle, bar, settings);
+  	const entries = /* @__PURE__ */ new Map();
+  	const listeners = /* @__PURE__ */ new Set();
+  	let hovered = false, manual = false, settingsOpen = false, disposed = false;
+  	let timer;
+  	let keyboardInput = false;
+  	const hasFocus = () => keyboardInput && root.contains(document.activeElement);
+  	const expanded = () => !autoHide || hovered || manual || settingsOpen || hasFocus() || [...entries.values()].some((entry) => entry.state.visible && entry.state.expanded);
+  	const persist = () => {
+  		try {
+  			view?.localStorage.setItem(storageKey, JSON.stringify({
+  				edge,
+  				autoHide
+  			}));
+  		} catch {}
+  	};
+  	const placePanel = (panel) => {
+  		const rect = root.getBoundingClientRect();
+  		const width = panel.offsetWidth || 320, height = panel.offsetHeight || 240;
+  		const vw = view?.innerWidth || 480, vh = view?.innerHeight || 360;
+  		let left = (vw - width) / 2, top = (vh - height) / 2;
+  		if (edge === "bottom") top = rect.top - height - 8;
+  		if (edge === "top") top = rect.bottom + 8;
+  		if (edge === "left") left = rect.right + 8;
+  		if (edge === "right") left = rect.left - width - 8;
+  		Object.assign(panel.style, {
+  			position: "fixed",
+  			left: `${Math.max(8, Math.min(left, vw - width - 8))}px`,
+  			top: `${Math.max(8, Math.min(top, vh - height - 8))}px`,
+  			maxHeight: "calc(100vh - 16px)",
+  			overflowY: "auto"
+  		});
+  	};
+  	function render() {
+  		if (disposed) return;
+  		const visible = [...entries.values()].filter((entry) => entry.state.visible);
+  		root.hidden = !visible.length;
+  		if (!visible.length) {
+  			settingsOpen = false;
+  			manual = false;
+  			hovered = false;
+  		}
+  		const showing = expanded();
+  		bar.hidden = !showing;
+  		settings.hidden = !settingsOpen;
+  		handle.hidden = !autoHide;
+  		handle.setAttribute("aria-expanded", String(showing));
+  		root.setAttribute("data-edge", edge);
+  		root.setAttribute("data-auto-hide", String(autoHide));
+  		root.setAttribute("data-expanded", String(showing));
+  		const vertical = edge === "left" || edge === "right";
+  		Object.assign(root.style, {
+  			left: edge === "right" ? "auto" : "0",
+  			right: edge === "left" ? "auto" : "0",
+  			top: edge === "bottom" ? "auto" : "0",
+  			bottom: edge === "top" ? "auto" : "0",
+  			width: "max-content",
+  			height: "max-content",
+  			margin: vertical ? "auto 0" : "0 auto",
+  			transform: "none",
+  			flexDirection: edge === "bottom" ? "column" : edge === "top" ? "column-reverse" : edge === "left" ? "row-reverse" : "row"
+  		});
+  		bar.style.flexDirection = vertical ? "column" : "row";
+  		for (const entry of entries.values()) {
+  			entry.button.hidden = !entry.state.visible;
+  			entry.label.textContent = entry.state.text || entry.state.label;
+  			entry.button.setAttribute("aria-label", entry.state.label);
+  			entry.button.title = entry.state.label;
+  			entry.button.setAttribute("aria-expanded", String(entry.state.expanded));
+  		}
+  		edgeSelect.value = edge;
+  		autoCheck.checked = autoHide;
+  		gear.setAttribute("aria-expanded", String(settingsOpen));
+  		if (settingsOpen) placePanel(settings);
+  		for (const entry of entries.values()) if (entry.panel && entry.state.expanded && !entry.panel.hidden) placePanel(entry.panel);
+  		listeners.forEach((listener) => listener());
+  	}
+  	const scheduleHide = () => {
+  		clearTimeout(timer);
+  		timer = setTimeout(() => {
+  			hovered = false;
+  			manual = false;
+  			render();
+  		}, 600);
+  	};
+  	root.addEventListener("pointerenter", (event) => {
+  		clearTimeout(timer);
+  		hovered = event.pointerType !== "touch";
+  		render();
+  	});
+  	root.addEventListener("pointerleave", (event) => {
+  		if (event.pointerType !== "touch") scheduleHide();
+  	});
+  	root.addEventListener("focusin", render);
+  	root.addEventListener("focusout", (event) => {
+  		if (root.contains(event.relatedTarget)) return;
+  		queueMicrotask(() => {
+  			if (!root.contains(document.activeElement)) manual = false;
+  			render();
+  		});
+  	});
+  	handle.addEventListener("click", () => {
+  		manual = !manual;
+  		render();
+  	});
+  	gear.addEventListener("click", () => {
+  		settingsOpen = !settingsOpen;
+  		render();
+  		if (settingsOpen) edgeSelect.focus();
+  	});
+  	close.addEventListener("click", () => {
+  		settingsOpen = false;
+  		render();
+  		gear.focus();
+  	});
+  	edgeSelect.addEventListener("change", () => {
+  		if (edges.includes(edgeSelect.value)) edge = edgeSelect.value;
+  		persist();
+  		render();
+  	});
+  	autoCheck.addEventListener("change", () => {
+  		autoHide = autoCheck.checked;
+  		persist();
+  		render();
+  	});
+  	const onKey = (event) => {
+  		keyboardInput = true;
+  		if (settingsOpen && event.key === "Escape") {
+  			event.preventDefault();
+  			event.stopPropagation();
+  			settingsOpen = false;
+  			render();
+  			gear.focus();
+  		}
+  	};
+  	const onPointer = (event) => {
+  		keyboardInput = false;
+  		if (!root.contains(event.target)) {
+  			manual = false;
+  			hovered = false;
+  			render();
+  		}
+  	};
+  	const fullscreen = () => {
+  		(document.fullscreenElement || document.body).append(root);
+  		render();
+  	};
+  	document.addEventListener("keydown", onKey, true);
+  	document.addEventListener("pointerdown", onPointer, true);
+  	document.addEventListener("fullscreenchange", fullscreen);
+  	view?.addEventListener("resize", render);
+  	(document.fullscreenElement || document.body).append(root);
+  	const stageControls = { addButton(options) {
+  		if (disposed) throw new Error("The Dock has been disposed");
+  		if (!options.id || !options.label || typeof options.onClick !== "function") throw new TypeError("Invalid Dock control");
+  		entries.get(options.id)?.button.remove();
+  		const button = document.createElement("button");
+  		button.type = "button";
+  		button.setAttribute("data-runtime-dock-control", options.id);
+  		const icon = document.createElement("span");
+  		icon.setAttribute("data-runtime-dock-icon", "true");
+  		icon.setAttribute("aria-hidden", "true");
+  		icon.textContent = options.icon || "•";
+  		const label = document.createElement("span");
+  		button.append(icon, label);
+  		button.addEventListener("click", options.onClick);
+  		const entry = {
+  			button,
+  			label,
+  			state: {
+  				label: options.label,
+  				text: options.text || "",
+  				visible: false,
+  				expanded: false
+  			}
+  		};
+  		entries.set(options.id, entry);
+  		bar.insertBefore(button, gear.parentNode === bar ? gear : null);
+  		if (gear.parentNode !== bar) bar.append(gear);
+  		render();
+  		return {
+  			update(state) {
+  				if (entries.get(options.id) !== entry) return;
+  				let changed = false;
+  				for (const key of [
+  					"label",
+  					"text",
+  					"visible",
+  					"expanded"
+  				]) {
+  					const value = state[key];
+  					if (typeof value === typeof entry.state[key] && entry.state[key] !== value) {
+  						Object.assign(entry.state, { [key]: value });
+  						changed = true;
+  					}
+  				}
+  				if (changed) render();
+  			},
+  			placePanel(element) {
+  				const panel = element;
+  				if (!panel || typeof panel.setAttribute !== "function" || !panel.style) throw new TypeError("Invalid Dock panel");
+  				entry.panel = panel;
+  				panel.setAttribute("data-runtime-dock-panel", "true");
+  				placePanel(panel);
+  			},
+  			focus() {
+  				if (entry.state.visible && entries.get(options.id) === entry) {
+  					manual = true;
+  					render();
+  					button.focus();
+  				}
+  			},
+  			dispose() {
+  				if (entries.get(options.id) !== entry) return;
+  				entries.delete(options.id);
+  				button.remove();
+  				render();
+  			}
+  		};
+  	} };
+  	render();
+  	return {
+  		stageControls,
+  		placePanel,
+  		subscribe(listener) {
+  			listeners.add(listener);
+  			return () => listeners.delete(listener);
+  		},
+  		getSnapshot: () => ({
+  			edge,
+  			autoHide,
+  			expanded: expanded(),
+  			count: [...entries.values()].filter((entry) => entry.state.visible).length
+  		}),
+  		dispose() {
+  			if (disposed) return;
+  			disposed = true;
+  			clearTimeout(timer);
+  			entries.clear();
+  			listeners.clear();
+  			root.remove();
+  			document.removeEventListener("keydown", onKey, true);
+  			document.removeEventListener("pointerdown", onPointer, true);
+  			document.removeEventListener("fullscreenchange", fullscreen);
+  			view?.removeEventListener("resize", render);
+  		}
+  	};
+  }
+  /** Sharing on the document also covers independently bundled copies of this package. */
+  function getRuntimeControlsDock(options) {
+  	const document = options.document;
+  	if (document[registry]) return document[registry];
+  	const dock = createRuntimeControlsDock(options);
+  	const dispose = dock.dispose;
+  	dock.dispose = () => {
+  		dispose();
+  		if (document[registry] === dock) delete document[registry];
+  	};
+  	document[registry] = dock;
+  	return dock;
+  }
+  /** A host adapter for packaged HTML, independent of the player's optional control bar. */
+  function createStandaloneCameraControlsHost(document, locale) {
+  	const ja = /^ja(?:-|$)/iu.test(locale);
+  	const label = ja ? "カメラ" : "Camera";
+  	const dock = getRuntimeControlsDock({
+  		document,
+  		locale
+  	});
+  	let dockButton = null;
+  	let unsubscribeDock = null;
+  	const providers = /* @__PURE__ */ new Map();
+  	let root = null;
+  	let panel;
+  	let chooser;
+  	let content;
+  	let mounted = null;
+  	let mountedRunning = false;
+  	let cameraId = "";
+  	let open = false;
+  	let disposed = false;
+  	const detachContent = () => {
+  		const previous = mounted;
+  		mounted = null;
+  		try {
+  			previous?.onClose?.();
+  		} finally {
+  			if (previous && previous.element.parentNode === content) content.removeChild(previous.element);
+  		}
+  	};
+  	const close = (focus = false) => {
+  		open = false;
+  		render();
+  		if (focus) dockButton?.focus();
+  	};
+  	const onKey = (event) => {
+  		if (open && event.key === "Escape") {
+  			event.preventDefault();
+  			event.stopPropagation();
+  			close(true);
+  		}
+  	};
+  	const onPointer = (event) => {
+  		if (open && root && !root.contains(event.target) && !event.target.closest?.("[data-runtime-dock-control=\"camera\"]")) close();
+  	};
+  	const onFullscreen = () => {
+  		if (root) (document.fullscreenElement || document.body).appendChild(root);
+  	};
+  	const removeRoot = () => {
+  		detachContent();
+  		root?.remove();
+  		root = null;
+  		unsubscribeDock?.();
+  		unsubscribeDock = null;
+  		dockButton?.dispose();
+  		dockButton = null;
+  		document.removeEventListener("keydown", onKey, true);
+  		document.removeEventListener("pointerdown", onPointer, true);
+  		document.removeEventListener("fullscreenchange", onFullscreen);
+  	};
+  	const selectProvider = (visible) => {
+  		const candidates = visible.filter((provider) => provider.cameraId === cameraId);
+  		return candidates.filter((provider) => provider.kind === "settings" && provider.running).at(-1) || candidates.find((provider) => provider.kind === "permission") || candidates.at(-1);
+  	};
+  	const buttonStyle = {
+  		minHeight: "36px",
+  		padding: "6px 12px",
+  		border: "1px solid #617184",
+  		borderRadius: "6px",
+  		background: "#fff",
+  		color: "#25354a",
+  		font: "inherit",
+  		cursor: "pointer"
+  	};
+  	const createRoot = () => {
+  		root = document.createElement("div");
+  		root.setAttribute("data-camera-source-entry-host", "standalone");
+  		Object.assign(root.style, {
+  			position: "fixed",
+  			right: "auto",
+  			bottom: "auto",
+  			width: "320px",
+  			zIndex: "2147483647",
+  			display: "flex",
+  			flexDirection: "column",
+  			alignItems: "flex-end",
+  			gap: "8px",
+  			color: "#25354a",
+  			font: "14px/1.5 sans-serif",
+  			maxWidth: "calc(100vw - 32px)"
+  		});
+  		panel = document.createElement("div");
+  		panel.setAttribute("role", "dialog");
+  		panel.setAttribute("aria-label", label);
+  		panel.setAttribute("data-camera-source-panel", "standalone");
+  		Object.assign(panel.style, {
+  			boxSizing: "border-box",
+  			width: "320px",
+  			maxWidth: "100%",
+  			maxHeight: "calc(100vh - 96px)",
+  			overflowY: "auto",
+  			padding: "16px",
+  			border: "1px solid #617184",
+  			borderRadius: "8px",
+  			background: "#fff",
+  			boxShadow: "0 4px 16px #0004"
+  		});
+  		const header = document.createElement("div");
+  		Object.assign(header.style, {
+  			display: "flex",
+  			alignItems: "center",
+  			justifyContent: "space-between",
+  			marginBottom: "12px"
+  		});
+  		const title = document.createElement("strong");
+  		title.textContent = label;
+  		const dismiss = document.createElement("button");
+  		dismiss.type = "button";
+  		dismiss.textContent = "×";
+  		dismiss.setAttribute("aria-label", ja ? "閉じる" : "Close");
+  		Object.assign(dismiss.style, buttonStyle);
+  		dismiss.addEventListener("click", () => close(true));
+  		header.append(title, dismiss);
+  		chooser = document.createElement("select");
+  		chooser.setAttribute("aria-label", ja ? "カメラID" : "Camera ID");
+  		Object.assign(chooser.style, {
+  			...buttonStyle,
+  			width: "100%",
+  			marginBottom: "8px"
+  		});
+  		chooser.addEventListener("change", () => {
+  			cameraId = chooser.value;
+  			render();
+  		});
+  		content = document.createElement("div");
+  		panel.append(header, chooser, content);
+  		dockButton = dock.stageControls.addButton({
+  			id: "camera",
+  			label,
+  			text: label,
+  			icon: "📷",
+  			onClick: () => {
+  				const starting = !open ? selectProvider([...providers.values()].filter((provider) => provider.visible)) : null;
+  				open = !open;
+  				render();
+  				if (starting?.kind === "settings" && !starting.running) Promise.resolve().then(() => starting.onStart?.()).catch(() => {});
+  			}
+  		});
+  		dockButton.update({ visible: true });
+  		unsubscribeDock = dock.subscribe(() => {
+  			if (open && root) dock.placePanel(root);
+  		});
+  		const style = document.createElement("style");
+  		style.textContent = `[data-camera-source-entry-host] [data-camera-source-settings] {display:flex;flex-direction:column;gap:12px}
+  [data-camera-source-entry-host] [data-camera-source-settings] p {margin:0}
+  [data-camera-source-entry-host] [data-camera-source-settings] label {display:flex;flex-direction:column;gap:4px}
+  [data-camera-source-entry-host] [data-camera-source-settings] select,
+  [data-camera-source-entry-host] [data-camera-source-settings] button {min-height:36px;padding:6px 12px;border:1px solid #617184;border-radius:6px;background:#fff;color:#25354a;font:inherit}
+  [data-camera-source-entry-host] [data-camera-source-settings] [hidden] {display:none}`;
+  		root.append(style, panel);
+  		(document.fullscreenElement || document.body).appendChild(root);
+  		document.addEventListener("keydown", onKey, true);
+  		document.addEventListener("pointerdown", onPointer, true);
+  		document.addEventListener("fullscreenchange", onFullscreen);
+  	};
+  	function render() {
+  		if (disposed) return;
+  		const visible = [...providers.values()].filter((provider) => provider.visible);
+  		const ids = [...new Set(visible.map((provider) => provider.cameraId))];
+  		if (!ids.includes(cameraId)) cameraId = ids[0] || "";
+  		if (!visible.length) {
+  			open = false;
+  			removeRoot();
+  			return;
+  		}
+  		if (!root) createRoot();
+  		const selected = selectProvider(visible);
+  		dockButton?.update({ expanded: open });
+  		panel.hidden = !open;
+  		if (open && root) dock.placePanel(root);
+  		chooser.hidden = ids.length < 2;
+  		chooser.replaceChildren(...ids.map((id) => {
+  			const option = document.createElement("option");
+  			option.value = id;
+  			option.textContent = id;
+  			return option;
+  		}));
+  		chooser.value = cameraId;
+  		panel.setAttribute("data-camera-mode", selected.kind === "permission" || !selected.running ? "permission" : "settings");
+  		if (!open) {
+  			detachContent();
+  			return;
+  		}
+  		if (mounted !== selected || mountedRunning !== selected.running) {
+  			detachContent();
+  			mounted = selected;
+  			mountedRunning = selected.running;
+  			content.appendChild(selected.element);
+  			Promise.resolve().then(() => {
+  				if (mounted === selected && open) return selected.onOpen?.();
+  			}).catch(() => {});
+  			if (root) dock.placePanel(root);
+  		}
+  	}
+  	return {
+  		host: { registerProvider(options) {
+  			if (disposed) throw new Error("The standalone camera host has been disposed");
+  			const provider = {
+  				...options,
+  				visible: options.visible !== false,
+  				running: options.running === true
+  			};
+  			providers.set(options.id, provider);
+  			render();
+  			return {
+  				update(state) {
+  					if (providers.get(options.id) !== provider) return;
+  					let changed = false;
+  					for (const key of ["visible", "running"]) if (typeof state[key] === "boolean" && provider[key] !== state[key]) {
+  						provider[key] = state[key];
+  						changed = true;
+  					}
+  					if (changed) render();
+  				},
+  				dispose() {
+  					if (providers.get(options.id) !== provider) return;
+  					providers.delete(options.id);
+  					render();
+  				}
+  			};
+  		} },
+  		dispose() {
+  			if (disposed) return;
+  			disposed = true;
+  			providers.clear();
+  			open = false;
+  			removeRoot();
+  		}
+  	};
+  }
+  /** Camera UI shared by all consumers; the GUI only supplies the entry and panel location. */
+  function createCameraControls(options) {
+  	const ja = /^ja(?:-|$)/iu.test(options.locale || options.document.documentElement?.lang || globalThis.navigator?.language || "");
+  	const labels = {
+  		permission: ja ? "カメラの許可・開始を待っています。" : "Waiting to enable the camera.",
+  		running: ja ? "カメラは起動しています。" : "The camera is running.",
+  		select: ja ? "使用するカメラ" : "Camera device",
+  		default: ja ? "既定のカメラ" : "Default camera",
+  		front: ja ? "前面カメラ" : "Front camera",
+  		back: ja ? "背面カメラ" : "Back camera",
+  		mirror: ja ? "左右反転" : "Mirror preview",
+  		mirrored: ja ? "左右反転：オン" : "Mirroring: on",
+  		unmirrored: ja ? "左右反転：オフ" : "Mirroring: off",
+  		...options.labels
+  	};
+  	const panel = options.document.createElement("div");
+  	panel.setAttribute("data-camera-source-settings", "true");
+  	const status = options.document.createElement("p");
+  	const label = options.document.createElement("label");
+  	label.textContent = labels.select;
+  	const select = options.document.createElement("select");
+  	select.setAttribute("aria-label", labels.select);
+  	label.appendChild(select);
+  	const mirror = options.document.createElement("button");
+  	mirror.type = "button";
+  	mirror.setAttribute("aria-label", labels.mirror);
+  	panel.append(status, label, mirror);
+  	let enabled = false;
+  	let disposed = false;
+  	let generation = 0;
+  	let mirroring = options.mirroring === "unmirrored" ? "unmirrored" : "mirrored";
+  	let selectionTokens = /* @__PURE__ */ new Map();
+  	let failureMessage = "";
+  	const error = (failure) => {
+  		failureMessage = failure instanceof Error ? failure.message : String(failure);
+  		status.textContent = failureMessage;
+  	};
+  	const renderMirror = () => {
+  		mirror.textContent = mirroring === "mirrored" ? labels.mirrored : labels.unmirrored;
+  		mirror.setAttribute("aria-pressed", String(mirroring === "mirrored"));
+  	};
+  	const refresh = () => {
+  		if (disposed) return;
+  		const running = options.port.isCameraRunning();
+  		registration.update({
+  			visible: enabled,
+  			running
+  		});
+  		status.textContent = failureMessage || (running ? labels.running : labels.permission);
+  		label.hidden = !running || !options.port.selectCamera || !options.port.listCameraDevices;
+  		mirror.hidden = !running || !options.port.setPreviewMirroring;
+  		renderMirror();
+  	};
+  	const open = async () => {
+  		failureMessage = "";
+  		const revision = ++generation;
+  		refresh();
+  		if (!options.port.isCameraRunning() || !options.port.listCameraDevices || !options.port.selectCamera) return;
+  		select.disabled = true;
+  		try {
+  			const devices = await options.port.listCameraDevices();
+  			if (disposed || revision !== generation) return;
+  			const tokens = /* @__PURE__ */ new Map();
+  			select.replaceChildren();
+  			const append = (token, text, value) => {
+  				const option = options.document.createElement("option");
+  				option.value = token;
+  				option.textContent = text;
+  				select.appendChild(option);
+  				tokens.set(token, value);
+  			};
+  			for (const preference of [
+  				"default",
+  				"front",
+  				"back"
+  			]) append(preference, labels[preference], preference);
+  			if (Array.isArray(devices)) devices.forEach((device, index) => {
+  				if (device.deviceId) append(`device:${index}`, device.label || `${ja ? "カメラ" : "Camera"} ${index + 1}`, { deviceId: device.deviceId });
+  			});
+  			const active = options.port.getActiveCamera?.();
+  			if (active?.deviceId && !Array.from(tokens.values()).some((value) => typeof value === "object" && value && value.deviceId === active.deviceId)) append("device:current", active.label || (ja ? "現在のカメラ" : "Current camera"), { deviceId: active.deviceId });
+  			selectionTokens = tokens;
+  			const selected = options.port.getCameraSelection?.();
+  			const deviceId = typeof selected === "object" && selected ? selected.deviceId : null;
+  			select.value = Array.from(tokens).find(([, value]) => value === selected || deviceId && typeof value === "object" && value && value.deviceId === deviceId)?.[0] || "default";
+  		} catch (failure) {
+  			error(failure);
+  		} finally {
+  			if (!disposed && revision === generation) select.disabled = false;
+  		}
+  	};
+  	const registration = options.host.registerProvider({
+  		id: `camera-source-settings:${options.owner}`,
+  		cameraId: options.cameraId || "default",
+  		visible: false,
+  		kind: "settings",
+  		element: panel,
+  		running: options.port.isCameraRunning(),
+  		onOpen: open,
+  		onClose: () => {
+  			generation++;
+  		},
+  		onStart: async () => {
+  			failureMessage = "";
+  			try {
+  				await options.requestStart();
+  				refresh();
+  			} catch (failure) {
+  				error(failure);
+  			}
+  		}
+  	});
+  	const handleSelection = async () => {
+  		if (disposed || !enabled || !selectionTokens.has(select.value)) return;
+  		failureMessage = "";
+  		const revision = generation;
+  		select.disabled = true;
+  		try {
+  			await options.port.selectCamera?.(selectionTokens.get(select.value));
+  		} catch (failure) {
+  			error(failure);
+  		} finally {
+  			if (!disposed && revision === generation) select.disabled = false;
+  		}
+  	};
+  	const handleMirror = async () => {
+  		if (disposed || !enabled) return;
+  		failureMessage = "";
+  		mirror.disabled = true;
+  		const next = mirroring === "mirrored" ? "unmirrored" : "mirrored";
+  		try {
+  			await options.port.setPreviewMirroring?.(next);
+  			mirroring = next;
+  			renderMirror();
+  		} catch (failure) {
+  			error(failure);
+  		} finally {
+  			if (!disposed) mirror.disabled = false;
+  		}
+  	};
+  	select.addEventListener("change", handleSelection);
+  	mirror.addEventListener("click", handleMirror);
+  	const timer = setInterval(refresh, 100);
+  	refresh();
+  	return {
+  		element: panel,
+  		start() {
+  			enabled = true;
+  			refresh();
+  		},
+  		stop() {
+  			enabled = false;
+  			generation++;
+  			registration.update({ visible: false });
+  		},
+  		refresh,
+  		setMirroring(mode) {
+  			if (mode === "mirrored" || mode === "unmirrored") {
+  				mirroring = mode;
+  				renderMirror();
+  			}
+  		},
+  		dispose() {
+  			if (disposed) return;
+  			disposed = true;
+  			generation++;
+  			clearInterval(timer);
+  			registration.dispose();
+  			panel.remove();
+  			select.removeEventListener("change", handleSelection);
+  			mirror.removeEventListener("click", handleMirror);
+  		}
+  	};
+  }
   var block_editor_fixed_inputs_schema_default = {
   	$schema: "https://json-schema.org/draft/2020-12/schema",
   	$id: "https://kubohiroya.github.io/turbowarp-camera-source/schemas/block-editor-fixed-inputs.schema.json",
@@ -2884,22 +3665,26 @@
   	button.type = "button";
   	button.textContent = options.label;
   	element.append(button);
-  	element.style.position = "absolute";
-  	element.style.left = "50%";
-  	element.style.top = "50%";
-  	element.style.transform = "translate(-50%, -50%)";
-  	element.style.zIndex = "2";
+  	if (!options.cameraControls) {
+  		element.style.position = "absolute";
+  		element.style.left = "50%";
+  		element.style.top = "50%";
+  		element.style.transform = "translate(-50%, -50%)";
+  		element.style.zIndex = "2";
+  	}
   	try {
-  		element.setConstraints?.({ video: {} });
+  		element.setConstraints?.(options.constraints ?? { video: {} });
   	} catch {}
   	let settle = () => {};
   	const settled = new Promise((resolve) => {
   		settle = resolve;
   	});
+  	let registration;
   	let done = false;
   	const finish = (outcome) => {
   		if (done) return;
   		done = true;
+  		registration?.dispose();
   		element.remove();
   		settle(outcome);
   	};
@@ -2917,8 +3702,9 @@
   	});
   	element.addEventListener("cancel", () => finish({ kind: "cancelled" }));
   	element.addEventListener("error", (event) => {
-  		const detail = event.error;
+  		const detail = element.error ?? event.error;
   		const code = typeof detail?.name === "string" && detail.name.length > 0 ? detail.name : "usermedia-error";
+  		if (code === "InvalidStateError") return;
   		const message = typeof detail?.message === "string" && detail.message.length > 0 ? detail.message : "The camera button could not open the camera.";
   		finish({
   			kind: "error",
@@ -2926,7 +3712,14 @@
   			message
   		});
   	});
-  	options.container.append(element);
+  	if (options.cameraControls) registration = options.cameraControls.registerProvider({
+  		id: `camera-source-permission:${options.owner || options.cameraId || "default"}`,
+  		cameraId: options.cameraId || "default",
+  		kind: "permission",
+  		element
+  	});
+  	else if (options.container) options.container.append(element);
+  	else throw new TypeError("Camera permission requires a host or container");
   	return Object.freeze({
   		dismiss: () => finish({ kind: "cancelled" }),
   		settled
@@ -3306,6 +4099,8 @@
   		this.blockPreviewLeases = /* @__PURE__ */ new Map();
   		this.blockPreviewRevisions = /* @__PURE__ */ new Map();
   		this.cameraFailures = /* @__PURE__ */ new Map();
+  		this.controls = /* @__PURE__ */ new Set();
+  		this.standaloneControls = null;
   		this.cameraButtons = /* @__PURE__ */ new Map();
   		this.profiles = new CameraProfileRegistry();
   		this.generations = /* @__PURE__ */ new Map();
@@ -3319,6 +4114,8 @@
   			this.removeFixedEditors();
   			this.removeSourceEditors();
   			this.stopAllCameras();
+  			this.standaloneControls?.dispose();
+  			this.standaloneControls = null;
   			const runtime = Scratch.vm.runtime;
   			if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[cameraSourceCapabilityKey];
   			this.profileChannel?.close();
@@ -3514,6 +4311,8 @@
   		return this.devices[indexFrom(args.INDEX)]?.label ?? "";
   	}
   	stopAllCameras() {
+  		for (const control of [...this.controls]) control.dispose();
+  		this.controls.clear();
   		for (const request of [...this.cameraButtons.values()]) request.dismiss();
   		this.cameraButtons.clear();
   		for (const cameraId of [...this.sessions.keys()]) this.stopCameraSession(cameraId);
@@ -3700,8 +4499,9 @@
   			});
   			return;
   		}
-  		const container = this.cameraButtonContainer();
-  		if (!container) {
+  		const host = this.cameraControlsHost();
+  		const container = host ? null : this.cameraButtonContainer();
+  		if (!host && !container) {
   			this.cameraFailures.set(cameraId, {
   				code: "usermedia-no-stage",
   				message: "The stage the camera button would be placed on was not found."
@@ -3711,7 +4511,10 @@
   		this.cameraButtons.get(cameraId)?.dismiss();
   		const request = requestUserMedia({
   			document,
-  			container,
+  			...host ? {
+  				cameraControls: host,
+  				cameraId
+  			} : { container },
   			label: Scratch.translate("Allow the camera")
   		});
   		this.cameraButtons.set(cameraId, request);
@@ -3741,6 +4544,84 @@
   			outcome.stream.getTracks().forEach((track) => track.stop());
   			this.cameraFailures.set(cameraId, cameraFailure(error));
   		}
+  	}
+  	cameraControlsHost() {
+  		if (Scratch.gui?.cameraControls) return Scratch.gui.cameraControls;
+  		if (typeof document === "undefined" || !document.body) return null;
+  		this.standaloneControls ?? (this.standaloneControls = createStandaloneCameraControlsHost(document, Scratch.translate.language || document.documentElement?.lang || globalThis.navigator?.language || "en"));
+  		return this.standaloneControls.host;
+  	}
+  	/** Generic controls live here; consumers supply only preview-specific operations. */
+  	registerCameraControls(options) {
+  		const host = this.cameraControlsHost();
+  		if (!host || typeof document === "undefined") return null;
+  		const cameraId = normalizeId(options.cameraId);
+  		let stream = null;
+  		let lease = null;
+  		let request = null;
+  		let disposed = false;
+  		const port = options.port || { isCameraRunning: () => this.isCameraRunning({ CAMERA_ID: cameraId }) };
+  		const panel = createCameraControls({
+  			...options,
+  			locale: options.locale || Scratch.translate.language || "",
+  			cameraId,
+  			document,
+  			host,
+  			port: {
+  				...port,
+  				isCameraRunning: () => this.isCameraRunning({ CAMERA_ID: cameraId }) || port.isCameraRunning()
+  			},
+  			requestStart: async () => {
+  				if (disposed || request || this.isCameraRunning({ CAMERA_ID: cameraId })) return;
+  				if (!supportsUserMediaElement()) throw new Error(Scratch.translate("This browser has no camera button element."));
+  				request = requestUserMedia({
+  					document,
+  					cameraControls: host,
+  					cameraId,
+  					owner: options.owner,
+  					label: Scratch.translate("Allow the camera")
+  				});
+  				const outcome = await request.settled;
+  				request = null;
+  				if (outcome.kind === "error") throw new Error(outcome.message);
+  				if (outcome.kind !== "stream") return;
+  				if (disposed) {
+  					outcome.stream.getTracks().forEach((track) => track.stop());
+  					return;
+  				}
+  				stream = outcome.stream;
+  				try {
+  					const adopted = await this.adoptCamera({
+  						cameraId,
+  						owner: options.owner,
+  						stream
+  					});
+  					if (disposed) {
+  						adopted.release();
+  						return;
+  					}
+  					lease = adopted;
+  				} catch (failure) {
+  					stream.getTracks().forEach((track) => track.stop());
+  					stream = null;
+  					throw failure;
+  				}
+  			}
+  		});
+  		const control = {
+  			...panel,
+  			dispose: () => {
+  				if (disposed) return;
+  				disposed = true;
+  				request?.dismiss();
+  				panel.dispose();
+  				lease?.release();
+  				stream?.getTracks().forEach((track) => track.stop());
+  				this.controls.delete(control);
+  			}
+  		};
+  		this.controls.add(control);
+  		return control;
   	}
   	/** Removes a camera button still waiting for an answer; the script waiting on it continues. */
   	hideCameraButton(args = {}) {

@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
+      '@kubohiroya/turbowarp-app-shell':
+        specifier: 0.3.0
+        version: 0.3.0
       '@kubohiroya/turbowarp-extension-data-editor':
         specifier: 0.3.0
         version: 0.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -263,6 +266,10 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
+
+  '@kubohiroya/turbowarp-app-shell@0.3.0':
+    resolution: {integrity: sha512-BtbOcbs00bCWioDoyXgOqtU/VASLYzX9JkMXnuMBT0jkZcKvkR2eiw0Ir0jDOD7LDxu0pu/l7bMnWf2WOE9hCA==}
+    engines: {node: '>=22'}
 
   '@kubohiroya/turbowarp-extension-data-editor@0.3.0':
     resolution: {integrity: sha512-QYC/F394HjVKnmbubJqAYBp/DbiJbTQ4McvwxkeJtYKJ+6Vp8q+cefy9VHas9QYldlTa+UC9uq6xvzO9sFfjFg==}
@@ -1347,6 +1354,8 @@ snapshots:
   '@humanwhocodes/retry@0.4.3': {}
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
+
+  '@kubohiroya/turbowarp-app-shell@0.3.0': {}
 
   '@kubohiroya/turbowarp-extension-data-editor@0.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
