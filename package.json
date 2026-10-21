@@ -71,6 +71,7 @@
     "prepare": "npm run build"
   },
   "devDependencies": {
+    "@kubohiroya/turbowarp-app-shell": "0.3.0",
     "@eslint/js": "^9.39.5",
     "@kubohiroya/turbowarp-extension-manifest": "0.3.2",
     "@kubohiroya/vite-plugin-turbowarp-extension": "0.6.1",
@@ -91,8 +92,5 @@
     "camera",
     "media-devices",
     "getusermedia"
-  ],
-  "dependencies": {
-    "@kubohiroya/turbowarp-app-shell": "0.3.0"
-  }
+  ]
 }

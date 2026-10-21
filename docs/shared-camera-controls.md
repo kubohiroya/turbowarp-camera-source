@@ -15,4 +15,4 @@ Camera Sourceのruntime上の拡張インスタンスは`registerCameraControls(
 位置指定やドラッグ移動は共通入口のAPIに含めない。受け入れ条件は一つの入口、許可/設定の切替、機器選択/左右反転、非同期キャンセルとストリームの後始末。切戻しは今回の利用側/API差分のrevert。
 
 
-Packager HTMLの入口は操作列の有無・file://・全画面に依存しない共通Dockを使う。標準設定は下・自動非表示ON。Dock本体の責務はapp-shell #16、カメラ設定・許可の責務は本拡張にある。Camera Source 0.19.0はapp-shell 0.3.0を完全固定して利用する。
+Packager HTMLの入口は操作列の有無・file://・全画面に依存しない共通Dockを使う。標準設定は下・自動非表示ON。Dock本体の責務はapp-shell #16、カメラ設定・許可の責務は本拡張にある。Camera Source 0.19.0はapp-shell 0.3.0をビルド依存として完全固定し、配布extensionへ内包する。runtime/profile等の純粋entryは第三者runtime importを持たない。
