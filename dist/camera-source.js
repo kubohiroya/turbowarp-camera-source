@@ -30,6 +30,7 @@
   	const labels = /^ja(?:-|$)/iu.test(options.locale || document.documentElement.lang || view?.navigator.language || "") ? {
   		tools: "ツール",
   		settings: "Dockの設定",
+  		settingsButton: "設定",
   		edge: "表示位置",
   		autoHide: "自動的に隠す",
   		close: "閉じる",
@@ -40,6 +41,7 @@
   	} : {
   		tools: "Tools",
   		settings: "Dock settings",
+  		settingsButton: "Settings",
   		edge: "Position",
   		autoHide: "Automatically hide",
   		close: "Close",
@@ -64,7 +66,7 @@
   [data-runtime-controls-dock] button, [data-runtime-controls-dock] select {font:inherit;color:inherit;cursor:pointer}
   [data-runtime-controls-dock] button:focus-visible, [data-runtime-controls-dock] select:focus-visible {outline:3px solid #2864bd;outline-offset:2px}
   [data-runtime-dock-bar] {display:flex;gap:6px;padding:8px;border:1px solid #9aa8b8;border-radius:14px;background:#f5f8fceF;box-shadow:0 3px 16px #0003;backdrop-filter:blur(16px);overflow:auto;max-width:calc(100vw - 16px);max-height:calc(100vh - 48px)}
-  [data-runtime-dock-bar] button {min-width:48px;min-height:48px;border:1px solid transparent;border-radius:8px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px}
+  [data-runtime-dock-bar] button {min-width:48px;min-height:48px;padding:0 4px;border:1px solid transparent;border-radius:8px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px}
   [data-runtime-dock-bar] button:hover {background:#dae5f4}
   [data-runtime-dock-bar] button[aria-expanded=true] {border-color:#2864bd;background:#e8effb}
   [data-runtime-dock-icon] {font-size:24px;line-height:1}
@@ -120,7 +122,13 @@
   	settings.append(heading, edgeLabel, autoLabel, close);
   	const gear = document.createElement("button");
   	gear.type = "button";
-  	gear.textContent = "⚙";
+  	const gearIcon = document.createElement("span");
+  	gearIcon.setAttribute("data-runtime-dock-icon", "true");
+  	gearIcon.setAttribute("aria-hidden", "true");
+  	gearIcon.textContent = "⚙";
+  	const gearLabel = document.createElement("span");
+  	gearLabel.textContent = labels.settingsButton;
+  	gear.append(gearIcon, gearLabel);
   	gear.setAttribute("aria-label", labels.settings);
   	gear.title = labels.settings;
   	root.append(style, handle, bar, settings);
