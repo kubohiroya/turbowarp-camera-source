@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "description": "A TurboWarp capability extension for sharing one MediaDevices camera stream across extensions.",
   "type": "module",
@@ -91,5 +91,8 @@
     "camera",
     "media-devices",
     "getusermedia"
-  ]
+  ],
+  "dependencies": {
+    "@kubohiroya/turbowarp-app-shell": "0.3.0"
+  }
 }

@@ -1,3 +1,4 @@
+import type {CameraControlsHost} from './camera-controls-host.js';
 /**
  * The browser's own camera button, as a DOM element the extension can place.
  *
@@ -25,12 +26,16 @@ export interface UserMediaRequest {
 
 interface UserMediaElement extends HTMLElement {
   stream?: MediaStream | null;
+  error?: {name?: unknown; message?: unknown};
   setConstraints?: (constraints: unknown) => void;
 }
 
 export interface UserMediaRequestOptions {
   document: Document;
-  container: Element;
+  container?: Element;
+  cameraControls?: CameraControlsHost;
+  cameraId?: string;
+  owner?: string;
   label: string;
   constraints?: unknown;
 }
@@ -52,13 +57,15 @@ export function requestUserMedia(options: UserMediaRequestOptions): UserMediaReq
   button.type = 'button';
   button.textContent = options.label;
   element.append(button);
-  element.style.position = 'absolute';
-  element.style.left = '50%';
-  element.style.top = '50%';
-  element.style.transform = 'translate(-50%, -50%)';
-  element.style.zIndex = '2';
+  if (!options.cameraControls) {
+    element.style.position = 'absolute';
+    element.style.left = '50%';
+    element.style.top = '50%';
+    element.style.transform = 'translate(-50%, -50%)';
+    element.style.zIndex = '2';
+  }
   try {
-    element.setConstraints?.({video: {}});
+    element.setConstraints?.(options.constraints ?? {video: {}});
   } catch {
     // A browser that has the element but refuses these constraints still answers its own prompt.
   }
@@ -67,10 +74,12 @@ export function requestUserMedia(options: UserMediaRequestOptions): UserMediaReq
   const settled = new Promise<UserMediaOutcome>((resolve) => {
     settle = resolve;
   });
+  let registration: {dispose(): void} | undefined;
   let done = false;
   const finish = (outcome: UserMediaOutcome): void => {
     if (done) return;
     done = true;
+    registration?.dispose();
     element.remove();
     settle(outcome);
   };
@@ -82,8 +91,11 @@ export function requestUserMedia(options: UserMediaRequestOptions): UserMediaReq
   });
   element.addEventListener('cancel', () => finish({kind: 'cancelled'}));
   element.addEventListener('error', (event: Event) => {
-    const detail = (event as Event & {error?: {name?: unknown; message?: unknown}}).error;
+    const detail = element.error ?? (event as Event & {error?: {name?: unknown; message?: unknown}}).error;
     const code = typeof detail?.name === 'string' && detail.name.length > 0 ? detail.name : 'usermedia-error';
+    // Layout validation can temporarily disable a newly mounted native element. Keep it
+    // mounted so the next real click can succeed after the browser enables it.
+    if (code === 'InvalidStateError') return;
     const message =
       typeof detail?.message === 'string' && detail.message.length > 0
         ? detail.message
@@ -91,7 +103,13 @@ export function requestUserMedia(options: UserMediaRequestOptions): UserMediaReq
     finish({kind: 'error', code, message});
   });
 
-  options.container.append(element);
+  if (options.cameraControls) {
+    registration = options.cameraControls.registerProvider({
+      id: `camera-source-permission:${options.owner || options.cameraId || 'default'}`,
+      cameraId: options.cameraId || 'default', kind: 'permission', element
+    });
+  } else if (options.container) options.container.append(element);
+  else throw new TypeError('Camera permission requires a host or container');
   return Object.freeze({
     dismiss: () => finish({kind: 'cancelled'}),
     settled

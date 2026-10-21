@@ -242,3 +242,20 @@ describe("the browser's camera button", () => {
     expect(element.removed).toBe(true);
   });
 });
+
+
+it('registers the native permission element with a capable Editor instead of placing it on the stage', async () => {
+  const {element, stage, getUserMedia} = install();
+  const dispose = vi.fn();
+  const registerProvider = vi.fn(() => ({dispose, update: vi.fn()}));
+  (Scratch as unknown as {gui: unknown}).gui = {cameraControls: {registerProvider}};
+  const extension = new CameraSourceExtension();
+  const started = extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+  expect(registerProvider).toHaveBeenCalledWith(expect.objectContaining({cameraId: 'pose', kind: 'permission', element}));
+  expect(stage.parent.appended).toEqual([]);
+  element.emit('cancel');
+  await started;
+  expect(dispose).toHaveBeenCalledTimes(1);
+  expect(getUserMedia).not.toHaveBeenCalled();
+  extension.dispose();
+});

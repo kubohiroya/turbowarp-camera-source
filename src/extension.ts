@@ -1,3 +1,5 @@
+import {createStandaloneCameraControlsHost} from './standalone-camera-controls-host.js';
+import {createCameraControls, type CameraControlsOptions} from './camera-controls.js';
 import {fixedInputEditors, registerFixedInputEditors} from './fixed-input-editors.js';
 import {registerSourceEditors} from './source-editors.js';
 import {extensionConfig} from './config';
@@ -280,6 +282,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly blockPreviewLeases = new Map<string, BlockPreviewLease>();
   private readonly blockPreviewRevisions = new Map<string, number>();
   private readonly cameraFailures = new Map<string, CameraFailure>();
+  private readonly controls = new Set<{dispose(): void}>();
+  private standaloneControls: ReturnType<typeof createStandaloneCameraControlsHost> | null = null;
   private readonly cameraButtons = new Map<string, UserMediaRequest>();
   private readonly profiles = new CameraProfileRegistry();
   private readonly generations = new Map<string, number>();
@@ -525,6 +529,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
   }
 
   public stopAllCameras(): void {
+    for (const control of [...this.controls]) control.dispose();
+    this.controls.clear();
     for (const request of [...this.cameraButtons.values()]) request.dismiss();
     this.cameraButtons.clear();
     for (const cameraId of [...this.sessions.keys()]) {
@@ -538,6 +544,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.removeFixedEditors();
     this.removeSourceEditors();
     this.stopAllCameras();
+    this.standaloneControls?.dispose();
+    this.standaloneControls = null;
     // Only withdraw the capability if it is still the one this instance published. A reloaded
     // project builds a new extension before the old one is disposed, and deleting the key blindly
     // would take the new instance's capability away from every consumer.
@@ -747,8 +755,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
       });
       return;
     }
-    const container = this.cameraButtonContainer();
-    if (!container) {
+    const host = this.cameraControlsHost();
+    const container = host ? null : this.cameraButtonContainer();
+    if (!host && !container) {
       this.cameraFailures.set(cameraId, {
         code: 'usermedia-no-stage',
         message: 'The stage the camera button would be placed on was not found.'
@@ -758,7 +767,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.cameraButtons.get(cameraId)?.dismiss();
     const request = requestUserMedia({
       document,
-      container,
+      ...(host ? {cameraControls: host, cameraId} : {container: container!}),
       label: Scratch.translate('Allow the camera')
     });
     this.cameraButtons.set(cameraId, request);
@@ -786,6 +795,57 @@ export class CameraSourceExtension implements TurboWarpExtension {
       outcome.stream.getTracks().forEach((track) => track.stop());
       this.cameraFailures.set(cameraId, cameraFailure(error));
     }
+  }
+
+  private cameraControlsHost() {
+    if (Scratch.gui?.cameraControls) return Scratch.gui.cameraControls;
+    if (typeof document === 'undefined' || !document.body) return null;
+    this.standaloneControls ??= createStandaloneCameraControlsHost(document,
+      Scratch.translate.language || document.documentElement?.lang || globalThis.navigator?.language || 'en');
+    return this.standaloneControls.host;
+  }
+
+  /** Generic controls live here; consumers supply only preview-specific operations. */
+  public registerCameraControls(options: CameraControlsOptions) {
+    const host = this.cameraControlsHost();
+    if (!host || typeof document === 'undefined') return null;
+    const cameraId = normalizeId(options.cameraId);
+    let stream: MediaStream | null = null;
+    let lease: CameraLease | null = null;
+    let request: UserMediaRequest | null = null;
+    let disposed = false;
+    const port = options.port || {isCameraRunning: () => this.isCameraRunning({CAMERA_ID: cameraId})};
+    const panel = createCameraControls({...options, locale: options.locale || Scratch.translate.language || '', cameraId, document, host,
+      port: {...port, isCameraRunning: () => this.isCameraRunning({CAMERA_ID: cameraId}) || port.isCameraRunning()},
+      requestStart: async () => {
+        if (disposed || request || this.isCameraRunning({CAMERA_ID: cameraId})) return;
+        if (!supportsUserMediaElement()) throw new Error(Scratch.translate('This browser has no camera button element.'));
+        request = requestUserMedia({document, cameraControls: host, cameraId, owner: options.owner,
+          label: Scratch.translate('Allow the camera')});
+        const outcome = await request.settled;
+        request = null;
+        if (outcome.kind === 'error') throw new Error(outcome.message);
+        if (outcome.kind !== 'stream') return;
+        if (disposed) { outcome.stream.getTracks().forEach(track => track.stop()); return; }
+        stream = outcome.stream;
+        try {
+          const adopted = await this.adoptCamera({cameraId, owner: options.owner, stream});
+          if (disposed) { adopted.release(); return; }
+          lease = adopted;
+        }
+        catch (failure) { stream.getTracks().forEach(track => track.stop()); stream = null; throw failure; }
+      }
+    });
+    const control = {...panel, dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      request?.dismiss(); panel.dispose();
+      lease?.release();
+      stream?.getTracks().forEach(track => track.stop());
+      this.controls.delete(control);
+    }};
+    this.controls.add(control);
+    return control;
   }
 
   /** Removes a camera button still waiting for an answer; the script waiting on it continues. */
