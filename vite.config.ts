@@ -12,6 +12,7 @@ export default defineConfig({
       description: extensionConfig.description,
       author: extensionConfig.author,
       license: extensionConfig.license,
+      unsandboxed: 'required',
       fileName: `${extensionConfig.slug}.js`
     }),
     extensionManifestPlugin({

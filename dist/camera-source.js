@@ -3,6 +3,7 @@
 // Description: Share one MediaDevices camera stream between TurboWarp extensions.
 // By: Hiroya Kubo
 // License: MPL-2.0
+// Unsandboxed: required
 
 (function (Scratch) {
   'use strict';

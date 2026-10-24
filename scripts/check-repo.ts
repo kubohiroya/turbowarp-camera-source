@@ -163,6 +163,13 @@ requireText(readme, cdnUrl, "README.md");
 requireText(japaneseReadme, cdnUrl, "README.ja.md");
 
 const bundle = await readText("dist/camera-source.js");
+
+// The host reads the leading comments before allowing extension code to run.
+const header = bundle.match(/^(?:\/\/[^\n]*(?:\n|$))*/u)?.[0] ?? "";
+if (!/^\/\/ Unsandboxed: required$/mu.test(header)) {
+  throw new Error("dist/camera-source.js must declare Unsandboxed: required in its header.");
+}
+
 for (const expected of [
   "Name: Camera Source",
   "ID: kubohiroyacamerasource",
