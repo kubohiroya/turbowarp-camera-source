@@ -154,9 +154,70 @@ describe("the browser's camera button", () => {
     expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
     expect(extension.cameraErrorCode({CAMERA_ID: 'pose'})).toBe('');
     expect(element.removed).toBe(true);
-    // #40's contract: an adopted stream's tracks are the caller's to stop, never Camera Source's.
+  });
+
+  // #60: the block is the side that opened this stream, so nobody else is left to stop it. Leaving
+  // it running kept the camera (and its light) on until the tab closed.
+  it('stops the stream it opened when the block stops the camera', async () => {
+    const {element} = install();
+    const extension = new CameraSourceExtension();
+    const started = extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+    await Promise.resolve();
+    const opened = stream();
+    element.stream = opened;
+    element.emit('stream');
+    await started;
+
     extension.stopSharedCamera({CAMERA_ID: 'pose'});
-    expect(shared.stopped).not.toHaveBeenCalled();
+
+    expect(opened.stopped).toHaveBeenCalledOnce();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(false);
+  });
+
+  it('stops the stream it opened with the stop sign', async () => {
+    const {element} = install();
+    const extension = new CameraSourceExtension();
+    const started = extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+    await Promise.resolve();
+    const opened = stream();
+    element.stream = opened;
+    element.emit('stream');
+    await started;
+
+    extension.stopAllCameras();
+
+    expect(opened.stopped).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the stream it opened while the block still holds it', async () => {
+    const {element} = install();
+    const extension = new CameraSourceExtension();
+    const started = extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+    await Promise.resolve();
+    const opened = stream();
+    element.stream = opened;
+    element.emit('stream');
+    await started;
+
+    const consumer = await extension.acquireCamera({owner: 'pose-model', cameraId: 'pose'});
+    await consumer.release();
+
+    expect(opened.stopped).not.toHaveBeenCalled();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
+  });
+
+  // #40's contract still holds for a stream somebody else opened: the block only joined it.
+  it("leaves a host's stream running after the block that joined it stops", async () => {
+    install();
+    const extension = new CameraSourceExtension();
+    const hosted = stream();
+    await extension.adoptCamera({owner: 'host', cameraId: 'pose', stream: hosted});
+    await extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+
+    extension.stopSharedCamera({CAMERA_ID: 'pose'});
+    extension.stopAllCameras();
+
+    expect(hosted.stopped).not.toHaveBeenCalled();
   });
 
   it('lets the work continue when the operator refuses', async () => {

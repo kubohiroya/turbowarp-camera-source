@@ -285,6 +285,11 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly controls = new Set<{dispose(): void}>();
   private standaloneControls: ReturnType<typeof createStandaloneCameraControlsHost> | null = null;
   private readonly cameraButtons = new Map<string, UserMediaRequest>();
+  /**
+   * Streams the camera button opened for a block. They are adopted like a host's, but this
+   * extension is the side that opened them, so ending their session stops them too.
+   */
+  private readonly cameraButtonStreams = new WeakSet<MediaStream>();
   private readonly profiles = new CameraProfileRegistry();
   private readonly generations = new Map<string, number>();
   private readonly lastConditions = new Map<string, string>();
@@ -785,8 +790,9 @@ export class CameraSourceExtension implements TurboWarpExtension {
       return;
     }
     try {
-      // The tracks belong to the element's caller, which is this block; `adoptCamera` never stops
-      // an adopted stream, so stopping it stays this extension's own decision through the lease.
+      // The tracks belong to the element's caller, which is this block. `adoptCamera` never stops
+      // an adopted stream, so the session is told that this one is ours to stop when it ends.
+      this.cameraButtonStreams.add(outcome.stream);
       this.blockLeases.set(
         cameraId,
         await this.adoptCamera({owner: 'camera-source-block', cameraId, stream: outcome.stream})
@@ -1342,8 +1348,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
     session.frameTimes = null;
     // An adopted stream is detached and left running. Stopping a track cannot be undone and takes
     // the frames away from every other consumer of that stream, so only the side that opened it can
-    // know when that is right.
-    if (!session.adopted) session.stream?.getTracks().forEach((track) => track.stop());
+    // know when that is right. A stream the camera button opened for a block is the exception:
+    // that side is this extension, and nobody else holds the stream to stop it later.
+    const stream = session.stream;
+    if (stream && (!session.adopted || this.cameraButtonStreams.has(stream))) {
+      this.cameraButtonStreams.delete(stream);
+      stream.getTracks().forEach((track) => track.stop());
+    }
     if (session.video) session.video.srcObject = null;
     session.stream = null;
     session.video = null;
