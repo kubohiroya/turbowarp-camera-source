@@ -71,14 +71,36 @@ curl -sf "https://registry.npmjs.org/$pkg/latest" | jq '.dist.attestations'
 | @kubohiroya/turbowarp-kvs | 0.2.1 | なし | `release.yml`あり・`id-token`なし |
 | @kubohiroya/turbowarp-runtime-expression | 0.6.1 | なし | `release.yml`あり・`id-token`なし |
 
-#42の本文の表から2点変わっている。**teachable-machineはすでにprovenance付きで公開されている**（3.3.0以降、`workflow_dispatch`の`publish-npm.yml`経由）。手元からの2FA公開ではない。そして**app-shellはworkflow側が済んでいる**——`release.yml`に`id-token: write`があるのに0.3.1にprovenanceが無いので、欠けているのはnpmjs.com側のtrusted publisher登録か、その版を手で公開したかのどちらかである。
+#42の本文の表から2点変わっている。**teachable-machineはすでにprovenance付きで公開されている**（3.3.0以降、`workflow_dispatch`の`publish-npm.yml`経由）。手元からの2FA公開ではない。そして**app-shellはworkflow側が済んでいる**。
+
+### app-shellの切り分け（2026-10-26、実測）
+
+当初は「npmjs.com側の登録が無いか、その版を手で公開したかのどちらか」と書いていた。release実行のログを読んで確定した——**両方である。**
+
+`release.yml`の実行は5回すべて失敗している（v0.2.0から v0.3.1まで）。つまりこのworkflowは一度もpublishに成功しておらず、npm上の0.3.1は手元から公開されたものである。だからprovenanceが無い。
+
+そしてv0.3.1の実行が落ちた理由がこれである。
+
+```
+npm notice publish Signed provenance statement with source and build information from GitHub Actions
+npm notice publish Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=3348503453
+npm error code E403
+npm error 403 Forbidden - PUT https://registry.npmjs.org/@kubohiroya%2fturbowarp-app-shell
+          - OIDC permission denied for this action
+```
+
+**GitHub側は正しい。** npmはOIDCの交換まで到達し、provenance statementに署名してsigstoreのtransparency logへ公開までしている。そのうえでregistryがPUTを拒否した。つまり欠けているのはnpmjs.com側のTrusted publisher登録だけで、camera-sourceが0.14.0より前に3回踏んだのと同じ症状である。
+
+workflowを本repositoryの実績ある版と突き合わせても、OIDCに効く差は無い（`registry-url`を渡していない・tokenを渡していない・npmを11.5.1以降へ上げている・publishが最後のstep。`actions/checkout`と`actions/setup-node`のmajorとNode版は違うが、どれもOIDCには効かない）。
+
+残る作業は操作者がnpmjs.comで上記の4欄を登録することだけで、次のtag pushで成立する。
 
 ### 判断
 
 **下流の痛みが大きい順に展開する。** 全パッケージの一斉移行はしない。
 
 1. **`turbowarp-kamishibai-app`** — 第1優先。releaseごとに2FAのワンタイムパスワードのやり取りが発生しており、効果が最も大きい。`release.yml`が無いので、workflowとnpmjs.com側の登録の両方が要る。
-2. **`turbowarp-app-shell`** — 第2優先。workflowは出来ているので、npmjs.com側の登録を確認・追加するだけで済む可能性が高い。コストが最も低い。
+2. **`turbowarp-app-shell`** — 第2優先。**workflowは出来ていることが実測で確定した**（上記）。残るのはnpmjs.com側の登録だけで、コードの変更は要らない。family中でコストが最も低い。
 3. **残り** — 次のminor公開のついでに1つずつ。`release.yml`があって`id-token`が無いもの（svg-text、kvs、runtime-expression）は、このrepositoryのpublish stepをそのまま写せる。`release.yml`が無いものは、このrepositoryのworkflow全体か、teachable-machineの`workflow_dispatch`版を雛形にする。
 
 各パッケージで最初の公開がprovenance付きになったことを、上の`dist.attestations`で確認してこの表を更新する。
