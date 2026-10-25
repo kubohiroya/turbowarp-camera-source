@@ -1,10 +1,10 @@
-# TurboWarp-Camera-Source
+# TurboWarp Camera Source
 
 <img src="assets/block-icon.svg" alt="" width="48" height="48">
 
 [English](README.md) | **日本語**
 
-TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付きで複数のTurboWarp拡張へ共有するcapability拡張です。leaseで起動と停止を管理し、TM、QR読み取り、将来の画像入力が同じ物理カメラを共有する場合も、姿勢認識用とQR/画像認識用で別カメラを使う場合も、`getUserMedia()`の競合を避けます。
+TurboWarp Camera Sourceは、MediaDevicesのカメラストリームを名前付きで複数のTurboWarp拡張へ共有するcapability拡張です。leaseで起動と停止を管理し、TM、QR読み取り、将来の画像入力が同じ物理カメラを共有する場合も、姿勢認識用とQR/画像認識用で別カメラを使う場合も、`getUserMedia()`の競合を避けます。
 
 **[English guide](https://kubohiroya.github.io/turbowarp-camera-source/)** ·
 **[日本語ガイド](https://kubohiroya.github.io/turbowarp-camera-source/ja/)**
