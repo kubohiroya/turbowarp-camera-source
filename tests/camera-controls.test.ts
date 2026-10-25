@@ -136,6 +136,32 @@ it('a layout-validation error preserves the native element for a later real clic
   expect(f.dispose).toHaveBeenCalledTimes(1);
 });
 
+// #59: the element answers with a microphone as well as a camera, and no constraint can ask it not
+// to. The track is stopped and taken out of the stream before any consumer is handed it.
+it('stops and removes the microphone before the stream leaves the element', async () => {
+  const f = fixture();
+  const request = requestUserMedia({document: f.document, cameraControls: f.host, label: '許可'});
+  const native = f.providers[0]!.element as Element;
+  const audioStop = vi.fn();
+  const videoStop = vi.fn();
+  let tracks = [{kind: 'audio', stop: audioStop}, {kind: 'video', stop: videoStop}] as unknown as MediaStreamTrack[];
+  native.stream = {
+    getTracks: () => tracks,
+    getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+    getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+    removeTrack: (track: MediaStreamTrack) => { tracks = tracks.filter((kept) => kept !== track); }
+  };
+  native.dispatchEvent(new Event('stream'));
+  const outcome = await request.settled;
+
+  expect(outcome.kind).toBe('stream');
+  const shared = (outcome as Extract<typeof outcome, {kind: 'stream'}>).stream;
+  expect(shared.getAudioTracks()).toEqual([]);
+  expect(audioStop).toHaveBeenCalledOnce();
+  expect(shared.getVideoTracks()).toHaveLength(1);
+  expect(videoStop).not.toHaveBeenCalled();
+});
+
 it('reads terminal camera errors from the native element', async () => {
   const f = fixture();
   const request = requestUserMedia({document: f.document, cameraControls: f.host, label: '許可'});

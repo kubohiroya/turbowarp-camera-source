@@ -3664,6 +3664,28 @@
   	return "HTMLUserMediaElement" in view;
   }
   /**
+  * Stops the microphone the element answered with, and takes its track out of the stream.
+  *
+  * `<usermedia>` is the element for *combined* audio and video. Its `setConstraints` takes
+  * `HTMLMediaStreamConstraints`, whose `audio` and `video` must each be a constraint set -- so
+  * `audio: false` is a `TypeError`, and `{video: {}}` on its own does not drop the microphone,
+  * because the element's own default is `{audio: {}, video: {}}` and the filtering it applies is to
+  * each track's parameters, not to which tracks it opens. Asking for video alone is what the
+  * proposed `<camera>` element is for, and no browser ships that yet.
+  *
+  * So the microphone arrives whatever this module asks for, and the one thing left is to stop it
+  * before any consumer is handed the stream. The browser's prompt still names the microphone, and
+  * only a `<camera>` element could change that; nothing listens on the microphone either way.
+  */
+  function withoutAudio(stream) {
+  	const audio = typeof stream.getAudioTracks === "function" ? stream.getAudioTracks() : [];
+  	for (const track of audio) {
+  		if (typeof stream.removeTrack === "function") stream.removeTrack(track);
+  		track.stop();
+  	}
+  	return stream;
+  }
+  /**
   * Places `<usermedia>` in `container` and resolves once the operator has answered.
   *
   * No styling is applied beyond taking the element out of the document flow: the element enforces
@@ -3702,7 +3724,7 @@
   		const stream = element.stream;
   		if (stream && typeof stream.getTracks === "function") finish({
   			kind: "stream",
-  			stream
+  			stream: withoutAudio(stream)
   		});
   		else finish({
   			kind: "error",

@@ -89,7 +89,7 @@ Starts the camera the page's query parameters name: `cameraDeviceId` exactly, an
 
 ### `start shared camera [CAMERA_ID] from the browser's camera button`
 
-Places the browser's own camera button on the stage and waits for the operator to answer it, then shares the stream it returns under this camera id without calling getUserMedia. For a .sb3 opened in the editor, where no host above the project can place the element. When the camera id already runs a stream -- a packaged work whose host adopted one -- this joins that stream instead of asking again. A refusal leaves the work running: the camera does not start, `shared camera error code` reads `usermedia-cancelled`, and `start shared camera` is still available. Browsers without the element report `usermedia-unsupported`.
+Places the browser's own camera button on the stage and waits for the operator to answer it, then shares the stream it returns under this camera id without calling getUserMedia. For a .sb3 opened in the editor, where no host above the project can place the element. When the camera id already runs a stream -- a packaged work whose host adopted one -- this joins that stream instead of asking again. A refusal leaves the work running: the camera does not start, `shared camera error code` reads `usermedia-cancelled`, and `start shared camera` is still available. Browsers without the element report `usermedia-unsupported`. The element answers with a microphone as well as a camera; its track is stopped and taken out of the stream before the camera is shared, so nothing listens on it. The browser's own prompt still names the microphone, which only a future `<camera>` element could change.
 
 | Property | Value |
 |---|---|

@@ -10,6 +10,8 @@ Camera Sourceのruntime上の拡張インスタンスは`registerCameraControls(
 
 開始操作では実際の`<usermedia>`をGUIへ登録し、本人のクリックで返ったストリームをadoptする。コントローラーは自分が要求したストリームとleaseを所有する。破棄時は自分のものだけを止め、既存の外部adoptストリームは止めない。通常ブロックの許可待ち要素も同じGUI入口を利用する。Editor APIのないHTMLではapp-shell Dockへfallbackする。Dockの上下左右・自動非表示設定はカメラ固有の設定とは分離する。
 
+`<usermedia>`は音声と映像を組にして扱う要素であり、映像だけを求める指定は無い。`setConstraints`が受ける`HTMLMediaStreamConstraints`の`audio`・`video`はそれぞれconstraint setでなければならないため`audio: false`は`TypeError`になり、`{video: {}}`を渡しても要素の既定`{audio: {}, video: {}}`と同じくマイクのtrackが付いてくる（constraintの絞り込みは各trackの条件に対するもので、どのtrackを開くかには効かない）。映像単独は提案中の`<camera>`要素の役目で、まだどのブラウザも出荷していない。そのためCamera Sourceは、返ってきたstreamをconsumerへ渡す前にaudio trackを止めて外す（[Issue #59](https://github.com/kubohiroya/turbowarp-camera-source/issues/59)）。許可画面にマイクが出ることは`<camera>`要素でなければ変えられないが、マイクが動き続けることはない。
+
 ネイティブ要素は配置直後にブラウザーから一時的に無効化されることがある。InvalidStateErrorでは要素を維持し、配置が安定した後の実クリックを待つ。キャンセル・終端エラー・明示的なdismissは待機を終了する。エラー詳細は要素のerrorプロパティから取得する。[Chrome公式仕様説明](https://developer.chrome.com/blog/usermedia-html-element)
 
 位置指定やドラッグ移動は共通入口のAPIに含めない。受け入れ条件は一つの入口、許可/設定の切替、機器選択/左右反転、非同期キャンセルとストリームの後始末。切戻しは今回の利用側/API差分のrevert。
