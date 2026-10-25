@@ -116,8 +116,26 @@ export interface CameraFrameTime {
 }
 export interface CameraLease {
     getFrameSource(): CameraFrameSource;
+    /**
+     * The frame the camera is presenting, encoded as a still image.
+     *
+     * For a consumer that wants a file rather than pixels: an asset store, a download, a server
+     * publishing the latest frame. One that is going to process the image itself should read
+     * `getFrameSource().element` instead and skip the encode.
+     *
+     * It draws from the stream this lease already holds, so it never opens a second camera, and it
+     * changes nothing about the session: the lease is released the same way whether or not anything
+     * was captured.
+     *
+     * Optional for the same reason as `adoptCamera`: this surface is narrowed by shape rather than by
+     * a version, so a consumer compiled against these declarations can still meet a build that
+     * predates the method. Feature detect it with `typeof lease.captureFrame === 'function'`.
+     */
+    captureFrame?(options?: CameraCaptureOptions): Promise<CameraSnapshot>;
     release(): Promise<void>;
 }
+export type { CameraCaptureOptions, CameraSnapshot, CameraSnapshotType } from './snapshot.js';
+import type { CameraCaptureOptions, CameraSnapshot } from './snapshot.js';
 /**
  * What `Scratch.vm.runtime[cameraSourceRuntimeKey]` offers.
  *

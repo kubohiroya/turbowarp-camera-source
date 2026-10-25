@@ -42,11 +42,14 @@ v1契約は次の情報を含みます。
 ```text
 MediaStream -> HTMLVideoElement -> VideoSkin -> texImage2D(video) -> WebGL texture
                               \-> HTMLVideoElement / VideoFrame -> WebGPU・vision consumer
+                              \-> canvas -> encoded bytes -> ファイルを扱うconsumer (captureFrame)
 ```
 
 表示skinはvideo frame通知を受け、1つのWebGL textureを再利用し、新しいframeがある場合だけstageの再描画を要求します。左右反転はpreview drawableの負のX scaleで行うため、WebGPU、WebCodecs、姿勢認識、QR認識が使うsourceは変更されません。drawableはprivateかつnoninteractiveであり、skinはCPU silhouette更新とvideo pixelのreadbackを省略します。
 
 これによりpreview経路から明示的な`drawImage()`、`getImageData()`、CPU pixel走査を除去します。ただしdecode、色変換、texture転送はブラウザ実装に依存するため、ブラウザ内部まで含むzero-copyは保証しません。
+
+`captureFrame()`は3つ目の経路で、canvasを使う唯一の経路です。静止画のencodeがその目的——画素ではなくファイルが欲しいconsumer——だからです。documentへ繋がないcanvasへ1回描き、encodeし、bytesを複製して返します。object URLは作らないので、returnした時点でcanvasもblobも到達不能です。`tests/video-preview-display-path.test.ts`はbundleではなく表示経路のsourceを読むため、previewの保証を緩めずにこのcanvasを許容できます。取得される画像はカメラが撮ったフレームそのもので、`previewFlip`は適用しません。プロファイルのintrinsicsは撮影された画像を記述するので、黙って左右反転した静止画は全ての校正と——しかも見えない形で——食い違います。
 
 ## ブロック所有previewのlifecycle
 

@@ -565,6 +565,53 @@ The display path avoids explicit CPU readback, but it does not promise end-to-en
 browser-internal color conversion and GPU transfer may still occur. The preview is private and
 noninteractive; it is intended for display, not Scratch touching or color-sensing queries.
 
+### Still images
+
+A consumer that wants a file rather than pixels — an asset store, a download, a server publishing
+the latest frame — can ask the lease for one. A consumer that is going to process the image itself
+should read `frame.element` instead and skip the encode.
+
+```js
+if (typeof lease.captureFrame === "function") {
+  const shot = await lease.captureFrame({type: "image/jpeg", quality: 0.8, maxWidth: 1280});
+  // shot.bytes is a Uint8Array; shot.type, shot.width, shot.height and shot.capturedAt describe it.
+}
+```
+
+Feature detect the method, for the same reason as `adoptCamera()`: this surface is narrowed by
+shape rather than by a version, so a consumer compiled against the current declarations can still
+meet a build that predates it.
+
+It draws from the stream the lease already holds, so it never opens a second camera, and it changes
+nothing about the session — the lease is released the same way whether or not anything was captured.
+`type` defaults to `image/jpeg`; `quality` is clamped into 0–1 and a value that was never a quality
+is refused rather than encoded at the browser's default. `maxWidth` and `maxHeight` are upper
+bounds: the aspect ratio is kept, the tighter bound decides, and **the frame is never enlarged** — a
+caller asking for 4000 px of a 640 px frame is asking for detail that does not exist. A browser that
+cannot encode the type asked for returns PNG rather than failing, so the type is checked and a
+mismatch is reported instead of handed over under the wrong name.
+
+**The snapshot is the camera's own capture.** `previewFlip` is a drawing choice and is not applied:
+a profile's intrinsics describe the captured image, so a snapshot that silently mirrored itself
+would disagree with every calibration solved against the same camera, and disagree invisibly — a
+mirrored photograph of a room looks like a photograph of a room. A caller that wants what the
+operator was looking at asks for it with `flip`, reading `frame.previewFlip` to find out what that
+was.
+
+Nothing here knows about HTTP, assets or storage. A ten-second live camera is composed outside:
+
+```js
+const lease = await cameraSource.acquireCamera({owner: "live-camera", cameraId: "live"});
+const timer = setInterval(async () => {
+  const shot = await lease.captureFrame({type: "image/jpeg", quality: 0.7, maxWidth: 1280});
+  await assets.replace("live-camera", shot.bytes, shot.type);   // whatever holds the latest frame
+}, 10_000);
+// clearInterval(timer); await lease.release();
+```
+
+The store then serves it — `turbowarp-http-server` answering `GET /camera/image.jpg`, a download, an
+upload — without Camera Source knowing any of that happened.
+
 ### Calibration profiles
 
 This extension owns the contract for intrinsic calibration profiles but never produces one. Chessboard calibration, an operator pasting JSON, and any future calibrator are all just producers of a document that passes validation, and nothing here can tell them apart.
