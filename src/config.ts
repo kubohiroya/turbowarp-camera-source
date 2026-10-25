@@ -7,3 +7,5 @@ export const extensionConfig = {
   license: 'MPL-2.0',
   unsandboxed: true
 } as const;
+
+export const extensionDescriptions = {ja: '1つのカメラ映像を複数のTurboWarp機能拡張で共有します。'} as const;

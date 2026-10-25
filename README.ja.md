@@ -21,27 +21,33 @@ TurboWarp-Camera-Sourceは、MediaDevicesのカメラストリームを名前付
 - ブラウザのカメラ許可
 - Camera Sourceはカメラフレームをアップロードせず、画像を保存しません。
 
+## セキュリティダイアログの説明言語
+
+この版のビルドでは、既定の英語説明に加えて`Description[ja]`コメントへ日本語の説明を出力します。このメタデータに対応した共通セキュリティダイアログは、Editorが日本語なら日本語の説明を表示し、対応する翻訳がなければ元の説明を表示します。
+
+説明の翻訳は必要な実行モードを変えません。この拡張は引き続き`Unsandboxed: required`です。
+
 ## インストール
 
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.19.3/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.19.4/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.19.3
+pnpm add @kubohiroya/turbowarp-camera-source@0.19.4
 ```
 
-## Quick start
+## 最初の使い方
 
 カメラストリームには役割名を使います。同じ`cameraId`を使うconsumerは1つのカメラを共有し、異なる名前は別デバイスへ割り当てられます。
 
 ```text
 start shared camera [pose] with device ID []
-show shared camera [pose] preview mirrored [true]
+show shared camera [pose] preview flipped [horizontal]
 shared camera [pose] frame width
 shared camera [pose] frame rate
 hide shared camera [pose] preview
@@ -98,7 +104,7 @@ stop shared camera [pose]
 
 <!-- END GENERATED BLOCKS -->
 
-## Runtime API
+## 実行時API
 
 他のunsandboxed拡張は`Scratch.vm.runtime.ext_kubohiroyacamerasource`を参照できます。
 
@@ -328,6 +334,53 @@ pnpm run check
 ```
 
 GitHub Pages用の静的サイトは`docs/`にあり、英語版は`docs/index.html`、日本語版は`docs/ja/index.html`です。
+
+## ビルドの流れ
+
+```text
+TypeScript source
+  -> Vite
+  -> vite-plugin-turbowarp-extension
+  -> dist/camera-source.js
+
+Extension config + block definitions
+  -> extension manifest plugin
+  -> dist/extension-manifest.json
+```
+
+JavaScriptは、Extension Gallery向けのメタデータと標準の`(function (Scratch) { ... })(Scratch);`ラッパーを持つ、単一の非圧縮ファイルになります。
+
+## プロジェクト構成
+
+- `src/config.ts`：機能拡張のメタデータ。
+- `src/block-definitions.json`：拡張本体とREADME生成で共有するブロックメタデータの正本。
+- `src/extension.ts`：機能拡張の実装。
+- `src/video-preview.ts`：GPUを使う`HTMLVideoElement`のプレビュー描画と資源管理。
+- `src/index.ts`：拡張を登録するエントリーポイント。
+- `src/globals.d.ts`：このプロジェクトで使うScratch APIの型宣言。
+- manifestの生成器とJSON Schemaは[`@kubohiroya/turbowarp-extension-manifest`](https://github.com/kubohiroya/turbowarp-extension-manifest)が提供します。
+- `scripts/generate-readme.ts`：日英READMEのブロック説明部分を更新します。
+- `tests/`：単体テスト。
+- `vite.config.ts`：TurboWarp向けのViteビルド設定。
+- `dist/`：リポジトリに記録するTurboWarp用JavaScriptと拡張APIのmanifest。
+
+## 拡張APIのmanifest
+
+ビルドは`formatVersion: 1`の`dist/extension-manifest.json`を生成します。拡張ID、ブロックのopcodeと種類、引数のIDと型、メニュー参照を決定的な順序で記録します。`sb3-toolchain`などのツールは、同梱する拡張の更新やIDの移行に先立ってこの契約を比較できます。詳細は[設計文書（英語）](docs/architecture.md)と[v1のJSON Schema](https://github.com/kubohiroya/turbowarp-extension-manifest/blob/main/schemas/extension-manifest.schema.json)を参照してください。
+
+実装やブロックメタデータを変更した場合は、記録対象の配布物を再生成して検証します。
+
+```bash
+pnpm run check:dist
+```
+
+## 生成ドキュメント
+
+```bash
+pnpm run docs
+```
+
+`pnpm run check`には`docs:check`も含まれます。`src/block-definitions.json`と日英READMEのブロック説明が一致しない場合は失敗します。
 
 ## ライセンス
 

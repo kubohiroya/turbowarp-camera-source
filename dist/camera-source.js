@@ -4,6 +4,7 @@
 // By: Hiroya Kubo
 // License: MPL-2.0
 // Unsandboxed: required
+// Description[ja]: 1つのカメラ映像を複数のTurboWarp機能拡張で共有します。
 
 (function (Scratch) {
   'use strict';
