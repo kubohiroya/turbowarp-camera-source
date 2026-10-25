@@ -171,7 +171,7 @@ describe('CameraSourceExtension', () => {
     expect(info.blockIconURI).toBe(BLOCK_ICON_URI);
     expect(info.blockIconURI.startsWith('data:image/svg+xml,')).toBe(true);
     expect(decodeURIComponent(info.blockIconURI.slice('data:image/svg+xml,'.length))).toMatch(
-      /^<svg [^>]*viewBox="0 0 64 64"[^>]*>.*<\/svg>$/u
+      /^<svg [^>]*viewBox="0 0 48 48"[^>]*>.*<\/svg>$/u
     );
   });
 
