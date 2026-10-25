@@ -2,7 +2,7 @@
 
 <img src="assets/block-icon.svg" alt="" width="48" height="48">
 
-**English** | [日本語](README.ja.md)
+English | [日本語](README.ja.md)
 
 TurboWarp Camera Source is a TurboWarp extension capability for sharing named
 `MediaDevices` camera streams across consumers such as pose recognition, image
