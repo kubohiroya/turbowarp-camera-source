@@ -161,8 +161,13 @@ for (const [text, file] of [
     throw new Error(`${file} writes the product name as TurboWarp-Camera-Source.`);
   }
 }
-requireText(readme, "**English** | [日本語](README.ja.md)", "README.md");
-requireText(japaneseReadme, "[English](README.md) | **日本語**", "README.ja.md");
+// The family's switcher: both languages named on one line, only the other one linked, and the
+// current one left as plain text. The TurboWarp Plus package list reads every repository's README
+// this way, so a repository that bolds its own language reads differently from the rest of the
+// family. The convention and its own check live in the extension template
+// (kubohiroya/turbowarp-extension-template#41); these two strings are the same ones it enforces.
+requireText(readme, "English | [日本語](README.ja.md)", "README.md");
+requireText(japaneseReadme, "[English](README.md) | 日本語", "README.ja.md");
 requireText(readme, "SPDX-License-Identifier: MPL-2.0", "README.md");
 requireText(
   japaneseReadme,
