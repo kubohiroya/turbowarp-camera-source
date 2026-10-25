@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real camera compatibility check</title>
+<!--
+  The one acceptance criterion in #14 that no unit test can reach: whether the compatibility verdict
+  behaves against a camera that is actually changing its capture configuration.
+
+  It imports `./profile`, the pure entry, and nothing else of this package. No VM, no renderer, no
+  blocks -- `evaluateProfileCompatibility` and `readCameraConditions` are plain functions over plain
+  values, so the only thing this page adds is a real device on the other side of them.
+
+  Serve the repository root over http on localhost and open /tests/manual/real-camera-compatibility.html.
+  The browser asks for the camera; nothing happens until it is granted.
+
+  What it does: opens the camera, writes a profile that matches the camera exactly as it is right
+  now, and then changes the capture configuration one control at a time, asking after each change
+  whether that profile still fits. A profile solved under conditions A must come back `compatible`
+  under A and stop being `compatible` once a decisive control moves.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lede { margin: 0 0 20px; max-width: 70ch; font-family: system-ui, sans-serif; }
+  button { font: inherit; padding: 8px 16px; }
+  table { border-collapse: collapse; margin: 16px 0; width: 100%; }
+  th, td { border: 1px solid currentColor; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; }
+  td.verdict-compatible { font-weight: 700; }
+  td.verdict-incompatible, td.verdict-undetermined { font-weight: 700; }
+  pre { white-space: pre-wrap; word-break: break-word; margin: 8px 0 24px; }
+  video { max-width: 320px; display: block; margin: 8px 0; }
+  #out section { border-top: 1px solid currentColor; padding-top: 8px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>Real camera compatibility check</h1>
+<p class="lede">
+  Opens the camera, records a profile that matches it as it is, then changes one capture control at a
+  time and asks whether that profile still fits. Copy the whole output into the issue record.
+</p>
+<button id="run" type="button">Open the camera and run</button>
+<video id="preview" muted playsinline></video>
+<div id="out"></div>
+
+<script type="module">
+import {evaluateProfileCompatibility, readCameraConditions, readCameraProfileDocument} from '/dist/profile.js';
+
+const out = document.getElementById('out');
+const video = document.getElementById('preview');
+
+function section(title) {
+  const element = document.createElement('section');
+  const heading = document.createElement('h2');
+  heading.style.fontSize = '15px';
+  heading.textContent = title;
+  element.append(heading);
+  out.append(element);
+  return element;
+}
+
+function dump(parent, value) {
+  const pre = document.createElement('pre');
+  pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  parent.append(pre);
+}
+
+/** Waits until the element is delivering frames of a known size. */
+async function settledFrame(timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (video.readyState >= 2 && video.videoWidth > 0) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
+/** The frame size a track reports can lag the size it delivers; wait for the delivered one to move. */
+async function frameSizeAfterChange(previous, timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (video.videoWidth > 0 && (video.videoWidth !== previous.width || video.videoHeight !== previous.height)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return {width: video.videoWidth, height: video.videoHeight};
+}
+
+function conditionsNow(track) {
+  const settings = track.getSettings();
+  return readCameraConditions(
+    {
+      width: video.videoWidth,
+      height: video.videoHeight,
+      previewFlip: 'none',
+      deviceId: typeof settings.deviceId === 'string' ? settings.deviceId : '',
+      label: track.label
+    },
+    settings
+  );
+}
+
+/**
+ * A profile that matches these conditions exactly.
+ *
+ * The intrinsics are invented -- nothing here solves a calibration. What has to be real is the
+ * `image` and `capture` blocks, because those are the members the verdict is made of, and the
+ * document goes through the package's own reader so a malformed one fails here rather than quietly
+ * producing a verdict about nothing.
+ */
+function profileMatching(conditions) {
+  const capture = {};
+  for (const member of ['frameRate', 'facingMode', 'resizeMode', 'zoom', 'focusMode', 'focusDistance']) {
+    if (conditions[member] !== undefined) capture[member] = conditions[member];
+  }
+  const document = {
+    schema: 'twcs/camera-intrinsics',
+    version: 1,
+    profileId: 'real-camera-check',
+    cameraId: 'check',
+    calibratedAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
+    producer: 'tests/manual/real-camera-compatibility.html',
+    cameraModel: 'pinhole',
+    image: {width: conditions.width, height: conditions.height, undistorted: false},
+    // Plausible for a webcam at this size, and never used by the verdict.
+    intrinsics: {
+      fx: conditions.width,
+      fy: conditions.width,
+      cx: (conditions.width - 1) / 2,
+      cy: (conditions.height - 1) / 2,
+      skew: 0
+    },
+    distortion: {model: 'brown-conrady', coefficients: [0.1, -0.2, 0, 0]},
+    ...(Object.keys(capture).length === 0 ? {} : {capture})
+  };
+  const result = readCameraProfileDocument(document);
+  if (!result.ok) throw new Error(`The generated profile is invalid: ${result.error.code} at ${result.error.path}`);
+  return result.profile;
+}
+
+function verdictRow(table, label, conditions, report) {
+  const row = table.insertRow();
+  row.insertCell().textContent = label;
+  row.insertCell().textContent = `${conditions.width}x${conditions.height}`;
+  const verdict = row.insertCell();
+  verdict.textContent = report.state;
+  verdict.className = `verdict-${report.state}`;
+  row.insertCell().textContent =
+    report.findings
+      .filter((finding) => finding.decisive && finding.state !== 'matched')
+      .map((finding) => `${finding.code}:${finding.state}`)
+      .join(' ') || '(none)';
+}
+
+async function run() {
+  out.replaceChildren();
+  const environment = section('Environment');
+  dump(environment, {
+    userAgent: navigator.userAgent,
+    origin: location.origin,
+    observedAt: new Date().toISOString()
+  });
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video: {}});
+  } catch (error) {
+    dump(section('The camera did not open'), `${error.name}: ${error.message}`);
+    return;
+  }
+  const track = stream.getVideoTracks()[0];
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+
+  try {
+    if (!(await settledFrame())) {
+      dump(section('No frame arrived'), 'The camera opened but delivered no frame within 4 seconds.');
+      return;
+    }
+
+    const device = section('Device');
+    const capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
+    dump(device, {label: track.label, capabilities, settings: track.getSettings()});
+
+    const baseline = conditionsNow(track);
+    const profile = profileMatching(baseline);
+    const recorded = section('Profile recorded at the current conditions');
+    dump(recorded, {conditions: baseline, profileImage: profile.image, profileCapture: profile.capture ?? null});
+
+    const results = section('Verdict after each change');
+    const table = document.createElement('table');
+    table.innerHTML =
+      '<thead><tr><th>change</th><th>delivered frame</th><th>verdict</th><th>decisive findings</th></tr></thead>';
+    results.append(table);
+    const log = [];
+
+    const record = (label, conditions) => {
+      const report = evaluateProfileCompatibility(profile, conditions);
+      verdictRow(table, label, conditions, report);
+      log.push({change: label, conditions, state: report.state, findings: report.findings});
+      return report;
+    };
+
+    record('no change (baseline)', baseline);
+
+    // Resolution. Every webcam supports more than one mode, so this is the part that always runs.
+    const sizes = [
+      {width: 640, height: 480},
+      {width: 1280, height: 720},
+      {width: 320, height: 240},
+      {width: baseline.width, height: baseline.height}
+    ];
+    for (const size of sizes) {
+      const before = {width: video.videoWidth, height: video.videoHeight};
+      try {
+        await track.applyConstraints({width: {ideal: size.width}, height: {ideal: size.height}});
+      } catch (error) {
+        log.push({change: `resolution ${size.width}x${size.height}`, refused: `${error.name}: ${error.message}`});
+        const row = table.insertRow();
+        row.insertCell().textContent = `resolution ${size.width}x${size.height}`;
+        const cell = row.insertCell();
+        cell.colSpan = 3;
+        cell.textContent = `refused: ${error.name}`;
+        continue;
+      }
+      await frameSizeAfterChange(before);
+      record(`resolution asked ${size.width}x${size.height}`, conditionsNow(track));
+    }
+
+    // Zoom and focus only where the device reports the control. An absent control is a finding of
+    // its own -- the point of the three-valued verdict -- so say so instead of skipping silently.
+    for (const [control, values] of [
+      ['zoom', capabilities.zoom ? [capabilities.zoom.max, capabilities.zoom.min] : null],
+      ['focusMode', capabilities.focusMode ? capabilities.focusMode.filter((mode) => mode !== track.getSettings().focusMode) : null],
+      ['focusDistance', capabilities.focusDistance ? [capabilities.focusDistance.max, capabilities.focusDistance.min] : null]
+    ]) {
+      if (!values || values.length === 0) {
+        const row = table.insertRow();
+        row.insertCell().textContent = control;
+        const cell = row.insertCell();
+        cell.colSpan = 3;
+        cell.textContent = 'the device reports no such control, so it cannot be changed';
+        log.push({change: control, unavailable: true});
+        continue;
+      }
+      for (const value of values) {
+        try {
+          await track.applyConstraints({advanced: [{[control]: value}]});
+        } catch (error) {
+          log.push({change: `${control} = ${value}`, refused: `${error.name}: ${error.message}`});
+          const row = table.insertRow();
+          row.insertCell().textContent = `${control} = ${value}`;
+          const cell = row.insertCell();
+          cell.colSpan = 3;
+          cell.textContent = `refused: ${error.name}`;
+          continue;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        record(`${control} = ${value}`, conditionsNow(track));
+      }
+    }
+
+    const record_ = section('Machine-readable record');
+    dump(record_, {capabilities, settings: track.getSettings(), baseline, runs: log});
+    globalThis.__realCameraCheck = {capabilities, baseline, runs: log};
+  } finally {
+    stream.getTracks().forEach((item) => item.stop());
+    video.srcObject = null;
+  }
+}
+
+document.getElementById('run').addEventListener('click', () => {
+  run().catch((error) => dump(section('The run failed'), `${error.name}: ${error.message}\n${error.stack ?? ''}`));
+});
+</script>
+</body>
+</html>
