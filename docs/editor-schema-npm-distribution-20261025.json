@@ -1,0 +1,183 @@
+{
+  "record_kind": "stage 2 distribution-boundary re-verification after the common form dependency moved from a local file/Git artifact to a published npm release",
+  "observed_at_utc": "2026-10-25T12:49:00Z",
+  "repository": "kubohiroya/turbowarp-camera-source",
+  "issue": "https://github.com/kubohiroya/turbowarp-camera-source/issues/49",
+  "upstream_issue": "https://github.com/kubohiroya/turbowarp-extension-data-editor/issues/31",
+  "upstream_issue_state": "closed 2026-10-19T11:08:11Z",
+  "verified_commit": "081d5ec315cbbe1e746bb39256633f8cc3d938cf",
+  "verified_ref": "origin/main at 'docs(readme): 見出しをfamily共通のsentence caseへ揃える (#86)'",
+  "package_version": "0.19.4",
+  "supersedes": {
+    "note": "The Git-SHA pin this issue asked for is no longer the distribution boundary. The common form package is published to the public npm registry and resolved by integrity; the Git revision behind it is still checked, through the artifact's own build-info.",
+    "prior_records": [
+      "docs/editor-schema-publication.json",
+      "docs/editor-schema-ci-fix-20261018.json",
+      "docs/stage-2-release.ja.md"
+    ],
+    "prior_pin": "git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#b5f4b8d2e391a0d57d091c8f3e1c2d58da152dc8",
+    "prior_common_revision_stage2": "76fa1d50a3c188082ceef723ea018a9d8769ea6e"
+  },
+  "dependency_pins": {
+    "@kubohiroya/turbowarp-extension-data-editor": "^0.3.0"
+  },
+  "local_specifiers_remaining": {
+    "file": 0,
+    "link": 0,
+    "git": 0,
+    "note": "package.json, pnpm-lock.yaml and pnpm-workspace.yaml carry no file:, link: or git+ dependency specifier. The only git+ URL in package.json is this repository's own `repository.url`."
+  },
+  "resolved_dependencies": [
+    {
+      "name": "@kubohiroya/turbowarp-extension-data-editor",
+      "via": "@kubohiroya/turbowarp-camera-source",
+      "kind": "devDependency",
+      "specifier": "^0.3.0",
+      "version": "0.3.0",
+      "registry_tarball": "https://registry.npmjs.org/@kubohiroya/turbowarp-extension-data-editor/-/turbowarp-extension-data-editor-0.3.0.tgz",
+      "registry_integrity": "sha512-QYC/F394HjVKnmbubJqAYBp/DbiJbTQ4McvwxkeJtYKJ+6Vp8q+cefy9VHas9QYldlTa+UC9uq6xvzO9sFfjFg==",
+      "lock_integrity_matches_registry": true,
+      "registry_shasum": "b8376af8d0db499744c4e0275340db7045021493",
+      "registry_published_at_utc": "2026-10-20T11:56:59.281Z",
+      "registry_provenance_attestations": null,
+      "registry_dist_tag_latest_at_observation": "0.3.3",
+      "pinned_behind_latest": true,
+      "resolved_path_relative": "node_modules/.pnpm/@kubohiroya+turbowarp-extension-data-editor@0.3.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@kubohiroya/turbowarp-extension-data-editor",
+      "resolved_versions_installed": 1,
+      "build_info": {
+        "name": "@kubohiroya/turbowarp-extension-data-editor",
+        "version": "0.3.0",
+        "repository": "https://github.com/kubohiroya/turbowarp-extension-data-editor",
+        "revision": "9409867dc58d56cd652afa83f2361810dc8da826",
+        "sourceState": "commit",
+        "sourceSha256": "7aae735fe9bd33f5fcc3ca055186be84aa89de1fb6b31c66b68d1cca3c3731f3",
+        "capabilities": {
+          "preparedSource": 1
+        }
+      },
+      "revision_exists_in_public_repository": true,
+      "revision_commit_utc": "2026-10-20T11:21:05Z",
+      "revision_commit_subject": "chore(release): 共通フォーム0.3.0を準備する (#51)",
+      "schema_entry_sha256": {
+        "schema-compose.d.ts": "e9bb269fcb3be82661b692e7fdf5c55ac433a31d699ac591a86bf5358046b83e",
+        "schema-compose.js": "04b32c71920f1ad99425582c3ef57b69b3725f87191efc808ef94e28b8d7bdd2",
+        "schema-engine.d.ts": "36049b8206969175b2e9628b3cf0cb670cb6b10836e28963e5aa32c797882681",
+        "schema-engine.js": "80f203c8c8035ea3e0becd02087dfe3cd5a77ffbcf1a183cbd7976e79294efff",
+        "schema-json.d.ts": "dc0a7644776117235b33129292ec0936bce37f769adb497387a7071508ce4540",
+        "schema-json.js": "367f4deb589286fad3d2c05456cfd8b6859d5e1e2efa22dcd84e629f6d9efddc",
+        "schema-presentation.d.ts": "6dfe20e5f4b0dcbd0db5561b535b78fe493e5e6e36019b67f0810e1f0dc3d8d5",
+        "schema-presentation.js": "ad9c01477f58a64917bed0e20defec4e7eade4339db66dbd61c34015600c8259",
+        "schema-types.d.ts": "4c56872a799cb4e5e59c5ebcd3b889493e082e08c5ad6629b6b1a1c5ae24a3b0",
+        "schema-types.js": "7d29a0d2cb0e10d9c98b299939c91c64fd791f09e1284b5022d8782fa54dad9a",
+        "schema-view.d.ts": "77c66c91b30d4ce06a33f1b8fac153202f64ad68936dda467eae251117132702",
+        "schema-view.js": "7efbcdd76d653b7fb8ce6dcbbe303cc282f6d640793918501717e5dc04bf0a32",
+        "schema.d.ts": "c739932b540cc120d906541fd52efd0d460d72cf23b55129f13aa856783946b9",
+        "schema.js": "b0fae0b0e120b84f5f70bfacc7667fd5af4d0ae14f67db4ac0f6f77928a4da8f"
+      },
+      "schema_entry_continuity": "schema-compose, schema-engine, schema-json, schema-types and schema-view are byte-identical to the Git-artifact record in docs/editor-schema-ci-fix-20261018.json. schema.js and schema.d.ts changed and schema-presentation.{js,d.ts} is new, which is the prepared-source capability this release adds.",
+      "specifier_note": "A caret range as of #83, not an exact version. The lockfile still names 0.3.0 and its integrity, so `--frozen-lockfile` -- what CI and release:check run -- resolves exactly this artifact. A plain `pnpm install` may move the resolved version to a newer compatible one, which is the one way this record can go out of date without anything in the repository changing; re-run the verification below and update it when that happens."
+    }
+  ],
+  "configuration_sha256": {
+    "package.json": "b10af244d3ed2d03a7368640d5825959319f016a2995ee27f4f174448815b8cb",
+    "pnpm-lock.yaml": "85da106443e9bdca919db8de031e2288ddca9b5f31f0bf5bb483811fe2df394b",
+    "pnpm-workspace.yaml": "69d1479b9687806ca354a2734e97e1c5f631e575f0c680a0958bff68005eb35d",
+    "tsconfig.editor.json": "260ee1eb962f117c75c2f65a32d5aad6730749685d90f0620a3134702bb8e216"
+  },
+  "verification": {
+    "environment": {
+      "node": "v26.7.0",
+      "pnpm": "11.18.0",
+      "engines_node": ">=22.18.0",
+      "packageManager": "pnpm@11.18.0",
+      "platform": "darwin arm64"
+    },
+    "fresh_frozen_install": {
+      "passed": true,
+      "command": "pnpm install --frozen-lockfile",
+      "checkout": "clean clone of origin/main at a different path",
+      "note": "The lockfile satisfies the manifest without being rewritten, so the range, the lock and the actual resolution agree on 0.3.0."
+    },
+    "full_check": {
+      "passed": true,
+      "command": "pnpm run check",
+      "steps": [
+        "typecheck",
+        "lint",
+        "test",
+        "docs:check",
+        "docs:pages:check",
+        "check:dist",
+        "repo:check",
+        "pack:check"
+      ],
+      "tests": 279,
+      "test_files": 21
+    },
+    "distribution_boundary": {
+      "passed": true,
+      "covered_by": "tests/editor-boundary.test.ts",
+      "pure_entries": [
+        "./runtime",
+        "./profile",
+        "./editor-schema",
+        "./editor-metadata"
+      ],
+      "third_party_runtime_imports": 0,
+      "isolated_import": "./editor-metadata and ./editor-schema imported from a temporary node_modules holding only dist, lib-editor and package.json, with window, document and Scratch defined as throwing getters; one schema owner, declarations present, both register* entries callable",
+      "no_src_in_package": true,
+      "no_react_in_package": true
+    },
+    "reproducible_build": {
+      "passed": true,
+      "generated_files_compared": 74,
+      "identical": 74,
+      "scope": "lib-editor (24 files) and dist (50 files), built in two checkouts at different paths on the same machine from the same frozen store. This is not a claim of reproducibility across operating systems."
+    },
+    "pack": {
+      "version": "0.19.4",
+      "total_files": 83,
+      "package_size_kb": 133.2,
+      "unpacked_size_kb": 591.3
+    },
+    "logs_sha256": {
+      "install.log": "5d7540174cbe4975da358fc75d67e28eb9453a679f63db7f1be4f7682c5392e6",
+      "check.log": "d5a242981bcd9ba5966684fcd6eb965c6b6b04a82c5914baaa57d281a325b3a7"
+    },
+    "logs_note": "Run in a temporary verification checkout, which is not kept. The hashes identify the output this record was written from; they are not reproducible from the repository alone."
+  },
+  "emitted_sha256": {
+    "lib-editor/schemas/block-editor-fixed-inputs.schema.json": "a2b627793d77d7e3a8d6a546e134d2a5911c9932b6d95c10e1f72b1a53338d87",
+    "lib-editor/schemas/camera-intrinsics-v1.json": "db7e43097fe3091fcbdaf218c4174fb5324a85433b20b7155da5199012a7258f",
+    "lib-editor/schemas/editor-legacy-calibration.json": "7c147b707b403fc6c37acce09388ad29bff8215fac5723ad9731e7c62af4eb79",
+    "lib-editor/schemas/editor-ros-camera-info.json": "008a718df73bc696da5e7c2a4abf4937ac6b95bb2ac3051b657546b06743c1a9",
+    "lib-editor/src/calibration/camera-info.d.ts": "8cdf9d544fed4a0dfe6d14c834b8d47778f339edf8e31607a4ff21cf0917a3a5",
+    "lib-editor/src/calibration/camera-info.js": "9aa954cab4376557d158c391f34ed0a07a247a97df64662dab9c1dc6ba6fae6f",
+    "lib-editor/src/calibration/profile.d.ts": "b185ae42a274323ee8bb435cac13626118470a0e2dd3d025f86b6b03177e87db",
+    "lib-editor/src/calibration/profile.js": "dd7a6e205e2651fc279c4981b3bec6adb2a616bb8d2592d99e30af8d526e7377",
+    "lib-editor/src/calibration/types.d.ts": "bb2aa9ada5302da446c7e4e7645b0a5399533b8c29c0461a7d8075542aa9a847",
+    "lib-editor/src/calibration/types.js": "721b4ef1eeb9146db146a26eeed9c4e420d657cd9b44004275dd45967e61eea4",
+    "lib-editor/src/calibration/yaml.d.ts": "ebae6119eec3715485a9afb883dd1e17545eaacba3b5aa0c3eba5b49ba11a8bb",
+    "lib-editor/src/calibration/yaml.js": "a8e1a21352246d54084dbf38c49a37f7e17f3991df83dad9d727b32c00ef2563",
+    "lib-editor/src/config.d.ts": "a5eeb1e22ed79217beaf55a98e897a991ba338be02f76187e603dbe28e064775",
+    "lib-editor/src/config.js": "bb6c8f229b7d72e1c9fdaefde7b5d9c298451dc7e2a4d0011dc9a77aec3b5ef0",
+    "lib-editor/src/editor-metadata.d.ts": "5ff5882e1900480b88b4b972277dc1d8d51b039e3e0a71b6af8e228386425c60",
+    "lib-editor/src/editor-metadata.js": "5ff5882e1900480b88b4b972277dc1d8d51b039e3e0a71b6af8e228386425c60",
+    "lib-editor/src/editor-schema.d.ts": "43adbd6c30085bb5be7effcb7d38cc8207928b50394495a9b3b6d7420fa67014",
+    "lib-editor/src/editor-schema.js": "d01e5e184e37decafb826a4e3370cb566ca7c378a08cd41c2b3acda008e116c2",
+    "lib-editor/src/fixed-input-editors.d.ts": "2e37360b94fbf53e646cc4430f97d9537117c9a4c676592a0720f1b4e09c5add",
+    "lib-editor/src/fixed-input-editors.js": "43f503bf0b7b923fdd5135ea39eeea65bae73d8383a19a1377cf1f16193d6a6a",
+    "lib-editor/src/fixed-input-schema.d.ts": "02c5937e48c20eec038253f7a44993f558be653c316c628df294bf5f7e7a62fb",
+    "lib-editor/src/fixed-input-schema.js": "191d65b54a52480288871d59749d5d4fc2013fbdc93b85a205a2f0615dfddfb5",
+    "lib-editor/src/source-editors.d.ts": "b46fa3406e9b20eab2c5296b54e8b386b95272f83cd7e0ef4378e54c613058c8",
+    "lib-editor/src/source-editors.js": "45c15258428b4e253e24f039105cd882d2c959b1b081aabcb76e358161e2ff2f"
+  },
+  "compatibility": "Runtime APIs, accepted source formats and the schema owner are unchanged by this record; nothing in src/ or schemas/ was touched. The GUI flags stay fixed at startup and default OFF.",
+  "rollback": "Nothing to roll back: this record adds no code. To leave the npm release, restore the Git pin in docs/editor-schema-ci-fix-20261018.json together with the matching lock and workspace policy, or stop importing the pure entries.",
+  "scope": {
+    "dependency_version_bump": false,
+    "npm_publish": false,
+    "PR_merge": false,
+    "dependency_range_widened_elsewhere": "#83, merged before this record was taken"
+  }
+}
