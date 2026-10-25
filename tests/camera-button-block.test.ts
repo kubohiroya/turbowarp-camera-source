@@ -46,6 +46,27 @@ function stream() {
   } as unknown as MediaStream & {stopped: ReturnType<typeof vi.fn>};
 }
 
+/** A stream as `<usermedia>` really answers: the microphone comes with the camera (#59). */
+function streamWithMicrophone() {
+  const audioStopped = vi.fn();
+  const videoStopped = vi.fn();
+  let tracks = [
+    {kind: 'audio', readyState: 'live', getSettings: () => ({deviceId: 'button-microphone'}), stop: audioStopped,
+      addEventListener: vi.fn()},
+    {kind: 'video', readyState: 'live', getSettings: () => ({deviceId: 'button-camera'}), stop: videoStopped,
+      addEventListener: vi.fn()}
+  ] as unknown as MediaStreamTrack[];
+  return {
+    active: true,
+    getTracks: () => tracks,
+    getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+    getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+    removeTrack: (track: MediaStreamTrack) => { tracks = tracks.filter((kept) => kept !== track); },
+    audioStopped,
+    videoStopped
+  } as unknown as MediaStream & {audioStopped: ReturnType<typeof vi.fn>; videoStopped: ReturnType<typeof vi.fn>};
+}
+
 function video() {
   return {
     muted: false,
@@ -154,6 +175,26 @@ describe("the browser's camera button", () => {
     expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
     expect(extension.cameraErrorCode({CAMERA_ID: 'pose'})).toBe('');
     expect(element.removed).toBe(true);
+  });
+
+  // #59: the operator only wanted to lend a camera. The microphone the element adds is stopped and
+  // taken out of the stream, so no consumer is handed it and the OS stops showing it in use.
+  it('shares the camera without the microphone the element answered with', async () => {
+    const {element} = install();
+    const extension = new CameraSourceExtension();
+    const started = extension.startSharedCameraFromCameraButton({CAMERA_ID: 'pose'});
+    await Promise.resolve();
+    const opened = streamWithMicrophone();
+    element.stream = opened;
+    element.emit('stream');
+    await started;
+
+    expect(opened.getAudioTracks()).toEqual([]);
+    expect(opened.audioStopped).toHaveBeenCalledOnce();
+    expect(opened.getVideoTracks()).toHaveLength(1);
+    expect(opened.videoStopped).not.toHaveBeenCalled();
+    expect(extension.isCameraRunning({CAMERA_ID: 'pose'})).toBe(true);
+    expect(extension.cameraErrorCode({CAMERA_ID: 'pose'})).toBe('');
   });
 
   // #60: the block is the side that opened this stream, so nobody else is left to stop it. Leaving

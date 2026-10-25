@@ -11,6 +11,9 @@ import type {CameraControlsHost} from './camera-controls-host.js';
  * TurboWarp's document, so there is nobody above the project to place the element. A packaged work
  * has such a host, and there this path stays out of the way -- the extension joins the stream the
  * host already adopted instead of asking again.
+ *
+ * The element answers with a microphone as well as a camera, and that cannot be asked away; what
+ * this module does about it is in `withoutAudio`.
  */
 
 export type UserMediaOutcome =
@@ -43,6 +46,29 @@ export interface UserMediaRequestOptions {
 /** Whether this browser has the capability element at all. */
 export function supportsUserMediaElement(view: object = globalThis): boolean {
   return 'HTMLUserMediaElement' in view;
+}
+
+/**
+ * Stops the microphone the element answered with, and takes its track out of the stream.
+ *
+ * `<usermedia>` is the element for *combined* audio and video. Its `setConstraints` takes
+ * `HTMLMediaStreamConstraints`, whose `audio` and `video` must each be a constraint set -- so
+ * `audio: false` is a `TypeError`, and `{video: {}}` on its own does not drop the microphone,
+ * because the element's own default is `{audio: {}, video: {}}` and the filtering it applies is to
+ * each track's parameters, not to which tracks it opens. Asking for video alone is what the
+ * proposed `<camera>` element is for, and no browser ships that yet.
+ *
+ * So the microphone arrives whatever this module asks for, and the one thing left is to stop it
+ * before any consumer is handed the stream. The browser's prompt still names the microphone, and
+ * only a `<camera>` element could change that; nothing listens on the microphone either way.
+ */
+function withoutAudio(stream: MediaStream): MediaStream {
+  const audio = typeof stream.getAudioTracks === 'function' ? stream.getAudioTracks() : [];
+  for (const track of audio) {
+    if (typeof stream.removeTrack === 'function') stream.removeTrack(track);
+    track.stop();
+  }
+  return stream;
 }
 
 /**
@@ -86,7 +112,7 @@ export function requestUserMedia(options: UserMediaRequestOptions): UserMediaReq
 
   element.addEventListener('stream', () => {
     const stream = element.stream;
-    if (stream && typeof stream.getTracks === 'function') finish({kind: 'stream', stream});
+    if (stream && typeof stream.getTracks === 'function') finish({kind: 'stream', stream: withoutAudio(stream)});
     else finish({kind: 'error', code: 'usermedia-empty', message: 'The camera button returned no stream.'});
   });
   element.addEventListener('cancel', () => finish({kind: 'cancelled'}));
