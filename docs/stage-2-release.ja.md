@@ -1,3 +1,5 @@
+> 共通フォームはその後、公開npm releaseとして配布されている。現在の配布境界の検証は [editor-schema-npm-distribution-20261025.ja.md](editor-schema-npm-distribution-20261025.ja.md) / [JSON](editor-schema-npm-distribution-20261025.json) を参照。以下のGit pinと検証結果は採取時の履歴として保持する。
+
 # 段階2の公開Git配布とnpmリリース
 
 2026-10-18、日本時間。段階2全体の公開承認に基づく。共通0.2.0の最終merge SHAへmanifest・lock・allowBuilds・実解決を統一し、full type/test/build/packと生成物を検証する。先行file/Git artifactの記録は当時の履歴として保持する。
