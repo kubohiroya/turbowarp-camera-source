@@ -145,10 +145,22 @@ for (const requiredFile of [
 
 requireText(license, "Mozilla Public License Version 2.0", "LICENSE");
 requireText(license, "9. Miscellaneous", "LICENSE");
+// The human-facing product name. The repository slug, the npm package and the extension ID keep
+// their hyphens and are code; this is the name a reader sees, and it is three words (#1).
 requireText(readme, "# TurboWarp Camera Source", "README.md");
 requireText(japaneseReadme, "# TurboWarp Camera Source", "README.ja.md");
 requireText(englishPage, "TurboWarp Camera Source", "docs/index.html");
 requireText(japanesePage, "TurboWarp Camera Source", "docs/ja/index.html");
+for (const [text, file] of [
+  [readme, "README.md"],
+  [japaneseReadme, "README.ja.md"],
+  [englishPage, "docs/index.html"],
+  [japanesePage, "docs/ja/index.html"],
+] as const) {
+  if (text.includes("TurboWarp-Camera-Source")) {
+    throw new Error(`${file} writes the product name as TurboWarp-Camera-Source.`);
+  }
+}
 requireText(readme, "**English** | [日本語](README.ja.md)", "README.md");
 requireText(japaneseReadme, "[English](README.md) | **日本語**", "README.ja.md");
 requireText(readme, "SPDX-License-Identifier: MPL-2.0", "README.md");
