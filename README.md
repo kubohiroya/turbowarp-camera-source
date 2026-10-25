@@ -25,18 +25,24 @@ or select separate cameras for separate roles.
 - User camera permission through the browser permission prompt.
 - Camera frames stay in the browser. Camera Source does not upload frames or store images.
 
+## Security dialog description language
+
+Builds include a Japanese `Description[ja]` header alongside the default English
+description. A supporting shared security dialog follows the Editor locale and falls back to
+the original description when no translation is available. Translation does not change the `Unsandboxed: required` requirement.
+
 ## Installation
 
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.19.3/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.19.4/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.19.3
+pnpm add @kubohiroya/turbowarp-camera-source@0.19.4
 ```
 
 ## Quick Start
