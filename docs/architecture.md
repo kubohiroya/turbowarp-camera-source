@@ -53,6 +53,7 @@ element and independently opt into the display path.
 ```text
 MediaStream -> HTMLVideoElement -> VideoSkin -> texImage2D(video) -> WebGL texture
                               \-> HTMLVideoElement / VideoFrame -> WebGPU or vision consumer
+                              \-> canvas -> encoded bytes -> file consumer (captureFrame)
 ```
 
 The display skin receives video-frame notifications, reuses one WebGL texture, and requests a stage
@@ -64,6 +65,15 @@ readback.
 This removes explicit `drawImage()`, `getImageData()`, and CPU pixel scanning from the preview path.
 It does not guarantee browser-internal zero-copy because decoding, color conversion, and texture
 transfer are implementation-dependent.
+
+`captureFrame()` is the third path and the only one that does use a canvas, because encoding a still
+image is what it is for: a consumer wanting a file rather than pixels. It draws once into a canvas
+that is never attached to the document, encodes it, copies the bytes out, and keeps no object URL,
+so the canvas and the blob are unreachable as soon as it returns. `tests/video-preview-display-path.test.ts`
+reads the display path's own source rather than the bundle, so this canvas is allowed to exist
+without the preview's guarantee being weakened to accommodate it. The capture is the camera's own
+frame: `previewFlip` is not applied, because a profile's intrinsics describe the captured image and
+a silently mirrored still would disagree with every calibration invisibly.
 
 ## Block-owned preview lifecycle
 

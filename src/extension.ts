@@ -28,6 +28,7 @@ import {
   type CameraSourceCapabilityV1
 } from './runtime-capability';
 import {toFlip, type Flip} from './flip';
+import {captureSnapshot, type CameraCaptureOptions} from './snapshot';
 import {
   requestUserMedia,
   supportsUserMediaElement,
@@ -45,9 +46,12 @@ import {
 export type {
   CameraAcquireOptions,
   CameraAdoptOptions,
+  CameraCaptureOptions,
   CameraFrameSource,
   CameraLease,
-  CameraLeaseOptions
+  CameraLeaseOptions,
+  CameraSnapshot,
+  CameraSnapshotType
 } from './runtime';
 import {createVideoPreview, type CameraRenderer, type VideoPreview} from './video-preview';
 import {FrameTimeWatcher} from './frame-time';
@@ -462,6 +466,14 @@ export class CameraSourceExtension implements TurboWarpExtension {
     let released = false;
     return Object.freeze({
       getFrameSource: () => this.getFrameSource(session),
+      captureFrame: async (captureOptions?: CameraCaptureOptions) => {
+        // Reads the session's own element, so the stream this lease already holds is the one
+        // captured and no second camera is opened.
+        if (released) throw new Error('This camera lease has been released.');
+        const video = this.sessions.get(session.cameraId) === session ? session.video : null;
+        if (!video) throw new Error('Shared camera is not running.');
+        return captureSnapshot(video, captureOptions);
+      },
       release: async () => {
         if (released) return;
         released = true;

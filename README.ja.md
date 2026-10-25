@@ -188,6 +188,47 @@ Scratchのtouchingまたはcolor sensing用の画像sourceとしては扱いま�
 
 `cameraId`は`pose`や`qr`のような作品内の役割名です。`deviceId`を指定すると、その役割をブラウザが公開する特定のカメラデバイスへ割り当てられます。各カメラは最後のleaseが解放されるまで維持されます。
 
+### 静止画の取得
+
+画素ではなくファイルが欲しいconsumer——アセット管理、ダウンロード、最新フレームを配るサーバ——は、leaseに
+1枚求められます。画像を自分で処理するconsumerは、encodeを挟まず`frame.element`を読んでください。
+
+```js
+if (typeof lease.captureFrame === "function") {
+  const shot = await lease.captureFrame({type: "image/jpeg", quality: 0.8, maxWidth: 1280});
+  // shot.bytesはUint8Array。shot.type・shot.width・shot.height・shot.capturedAtがそれを説明します。
+}
+```
+
+`adoptCamera()`と同じ理由でfeature detectしてください。この面はversionではなく形で狭めているので、現在の宣言
+でcompileしたconsumerが、このメソッドより古いbuildに出会うことがあります。
+
+leaseが既に持っているstreamから描くので、2つ目のカメラを開くことはありません。sessionについても何も変えず、
+1枚も取らなかった場合と同じようにleaseを解放できます。`type`の既定は`image/jpeg`。`quality`は0〜1へ丸めますが、
+そもそもqualityでなかった値は、ブラウザの既定でencodeせずに拒否します。`maxWidth`・`maxHeight`は上限で、
+アスペクト比は保たれ、厳しい側が決め、**フレームを引き伸ばすことはありません**——640 pxのフレームに4000 pxを
+求めるのは、存在しない細部を求めることです。要求したtypeをencodeできないブラウザは失敗ではなくPNGを返すので、
+typeを照合し、違っていれば誤った名前で渡す代わりに報告します。
+
+**取得される静止画はカメラが撮ったそのものです。** `previewFlip`は描画上の選択であり、適用しません。
+プロファイルのintrinsicsは撮影された画像を記述するので、黙って左右反転した静止画は、同じカメラで解いた全ての
+校正と食い違い、しかもその食い違いが見えません——左右反転した部屋の写真は、部屋の写真に見えます。操作者が見て
+いたものが欲しい場合は`flip`で求め、それが何だったかは`frame.previewFlip`で分かります。
+
+ここにHTTP・アセット・保存の概念は入りません。10秒ごとのライブカメラは外側で組み立てます。
+
+```js
+const lease = await cameraSource.acquireCamera({owner: "live-camera", cameraId: "live"});
+const timer = setInterval(async () => {
+  const shot = await lease.captureFrame({type: "image/jpeg", quality: 0.7, maxWidth: 1280});
+  await assets.replace("live-camera", shot.bytes, shot.type);   // 最新フレームを保持する何か
+}, 10_000);
+// clearInterval(timer); await lease.release();
+```
+
+あとは保持側が配ります——`turbowarp-http-server`が`GET /camera/image.jpg`に答える、ダウンロードさせる、
+アップロードする——が、そのいずれもCamera Sourceは知りません。
+
 ### 校正プロファイル
 
 内部校正プロファイルの契約は本拡張が持つが、**プロファイルを作ることはしない**。チェスボード校正も、操作者が貼り付けたJSONも、将来の別方式も、検証を通る文書の生産者というだけで、ここからは区別できない。
