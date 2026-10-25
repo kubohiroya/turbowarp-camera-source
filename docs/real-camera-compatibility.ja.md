@@ -2,9 +2,11 @@
 
 関連: [Issue #14](https://github.com/kubohiroya/turbowarp-camera-source/issues/14)。
 
-#14のDoDで唯一残っている項目は「実カメラで解像度・focus／zoomを変えた際の適合性判定を検証し、条件を記録する」である。単体テストでは届かない。`evaluateProfileCompatibility`が3値（`compatible`／`incompatible`／`undetermined`）を返すのは、**デバイスが報告しない制御**と**報告する制御が変わったこと**を区別するためで、その区別が実機で成り立つかは実機でしか分からない。
+#14のDoDで最後まで残った項目は「実カメラで解像度・focus／zoomを変えた際の適合性判定を検証し、条件を記録する」である。単体テストでは届かない。`evaluateProfileCompatibility`が3値（`compatible`／`incompatible`／`undetermined`）を返すのは、**デバイスが報告しない制御**と**報告する制御が変わったこと**を区別するためで、その区別が実機で成り立つかは実機でしか分からない。
 
-2026-10-25に解像度の側を実機で確認した。結果は下の「記録」にある。focus／zoomは、試した内蔵カメラがその制御を持たないため未確認のまま残る。
+2026-10-25に解像度の側を実機で確認した。結果は下の「記録」にある。focus／zoomは、試した内蔵カメラがその制御を持たないため未確認のまま残っている。
+
+**#14はこの項目を未達のままcloseした**（2026-10-25）。満たされたからではなく、`zoom`・`focusMode`・`focusDistance`を`applyConstraints`で受ける機材を調達する計画が無いという判断による。必要になった時点で改めてIssueを立てる。この文書はそのときの入口として残す——下の「記録」に、何が確認済みで何が確認済みでないかの内訳がある。
 
 ハーネスは [`tests/manual/real-camera-compatibility.html`](../tests/manual/real-camera-compatibility.html)。
 
@@ -62,6 +64,8 @@ npx --yes http-server -p 5178 .
   これは合成した`MediaTrackSettings`でも検査していた経路だが、**実機のブラウザが本当にこう振る舞う**ことはここで初めて裏が取れた。`src/calibration/types.ts`の「Cropping changes the effective intrinsics at the same resolution.」が実測で支えられた形である。
 
 未確認のまま残るもの: `zoom`・`focusMode`・`focusDistance`を変えたときの判定。このカメラがその制御を持たないため、**機材が揃うまで実機では確かめられない**。それらを`applyConstraints`で受けるUSBカメラがあれば、同じページをもう一度走らせるだけで埋まる。判定側のロジック自体は下の合成条件での確認で裏が取れている。
+
+正確には、未確認なのは**実機のデバイスが`applyConstraints`でそれらを動かしたとき、`getSettings()`の変化を判定が拾うか**だけである。判定側の分岐——各制御の不一致が`incompatible`に、報告されていなかった制御の出現が`undetermined`になること——は合成条件で確認済みで、残差はデバイス側の振る舞いに限られる。この残差を抱えたまま#14はcloseした（上記）。
 
 ### 2026-10-25 — 判定側は実機なしで確認済み
 
