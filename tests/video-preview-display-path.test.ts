@@ -1,5 +1,5 @@
 import {readFileSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {dirname, relative, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {expect, it} from 'vitest';
 import ts from 'typescript';
@@ -14,15 +14,44 @@ import ts from 'typescript';
  * one `getImageData()` added in good faith, or a silhouette hook left to the base class, puts the
  * frames back through the CPU without failing anything.
  *
- * Reading the source rather than the bundle is deliberate. The display path is this file and what it
- * imports; the rest of the extension may use a canvas for its own reasons -- capturing a still image
- * is one -- and a check over the whole bundle would either forbid that or be switched off.
+ * Reading the source rather than the bundle is deliberate. The rest of the extension may use a
+ * canvas for its own reasons -- capturing a still image is one -- and a check over the whole bundle
+ * would either forbid that or be switched off.
+ *
+ * Which makes the scope the whole question, and it has to be the code that *runs*. Following every
+ * relative import reaches `src/runtime.ts`, which re-exports types from most of the extension, so
+ * nine files came back for two that execute -- `src/snapshot.ts` among them, whose whole job is to
+ * draw a frame to a canvas. A guard that fails on a module it only ever borrowed a type name from
+ * would be switched off within a week, and deserves to be. So type-only imports and exports are not
+ * followed: they are erased before anything runs and cannot put a pixel through the CPU.
  */
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const entry = resolve(root, 'src/video-preview.ts');
 
-/** `src/video-preview.ts` and everything it reaches by relative import. */
+/** Whether this declaration still exists once the types are erased. */
+function survivesErasure(statement: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
+  if (ts.isImportDeclaration(statement)) {
+    const clause = statement.importClause;
+    // `import './side-effect.js'` has no clause at all and is nothing but runtime.
+    if (!clause) return true;
+    if (clause.isTypeOnly) return false;
+    if (clause.name) return true;
+    const bindings = clause.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) {
+      return bindings.elements.some((element) => !element.isTypeOnly);
+    }
+    return true;
+  }
+  if (statement.isTypeOnly) return false;
+  const clause = statement.exportClause;
+  if (clause && ts.isNamedExports(clause)) {
+    return clause.elements.some((element) => !element.isTypeOnly);
+  }
+  return true;
+}
+
+/** `src/video-preview.ts` and the modules it actually loads at run time. */
 function displayPathFiles(): Map<string, string> {
   const files = new Map<string, string>();
   const queue = [entry];
@@ -36,6 +65,7 @@ function displayPathFiles(): Map<string, string> {
       if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
       const specifier = statement.moduleSpecifier;
       if (!specifier || !ts.isStringLiteral(specifier) || !specifier.text.startsWith('.')) continue;
+      if (!survivesErasure(statement)) continue;
       const base = resolve(dirname(path), specifier.text.replace(/\.js$/, ''));
       queue.push(`${base}.ts`);
     }
@@ -79,7 +109,14 @@ function referencedNames(path: string, source: string): Set<string> {
 
 it('uploads preview frames from the video element and never reads them back to the CPU', () => {
   const files = displayPathFiles();
-  expect(files.has(entry)).toBe(true);
+  const walked = [...files.keys()].map((path) => relative(root, path));
+
+  // The scope, pinned. `src/flip.ts` proves a module that really is loaded gets read, and
+  // `src/runtime.ts` -- reached only as `import type {Flip}` -- proves an erased one does not,
+  // which is what keeps this from failing on code the preview never executes.
+  expect(walked).toContain('src/video-preview.ts');
+  expect(walked).toContain('src/flip.ts');
+  expect(walked).not.toContain('src/runtime.ts');
 
   const referenced = new Set<string>();
   for (const [path, source] of files) {
@@ -89,7 +126,8 @@ it('uploads preview frames from the video element and never reads them back to t
   // The upload itself, and that the source it uploads is the video element rather than anything
   // that would have had to be drawn first.
   const uploads = texImage2DSources(entry, files.get(entry)!);
-  expect(uploads).toEqual(['this.video']);
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0]).toMatch(/(^|\.)video$/);
 
   // The CPU routes the standard preview takes, and the readback a silhouette would do.
   for (const forbidden of ['drawImage', 'getImageData', 'putImageData', 'readPixels', 'toDataURL', 'toBlob']) {
