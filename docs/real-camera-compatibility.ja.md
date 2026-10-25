@@ -33,6 +33,24 @@ npx --yes http-server -p 5178 .
 | --- | --- | --- | --- |
 | — | — | — | 未実施 |
 
+### 2026-10-25 — 判定側は実機なしで確認済み
+
+ハーネスが実機で確かめるのは**デバイスの振る舞い**だけで、判定そのものは先に確かめられる。`dist/profile.js`へ、実機の代わりに合成した`MediaTrackSettings`を与えて同じ経路を通した結果:
+
+まずハーネスが書くprofile documentは`readCameraProfileDocument`を通る（通らなければページはそこで落ちるので、これが前提）。その上で、
+
+| 変化 | 判定 | 決定的な所見 |
+| --- | --- | --- |
+| 無し（基準） | `compatible` | — |
+| 解像度 1280x720 → 640x480 | `incompatible` | `image-size:mismatched` |
+| `zoom` 1 → 2 | `incompatible` | `zoom:mismatched` |
+| `focusMode` continuous → manual | `incompatible` | `focus-mode:mismatched` |
+| `focusDistance` 0.5 → 0.9 | `incompatible` | `focus-distance:mismatched` |
+| `frameRate` 30 → 15 | `compatible` | —（決定に加わらない） |
+| 制御を報告しないデバイスが`zoom`を報告し始める | `undetermined` | `zoom:unknown` |
+
+最後の行が肝で、**未知は`compatible`へ上がらない**。したがって内蔵カメラしか無い場合でも、残るのは「このデバイスが`applyConstraints`でfocus／zoomを実際に動かすか」という機材の問題だけで、判定の正しさは未確認ではない。
+
 ### 2026-10-25 — 実行できなかった環境
 
 Claudeのアプリ内ブラウザペイン（Chromium 152、`http://localhost:5178`）ではページとimportは通るが、`getUserMedia`が`NotAllowedError: Permission denied`で返る。ペイン側がデバイス取得を塞いでいるためで、操作者の拒否ではない。実機検証は通常のChromeで行う必要がある。
