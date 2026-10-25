@@ -1,21 +1,23 @@
 # 段階2の配布境界: 公開npm releaseでの再検証
 
-2026-10-25。対象は[Issue #49](https://github.com/kubohiroya/turbowarp-camera-source/issues/49)。検証したcommitは`ea922ee264eaef4b43c30f3d2a3aa3014c9d2db8`（main、version 0.19.4）。機械記録は[editor-schema-npm-distribution-20261025.json](editor-schema-npm-distribution-20261025.json)。
+2026-10-25。対象は[Issue #49](https://github.com/kubohiroya/turbowarp-camera-source/issues/49)。検証したcommitは`081d5ec315cbbe1e746bb39256633f8cc3d938cf`（main、version 0.19.4）。機械記録は[editor-schema-npm-distribution-20261025.json](editor-schema-npm-distribution-20261025.json)。
 
 ## 公開Git SHAのpinは、npm releaseに置き換わった
 
-Issue #49は「ローカルfile依存を公開Git SHAへ置換する」ことを求めていた。その前提は変わっている。先行repoの[Issue #31](https://github.com/kubohiroya/turbowarp-extension-data-editor/issues/31)は2026-10-19にcloseし、共通フォームは公開npmへ`@kubohiroya/turbowarp-extension-data-editor@0.3.0`として公開された（2026-10-20T11:56:59Z）。本repositoryはこれをdevDependencyとして完全固定している。
+Issue #49は「ローカルfile依存を公開Git SHAへ置換する」ことを求めていた。その前提は変わっている。先行repoの[Issue #31](https://github.com/kubohiroya/turbowarp-extension-data-editor/issues/31)は2026-10-19にcloseし、共通フォームは公開npmへ`@kubohiroya/turbowarp-extension-data-editor@0.3.0`として公開された（2026-10-20T11:56:59Z）。本repositoryはこれをdevDependencyとして参照している（[#83](https://github.com/kubohiroya/turbowarp-camera-source/pull/83)以降は`^0.3.0`のレンジ指定である）。
 
 | | 旧（段階1・2の記録） | 現在 |
 | --- | --- | --- |
-| 指定 | `git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#b5f4b8d2…` | `0.3.0` |
+| 指定 | `git+https://github.com/kubohiroya/turbowarp-extension-data-editor.git#b5f4b8d2…` | `^0.3.0` |
 | 取得元 | codeload.github.com | registry.npmjs.org |
 | 同一性の根拠 | commit SHA | tarballのintegrity `sha512-QYC/F394…` |
 | Git revisionの確認 | 指定そのもの | artifact内の`./build-info` |
 
-Git revisionを確認する手段は失われていない。0.3.0のartifactは自身に`dist/build-info.json`を持ち、`revision`は`9409867dc58d56cd652afa83f2361810dc8da826`である。このcommitは公開repositoryに実在し（2026-10-20T11:21:05Z、`chore(release): 共通フォーム0.3.0を準備する (#51)`）、npm公開の35分前にあたる。つまり**指定はversion、同一性はintegrity、出所はbuild-info**で、三つが一致している。
+Git revisionを確認する手段は失われていない。0.3.0のartifactは自身に`dist/build-info.json`を持ち、`revision`は`9409867dc58d56cd652afa83f2361810dc8da826`である。このcommitは公開repositoryに実在し（2026-10-20T11:21:05Z、`chore(release): 共通フォーム0.3.0を準備する (#51)`）、npm公開の35分前にあたる。つまり**同一性はintegrity、出所はbuild-info**で、指定が厳密versionでなくなっても、この二つがartifactを一意に決めている。
 
 lockのintegrityはregistryが返す`dist.integrity`と文字列一致する。manifest・lock・実解決が食い違っていればfrozen installが失敗するが、成功した。
+
+指定が`^0.3.0`であることの意味は限定的である。lockは解決versionとintegrityを持ち続けるので、`--frozen-lockfile`——CIと`release:check`が通る経路——はこのartifactを一意に解決する。緩むのは素の`pnpm install`が新しい互換versionへ動かしうる点で、**この記録がrepositoryの中の何も変わらないまま古くなりうる唯一の経路**がそれである。その場合は下の検証をやり直して記録を更新する。
 
 0.3.0にprovenance attestationは付いていない（[#42](https://github.com/kubohiroya/turbowarp-camera-source/issues/42)で扱う範囲）。観測時点のdist-tag `latest`は0.3.3であり、本repositoryは0.3.0に留めている。版の引き上げはSchemaの受理条件に触れうるため、このIssueには含めない。
 

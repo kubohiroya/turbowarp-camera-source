@@ -1,15 +1,15 @@
 {
   "record_kind": "stage 2 distribution-boundary re-verification after the common form dependency moved from a local file/Git artifact to a published npm release",
-  "observed_at_utc": "2026-10-25T09:29:44Z",
+  "observed_at_utc": "2026-10-25T12:49:00Z",
   "repository": "kubohiroya/turbowarp-camera-source",
   "issue": "https://github.com/kubohiroya/turbowarp-camera-source/issues/49",
   "upstream_issue": "https://github.com/kubohiroya/turbowarp-extension-data-editor/issues/31",
   "upstream_issue_state": "closed 2026-10-19T11:08:11Z",
-  "verified_commit": "ea922ee264eaef4b43c30f3d2a3aa3014c9d2db8",
-  "verified_ref": "origin/main at 'fix(package): ship the block icon in the npm package (#74)'",
+  "verified_commit": "081d5ec315cbbe1e746bb39256633f8cc3d938cf",
+  "verified_ref": "origin/main at 'docs(readme): 見出しをfamily共通のsentence caseへ揃える (#86)'",
   "package_version": "0.19.4",
   "supersedes": {
-    "note": "The Git-SHA pin this issue asked for is no longer the distribution boundary. The common form package is published to the public npm registry, pinned exactly, and resolved by integrity; the Git revision behind it is still checked, through the artifact's own build-info.",
+    "note": "The Git-SHA pin this issue asked for is no longer the distribution boundary. The common form package is published to the public npm registry and resolved by integrity; the Git revision behind it is still checked, through the artifact's own build-info.",
     "prior_records": [
       "docs/editor-schema-publication.json",
       "docs/editor-schema-ci-fix-20261018.json",
@@ -19,7 +19,7 @@
     "prior_common_revision_stage2": "76fa1d50a3c188082ceef723ea018a9d8769ea6e"
   },
   "dependency_pins": {
-    "@kubohiroya/turbowarp-extension-data-editor": "0.3.0"
+    "@kubohiroya/turbowarp-extension-data-editor": "^0.3.0"
   },
   "local_specifiers_remaining": {
     "file": 0,
@@ -32,7 +32,7 @@
       "name": "@kubohiroya/turbowarp-extension-data-editor",
       "via": "@kubohiroya/turbowarp-camera-source",
       "kind": "devDependency",
-      "specifier": "0.3.0",
+      "specifier": "^0.3.0",
       "version": "0.3.0",
       "registry_tarball": "https://registry.npmjs.org/@kubohiroya/turbowarp-extension-data-editor/-/turbowarp-extension-data-editor-0.3.0.tgz",
       "registry_integrity": "sha512-QYC/F394HjVKnmbubJqAYBp/DbiJbTQ4McvwxkeJtYKJ+6Vp8q+cefy9VHas9QYldlTa+UC9uq6xvzO9sFfjFg==",
@@ -74,12 +74,13 @@
         "schema.d.ts": "c739932b540cc120d906541fd52efd0d460d72cf23b55129f13aa856783946b9",
         "schema.js": "b0fae0b0e120b84f5f70bfacc7667fd5af4d0ae14f67db4ac0f6f77928a4da8f"
       },
-      "schema_entry_continuity": "schema-compose, schema-engine, schema-json, schema-types and schema-view are byte-identical to the Git-artifact record in docs/editor-schema-ci-fix-20261018.json. schema.js and schema.d.ts changed and schema-presentation.{js,d.ts} is new, which is the prepared-source capability this release adds."
+      "schema_entry_continuity": "schema-compose, schema-engine, schema-json, schema-types and schema-view are byte-identical to the Git-artifact record in docs/editor-schema-ci-fix-20261018.json. schema.js and schema.d.ts changed and schema-presentation.{js,d.ts} is new, which is the prepared-source capability this release adds.",
+      "specifier_note": "A caret range as of #83, not an exact version. The lockfile still names 0.3.0 and its integrity, so `--frozen-lockfile` -- what CI and release:check run -- resolves exactly this artifact. A plain `pnpm install` may move the resolved version to a newer compatible one, which is the one way this record can go out of date without anything in the repository changing; re-run the verification below and update it when that happens."
     }
   ],
   "configuration_sha256": {
-    "package.json": "dd9a8e42eda8de4c4c44769d1391cdb8146c647d60a87d62632527466d55f61d",
-    "pnpm-lock.yaml": "729d93c846b8f84cad617c72da69299096dd3ffab379d0fb7fb9ed02e6695ffb",
+    "package.json": "b10af244d3ed2d03a7368640d5825959319f016a2995ee27f4f174448815b8cb",
+    "pnpm-lock.yaml": "85da106443e9bdca919db8de031e2288ddca9b5f31f0bf5bb483811fe2df394b",
     "pnpm-workspace.yaml": "69d1479b9687806ca354a2734e97e1c5f631e575f0c680a0958bff68005eb35d",
     "tsconfig.editor.json": "260ee1eb962f117c75c2f65a32d5aad6730749685d90f0620a3134702bb8e216"
   },
@@ -95,19 +96,33 @@
       "passed": true,
       "command": "pnpm install --frozen-lockfile",
       "checkout": "clean clone of origin/main at a different path",
-      "note": "The lockfile satisfies the manifest without being rewritten, so pin, lock and actual resolution agree."
+      "note": "The lockfile satisfies the manifest without being rewritten, so the range, the lock and the actual resolution agree on 0.3.0."
     },
     "full_check": {
       "passed": true,
       "command": "pnpm run check",
-      "steps": ["typecheck", "lint", "test", "docs:check", "docs:pages:check", "check:dist", "repo:check", "pack:check"],
+      "steps": [
+        "typecheck",
+        "lint",
+        "test",
+        "docs:check",
+        "docs:pages:check",
+        "check:dist",
+        "repo:check",
+        "pack:check"
+      ],
       "tests": 279,
       "test_files": 21
     },
     "distribution_boundary": {
       "passed": true,
       "covered_by": "tests/editor-boundary.test.ts",
-      "pure_entries": ["./runtime", "./profile", "./editor-schema", "./editor-metadata"],
+      "pure_entries": [
+        "./runtime",
+        "./profile",
+        "./editor-schema",
+        "./editor-metadata"
+      ],
       "third_party_runtime_imports": 0,
       "isolated_import": "./editor-metadata and ./editor-schema imported from a temporary node_modules holding only dist, lib-editor and package.json, with window, document and Scratch defined as throwing getters; one schema owner, declarations present, both register* entries callable",
       "no_src_in_package": true,
@@ -126,8 +141,8 @@
       "unpacked_size_kb": 591.3
     },
     "logs_sha256": {
-      "install.log": "8212f2e4f0c189a0351d87662a54cf3cc70bb9ef561d2fc045f677425bba9153",
-      "check.log": "e7132f3f4793181b4b39da4628f0b6a33a248665cdfc7d44d2f3b3387ec85fbf"
+      "install.log": "5d7540174cbe4975da358fc75d67e28eb9453a679f63db7f1be4f7682c5392e6",
+      "check.log": "d5a242981bcd9ba5966684fcd6eb965c6b6b04a82c5914baaa57d281a325b3a7"
     },
     "logs_note": "Run in a temporary verification checkout, which is not kept. The hashes identify the output this record was written from; they are not reproducible from the repository alone."
   },
@@ -162,6 +177,7 @@
   "scope": {
     "dependency_version_bump": false,
     "npm_publish": false,
-    "PR_merge": false
+    "PR_merge": false,
+    "dependency_range_widened_elsewhere": "#83, merged before this record was taken"
   }
 }
