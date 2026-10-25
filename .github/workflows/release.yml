@@ -54,10 +54,33 @@ jobs:
         # npm happens to come with a future bump.
         run: npm install -g npm@latest
       - name: Publish to npm
-        # No token in this repository. The package's trusted publisher on
-        # npmjs.com names this repository and this workflow, and npm checks that
-        # instead; the credential it issues lives for the length of the job.
-        # Provenance is attached without asking.
+        # No token in this repository. npm checks this workflow's identity
+        # against the package's trusted publisher on npmjs.com, and the
+        # credential it issues lives for the length of the job. Provenance is
+        # attached without asking.
+        #
+        # The half of the setting that is not in this file is on npmjs.com,
+        # under the package's Settings -> Trusted publisher. Four fields have to
+        # match, and one mismatch is a 403 "OIDC permission denied":
+        #
+        #   Organization or user  kubohiroya
+        #   Repository            turbowarp-camera-source
+        #   Workflow filename     release.yml   <- the filename alone; the path
+        #                                         .github/workflows/release.yml
+        #                                         does not match
+        #   Environment           (empty)       <- this workflow declares no
+        #                                         `environment:`, so a name here
+        #                                         does not match
+        #
+        # Publishing access on the same page matters too: "Require two-factor
+        # authentication" refuses OIDC, so it has to be "Require two-factor
+        # authentication or an automation token".
+        #
+        # Accepting a publish and serving it are different things -- the version
+        # took about 80 seconds to appear in the registry after a successful job
+        # (#41), so a downstream update has to wait for the registry itself.
+        # docs/trusted-publishing.ja.md has the wait, how to read whether
+        # provenance was attached, and which other packages this is spreading to.
         #
         # Runs last, so a failed check or a mismatched tag stops the release
         # before anything reaches the registry, where it cannot be taken back.
