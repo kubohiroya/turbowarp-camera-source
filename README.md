@@ -20,7 +20,7 @@ or select separate cameras for separate roles.
 - Keeps each stream alive until the final lease is released.
 - Lists browser camera devices after permission is granted.
 
-## Requirements and Safety
+## Requirements and safety
 
 - TurboWarp custom extensions loaded with **Run extension without sandbox**.
 - A secure browser context such as HTTPS or localhost.
@@ -47,7 +47,7 @@ For npm hosts:
 pnpm add @kubohiroya/turbowarp-camera-source@0.19.4
 ```
 
-## Quick Start
+## Quick start
 
 Use role names for camera streams. Consumers that use the same `cameraId` share one camera; different names can bind to different devices.
 
@@ -62,7 +62,7 @@ shared camera [pose] is running?
 stop shared camera [pose]
 ```
 
-## Block Reference
+## Block reference
 
 <!-- BEGIN GENERATED BLOCKS -->
 
@@ -778,7 +778,7 @@ For continuous rebuilding during development:
 pnpm run dev
 ```
 
-## Build Workflow
+## Build workflow
 
 ```text
 TypeScript source
