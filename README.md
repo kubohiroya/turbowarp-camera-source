@@ -814,6 +814,7 @@ not request `preview: true` retain the existing camera-source behavior.
 ## Development
 
 ```bash
+npm install --global corepack@latest
 corepack enable
 pnpm install --frozen-lockfile
 pnpm run check
