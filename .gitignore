@@ -11,3 +11,5 @@ coverage/
 .serena/
 
 lib-editor/
+
+_site/
