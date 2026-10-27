@@ -13,6 +13,12 @@ or select separate cameras for separate roles.
 **[Open the user guide](https://kubohiroya.github.io/turbowarp-camera-source/)** ·
 **[日本語ガイド](https://kubohiroya.github.io/turbowarp-camera-source/ja/)**
 
+## Minimal sample
+
+[TurboWarp Editor](https://turbowarp.org/editor?project_url=https%3A%2F%2Fkubohiroya.github.io%2Fturbowarp-camera-source%2Fsamples%2Fcamera-preview-and-size.sb3) · [SB3](https://kubohiroya.github.io/turbowarp-camera-source/samples/camera-preview-and-size.sb3) · [Instructions, requirements and verification limits](samples/README.md)
+
+The green flag only displays status. Click **Start** to request camera permission; **Stop** releases the camera. A camera, HTTPS and permission are required. Physical capture, recognition and calibration success are unverified. Automated checks are silent and cover initial state and stopping.
+
 ## What it does
 
 - Starts and stops named camera streams such as `pose`, `qr`, or `default`.

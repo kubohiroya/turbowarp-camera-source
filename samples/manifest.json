@@ -1,0 +1,35 @@
+{
+  "baseURL": "https://kubohiroya.github.io/turbowarp-camera-source/",
+  "extension": {
+    "id": "kubohiroyacamerasource",
+    "bundle": "dist/camera-source.js",
+    "unsandboxed": true,
+    "dependencies": []
+  },
+  "samples": [
+    {
+      "name": "camera-preview-and-size",
+      "title": "Shared camera preview",
+      "checks": [
+        {
+          "variable": "running",
+          "equals": false
+        },
+        {
+          "variable": "width",
+          "equals": 0
+        },
+        {
+          "variable": "height",
+          "equals": 0
+        },
+        {
+          "variable": "error",
+          "equals": ""
+        }
+      ],
+      "instructions": "Green flag: status only. Start: request camera."
+    }
+  ],
+  "publicAssets": []
+}
