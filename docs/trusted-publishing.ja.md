@@ -53,6 +53,34 @@ curl -sf "https://registry.npmjs.org/$pkg/latest" | jq '.dist.attestations'
 
 ## 他パッケージへの展開
 
+### 観測（2026-10-28）— 展開は完了した
+
+17パッケージすべてがprovenance付きで公開されている。`first`はprovenanceが最初に付いたversionで、registryの`dist.attestations`を読んで確認した。
+
+| パッケージ | npm最新版 | provenanceが付いた最初のversion |
+| --- | --- | --- |
+| @kubohiroya/turbowarp-camera-source | 0.21.0 | 0.14.0 |
+| @kubohiroya/turbowarp-teachable-machine | 4.0.0 | 3.3.0 |
+| @kubohiroya/turbowarp-kamishibai-app | 4.0.0-rc.59 | 4.0.0-rc.58 |
+| @kubohiroya/turbowarp-app-shell | 0.5.0 | 0.5.0 |
+| @kubohiroya/turbowarp-ar | 0.6.0 | 0.6.0 |
+| @kubohiroya/turbowarp-jsqr | 0.6.0 | 0.6.0 |
+| @kubohiroya/turbowarp-bubble | 0.15.0 | 0.14.0 |
+| @kubohiroya/turbowarp-async-input | 0.10.0 | 0.10.0 |
+| @kubohiroya/turbowarp-asset-cache | 0.5.0 | 0.5.0 |
+| @kubohiroya/turbowarp-kvs | 0.4.0 | 0.3.0 |
+| @kubohiroya/turbowarp-runtime-expression | 0.8.0 | 0.8.0 |
+| @kubohiroya/turbowarp-svg-text | 0.12.0 | 0.11.0 |
+| @kubohiroya/turbowarp-extension-manifest | 0.4.0 | 0.4.0 |
+| @kubohiroya/turbowarp-extension-data-editor | 0.4.0 | 0.4.0 |
+| @kubohiroya/vite-plugin-turbowarp-extension | 0.9.0 | 0.9.0 |
+| @kubohiroya/turbowarp-named-data | 0.6.0 | 0.6.0 |
+| @kubohiroya/sb3-toolchain | 0.18.0 | 0.18.0 |
+
+これで[#42](https://github.com/kubohiroya/turbowarp-camera-source/issues/42)の3つ目の完了条件——「展開する場合、各パッケージの最初の公開でprovenanceが付くことを確認すること」——が満たされた。確認の仕方は上の`dist.attestations`のコマンドである。
+
+下の2026-10-25の観測と、その下の app-shell の切り分けは、採取時点の履歴として保持する。
+
 ### 観測（2026-10-25）
 
 | パッケージ | npm最新版 | provenance | `release.yml`の`id-token` |
@@ -103,6 +131,6 @@ workflowを本repositoryの実績ある版と突き合わせても、OIDCに効�
 2. **`turbowarp-app-shell`** — 第2優先。**workflowは出来ていることが実測で確定した**（上記）。残るのはnpmjs.com側の登録だけで、コードの変更は要らない。family中でコストが最も低い。
 3. **残り** — 次のminor公開のついでに1つずつ。`release.yml`があって`id-token`が無いもの（svg-text、kvs、runtime-expression）は、このrepositoryのpublish stepをそのまま写せる。`release.yml`が無いものは、このrepositoryのworkflow全体か、teachable-machineの`workflow_dispatch`版を雛形にする。
 
-各パッケージで最初の公開がprovenance付きになったことを、上の`dist.attestations`で確認してこの表を更新する。
+**この判断は実行され、2026-10-28に完了した**（上の観測）。3段階とも済んでおり、残っているパッケージは無い。
 
 展開しない選択も残る。保存tokenが無いこと自体は、trusted publishingでしか得られない性質ではない——automation tokenでも2FAは省ける。trusted publishingが加えるのはprovenanceと、tokenをどこにも保管しないことである。
