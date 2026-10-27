@@ -38,13 +38,13 @@ the original description when no translation is available. Translation does not 
 Load this URL as an unsandboxed custom extension:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.20.0/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.21.0/dist/camera-source.js
 ```
 
 For npm hosts:
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.20.0
+pnpm add @kubohiroya/turbowarp-camera-source@0.21.0
 ```
 
 ## Quick start
