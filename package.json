@@ -1,7 +1,11 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.21.1",
-  "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
+  "version": "0.22.0",
+  "author": {
+    "name": "Hiroya Kubo",
+    "email": "hiroya@cuc.ac.jp",
+    "url": "https://github.com/kubohiroya"
+  },
   "description": "A TurboWarp capability extension for sharing one MediaDevices camera stream across extensions.",
   "type": "module",
   "license": "MPL-2.0",
@@ -75,10 +79,10 @@
     "pages:build": "node scripts/prepare-pages.mjs"
   },
   "devDependencies": {
-    "@kubohiroya/turbowarp-app-shell": "^0.5.0",
+    "@kubohiroya/turbowarp-app-shell": "^0.6.0",
     "@eslint/js": "^9.39.5",
-    "@kubohiroya/turbowarp-extension-manifest": "^0.4.0",
-    "@kubohiroya/vite-plugin-turbowarp-extension": "^0.9.0",
+    "@kubohiroya/turbowarp-extension-manifest": "^0.5.0",
+    "@kubohiroya/vite-plugin-turbowarp-extension": "^0.10.0",
     "@types/node": "^24.13.3",
     "ajv": "^8.20.0",
     "eslint": "^9.39.5",
@@ -87,7 +91,7 @@
     "vite": "^8.2.2",
     "vitest": "^4.1.10",
     "react-dom": "18.3.1",
-    "@kubohiroya/turbowarp-extension-data-editor": "^0.4.0"
+    "@kubohiroya/turbowarp-extension-data-editor": "^0.5.0"
   },
   "keywords": [
     "turbowarp",
