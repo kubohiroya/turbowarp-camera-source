@@ -17,7 +17,7 @@ var extensionConfig = {
 	author: "Hiroya Kubo",
 	license: "MPL-2.0",
 	unsandboxed: true,
-	blockIconURI: `data:image/svg+xml,${encodeURIComponent("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><circle cx=\"17\" cy=\"24\" r=\"9\" fill=\"none\" stroke=\"#4C97FF\" stroke-width=\"3\"/><circle cx=\"17\" cy=\"24\" r=\"3.4\" fill=\"#4C97FF\"/><path d=\"M30 24h10M29 17l9-5M29 31l9 5\" fill=\"none\" stroke=\"#59C059\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>stroke-width=\"5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h24a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V24a4 4 0 0 1 4-4Z\"/><path d=\"m40 29 14-9v24l-14-9\"/></g></svg>")}`
+	blockIconURI: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCI+CiAgPHBhdGggZD0ibTEzIDE2IDMtN2gxNWw0IDdaIiBmaWxsPSIjNEM5N0ZGIi8+CiAgPHJlY3QgeD0iNCIgeT0iMTUiIHdpZHRoPSI0MCIgaGVpZ2h0PSIyOCIgcng9IjUiIGZpbGw9IiM0Qzk3RkYiLz4KICA8cmVjdCB4PSI4IiB5PSIyMCIgd2lkdGg9IjciIGhlaWdodD0iMyIgcng9IjEiIGZpbGw9IiNmZmYiLz4KICA8Y2lyY2xlIGN4PSIyNyIgY3k9IjI5IiByPSI5IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMjciIGN5PSIyOSIgcj0iNS41IiBmaWxsPSIjNTlDMDU5Ii8+CiAgPGNpcmNsZSBjeD0iMzguNSIgY3k9IjIwLjUiIHI9IjEuNSIgZmlsbD0iI2ZmZiIvPgo8L3N2Zz4K"
 };
 var registry = Symbol.for("@kubohiroya/turbowarp-app-shell/runtime-controls-dock/v1");
 var edges = [
