@@ -169,10 +169,13 @@ describe('CameraSourceExtension', () => {
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-camera-source/');
     expect(info.docsURI).toBe(EXTENSION_DOCS_URI);
     expect(info.blockIconURI).toBe(BLOCK_ICON_URI);
-    expect(info.blockIconURI.startsWith('data:image/svg+xml,')).toBe(true);
-    expect(decodeURIComponent(info.blockIconURI.slice('data:image/svg+xml,'.length))).toMatch(
-      /^<svg [^>]*viewBox="0 0 48 48"[^>]*>.*<\/svg>$/u
-    );
+    expect(info.blockIconURI).toMatch(/^data:image\/svg\+xml(?:;base64)?,/u);
+    const comma = info.blockIconURI.indexOf(',');
+    const encoded = info.blockIconURI.slice(comma + 1);
+    const svg = info.blockIconURI.slice(0, comma).endsWith(';base64')
+      ? atob(encoded)
+      : decodeURIComponent(encoded);
+    expect(svg.trim()).toMatch(/^<svg [^>]*viewBox="0 0 48 48"[^>]*>.*<\/svg>$/su);
   });
 
   it('shows, updates, and hides one block-owned GPU preview lease', async () => {
