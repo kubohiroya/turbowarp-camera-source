@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {createStandaloneCameraControlsHost} from '../src/standalone-camera-controls-host.js';
+import {cameraPanelStyle, createStandaloneCameraControlsHost} from '../src/standalone-camera-controls-host.js';
 
 const dock = vi.hoisted(() => ({onClick: null as null | (() => unknown),
   update: vi.fn(), focus: vi.fn(), dispose: vi.fn(), placePanel: vi.fn()}));
@@ -112,6 +112,29 @@ describe('packaged HTML camera entry', () => {
     dock.focus.mockClear();
     dismiss.click();
     expect(panel.hidden).toBe(true); expect(dock.focus).toHaveBeenCalledTimes(1);
+    adapter.dispose();
+  });
+
+  it('themes the panel from host CSS variables with a prefers-color-scheme fallback', async () => {
+    for (const name of ['--color-scheme', '--ui-modal-background', '--ui-primary', '--ui-modal-foreground', '--text-primary',
+      '--ui-black-transparent', '--input-background', '--ui-tertiary', '--looks-secondary']) {
+      expect(cameraPanelStyle).toContain(`var(${name}`);
+    }
+    expect(cameraPanelStyle).toMatch(/@media \(prefers-color-scheme: dark\)/);
+    expect(cameraPanelStyle).toContain('color-scheme:');
+    const document = new Document();
+    const adapter = createStandaloneCameraControlsHost(document as unknown as globalThis.Document, 'en');
+    adapter.host.registerProvider({id: 'settings', cameraId: 'pose', kind: 'settings', element: new Element(), running: true});
+    dock.onClick!(); await settle();
+    const root = document.body.children[0]!;
+    const panel = find(root, 'data-camera-source-panel')!;
+    const style = root.children.find(child => child.tagName === 'style')!;
+    expect(style.textContent).toBe(cameraPanelStyle);
+    for (const element of [root, panel]) {
+      const inline = JSON.stringify(element.style);
+      expect(inline).not.toMatch(/#fff|#25354a|#617184/i);
+      expect(element.style).not.toHaveProperty('background');
+    }
     adapter.dispose();
   });
 });
