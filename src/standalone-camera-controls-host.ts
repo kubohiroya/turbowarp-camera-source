@@ -130,11 +130,41 @@ export function createStandaloneCameraControlsHost(document: Document, locale: s
     });
     const title = document.createElement('strong');
     title.textContent = label;
+    const dismissLabel = ja ? '閉じる' : 'Close';
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
-    dismiss.textContent = '×';
-    dismiss.setAttribute('aria-label', ja ? '閉じる' : 'Close');
-    Object.assign(dismiss.style, buttonStyle);
+    dismiss.setAttribute('data-camera-source-panel-close', '');
+    dismiss.setAttribute('aria-label', dismissLabel);
+    dismiss.setAttribute('title', dismissLabel);
+    Object.assign(dismiss.style, {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flex: 'none',
+      width: '28px',
+      height: '28px',
+      padding: '0',
+      border: 'none',
+      borderRadius: '4px',
+      background: 'transparent',
+      color: 'inherit',
+      cursor: 'pointer',
+    });
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(svgNs, 'svg');
+    icon.setAttribute('viewBox', '0 0 16 16');
+    icon.setAttribute('width', '18');
+    icon.setAttribute('height', '18');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.setAttribute('focusable', 'false');
+    const cross = document.createElementNS(svgNs, 'path');
+    cross.setAttribute('d', 'M4 4l8 8M12 4l-8 8');
+    cross.setAttribute('stroke', 'currentColor');
+    cross.setAttribute('stroke-width', '1.6');
+    cross.setAttribute('stroke-linecap', 'round');
+    cross.setAttribute('fill', 'none');
+    icon.appendChild(cross);
+    dismiss.appendChild(icon);
     dismiss.addEventListener('click', () => close(true));
     header.append(title, dismiss);
     chooser = document.createElement('select');
@@ -174,7 +204,9 @@ export function createStandaloneCameraControlsHost(document: Document, locale: s
 [data-camera-source-entry-host] [data-camera-source-settings] label {display:flex;flex-direction:column;gap:4px}
 [data-camera-source-entry-host] [data-camera-source-settings] select,
 [data-camera-source-entry-host] [data-camera-source-settings] button {min-height:36px;padding:6px 12px;border:1px solid #617184;border-radius:6px;background:#fff;color:#25354a;font:inherit}
-[data-camera-source-entry-host] [data-camera-source-settings] [hidden] {display:none}`;
+[data-camera-source-entry-host] [data-camera-source-settings] [hidden] {display:none}
+[data-camera-source-entry-host] [data-camera-source-panel-close]:hover {background:color-mix(in srgb, currentColor 12%, transparent) !important}
+[data-camera-source-entry-host] [data-camera-source-panel-close]:focus-visible {outline:2px solid #4c97ff;outline-offset:1px}`;
     root.append(style, panel);
     (document.fullscreenElement || document.body).appendChild(root);
     document.addEventListener('keydown', onKey, true);

@@ -10,6 +10,7 @@ vi.mock('@kubohiroya/turbowarp-app-shell', () => ({getRuntimeControlsDock: () =>
 })}));
 
 class Element extends EventTarget {
+  constructor(public tagName = 'div', public namespaceURI: string | null = 'http://www.w3.org/1999/xhtml') { super(); }
   children: Element[] = [];
   parentNode: Element | null = null;
   style = {};
@@ -31,9 +32,11 @@ class Element extends EventTarget {
 class Document extends EventTarget {
   body = new Element();
   fullscreenElement: Element | null = null;
-  createElement() { return new Element(); }
+  createElement(tagName: string) { return new Element(tagName); }
+  createElementNS(namespace: string, tagName: string) { return new Element(tagName, namespace); }
 }
 const find = (root: Element, attribute: string): Element | undefined => root.attributes.has(attribute) ? root : root.children.map(child => find(child, attribute)).find(Boolean);
+const visibleText = (element: Element): string => element.textContent + element.children.map(visibleText).join('');
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); };
 
 describe('packaged HTML camera entry', () => {
@@ -88,5 +91,27 @@ describe('packaged HTML camera entry', () => {
     document.fullscreenElement = new Element(); document.dispatchEvent(new Event('fullscreenchange'));
     expect(document.body.children).toHaveLength(0); expect(document.fullscreenElement.children).toHaveLength(1);
     next.dispose(); expect(document.fullscreenElement.children).toHaveLength(0); adapter.dispose();
+  });
+
+  it.each([['ja', '閉じる'], ['en', 'Close']])('draws the %s panel close button as an X icon with a localized title and aria-label', async (locale, label) => {
+    const document = new Document();
+    const adapter = createStandaloneCameraControlsHost(document as unknown as globalThis.Document, locale);
+    adapter.host.registerProvider({id: 'settings', cameraId: 'pose', kind: 'settings', element: new Element(), running: true});
+    dock.onClick!(); await settle();
+    const panel = find(document.body, 'data-camera-source-panel')!;
+    const dismiss = find(panel, 'data-camera-source-panel-close')!;
+    expect(dismiss.attributes.get('aria-label')).toBe(label);
+    expect(dismiss.attributes.get('title')).toBe(label);
+    expect(visibleText(dismiss).trim()).toBe('');
+    const [icon] = dismiss.children;
+    expect(dismiss.children).toHaveLength(1);
+    expect(icon!.tagName).toBe('svg');
+    expect(icon!.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(icon!.attributes.get('aria-hidden')).toBe('true');
+    expect(icon!.children[0]!.tagName).toBe('path');
+    dock.focus.mockClear();
+    dismiss.click();
+    expect(panel.hidden).toBe(true); expect(dock.focus).toHaveBeenCalledTimes(1);
+    adapter.dispose();
   });
 });
