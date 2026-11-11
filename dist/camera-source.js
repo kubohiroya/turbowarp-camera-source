@@ -64,29 +64,37 @@ function createRuntimeControlsDock(options) {
 	const root = document.createElement("div");
 	root.setAttribute("data-runtime-controls-dock", "true");
 	const style = document.createElement("style");
-	style.textContent = `[data-runtime-controls-dock] {position:fixed;z-index:2147483000;display:flex;align-items:center;gap:4px;font:14px/1.4 sans-serif;color:#25354a;max-width:100vw;max-height:100vh}
+	const tokens = (dark) => `color-scheme:var(--color-scheme,${dark ? "dark" : "light"});--rdock-bg:var(--ui-modal-background,var(--ui-primary,${dark ? "#1f2633" : "#fff"}));--rdock-fg:var(--ui-modal-foreground,var(--text-primary,${dark ? "#e6edf5" : "#25354a"}));--rdock-border:var(--ui-black-transparent,${dark ? "#5c6b7d" : "#9aa8b8"});--rdock-divider:var(--ui-black-transparent,${dark ? "#3a4656" : "#d8e0ea"});--rdock-surface:var(--ui-secondary,${dark ? "#2a3342" : "#f5f8fc"});--rdock-hover:var(--ui-tertiary,${dark ? "#34435a" : "#dae5f4"});--rdock-input:var(--input-background,${dark ? "#2a3342" : "#f5f8fc"});--rdock-bar:var(--popover-background,${dark ? "#1f2633ef" : "#f5f8fcef"});--rdock-accent:var(--looks-secondary,var(--link-color,${dark ? "#7aa7ea" : "#2864bd"}));--rdock-selected:color-mix(in srgb,var(--rdock-accent) 18%,var(--rdock-bg));--rdock-shadow:${dark ? "#0008" : "#0003"}`;
+	const themed = "[data-runtime-controls-dock], [data-runtime-dock-settings], [data-runtime-dock-panel]";
+	style.textContent = `${themed} {${tokens(false)}}
+@media (prefers-color-scheme: dark) {${themed} {${tokens(true)}}}
+[data-runtime-controls-dock] {position:fixed;z-index:2147483000;display:flex;align-items:center;gap:4px;font:14px/1.4 sans-serif;color:var(--rdock-fg);max-width:100vw;max-height:100vh}
 [data-runtime-controls-dock][hidden], [data-runtime-controls-dock] [hidden] {display:none!important}
 [data-runtime-controls-dock] button, [data-runtime-controls-dock] select {font:inherit;color:inherit;cursor:pointer}
-[data-runtime-controls-dock] button:focus-visible, [data-runtime-controls-dock] select:focus-visible {outline:3px solid #2864bd;outline-offset:2px}
-[data-runtime-dock-bar] {display:flex;gap:6px;padding:8px;border:1px solid #9aa8b8;border-radius:14px;background:#f5f8fceF;box-shadow:0 3px 16px #0003;backdrop-filter:blur(16px);overflow:auto;max-width:calc(100vw - 16px);max-height:calc(100vh - 48px)}
+[data-runtime-controls-dock] button:focus-visible, [data-runtime-controls-dock] select:focus-visible {outline:3px solid var(--rdock-accent);outline-offset:2px}
+[data-runtime-dock-bar] {display:flex;gap:6px;padding:8px;border:1px solid var(--rdock-border);border-radius:14px;background:var(--rdock-bar);box-shadow:0 3px 16px var(--rdock-shadow);backdrop-filter:blur(16px);overflow:auto;max-width:calc(100vw - 16px);max-height:calc(100vh - 48px)}
 [data-runtime-dock-bar] button {min-width:48px;min-height:48px;padding:0 4px;border:1px solid transparent;border-radius:8px;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px}
-[data-runtime-dock-bar] button:hover {background:#dae5f4}
-[data-runtime-dock-bar] button[aria-expanded=true] {border-color:#2864bd;background:#e8effb}
+[data-runtime-dock-bar] button:hover {background:var(--rdock-hover)}
+[data-runtime-dock-bar] button[aria-expanded=true] {border-color:var(--rdock-accent);background:var(--rdock-selected)}
 [data-runtime-dock-icon] {font-size:24px;line-height:1}
-[data-runtime-dock-handle] {min-width:48px;min-height:28px;border:1px solid #9aa8b8;border-radius:8px;background:#f5f8fc;color:#25354a}
-[data-runtime-dock-settings] {position:fixed;z-index:2147483001;box-sizing:border-box;width:280px;max-width:calc(100vw - 24px);padding:16px;border:1px solid #9aa8b8;border-radius:12px;background:#fff;box-shadow:0 4px 16px #0003;display:flex;flex-direction:column;gap:12px}
-[data-runtime-dock-panel] {box-sizing:border-box;display:flex;flex-direction:column;width:min(28rem,calc(100vw - 24px));background:#fff;color:#25354a;border:1px solid #9aa8b8;border-radius:12px;box-shadow:0 4px 16px #0003;z-index:2147483001!important;font:14px/1.5 sans-serif;overflow:hidden!important}
+[data-runtime-dock-handle] {min-width:48px;min-height:28px;border:1px solid var(--rdock-border);border-radius:8px;background:var(--rdock-surface);color:var(--rdock-fg)}
+[data-runtime-dock-settings] {position:fixed;z-index:2147483001;box-sizing:border-box;width:280px;max-width:calc(100vw - 24px);padding:16px;border:1px solid var(--rdock-border);border-radius:12px;background:var(--rdock-bg);color:var(--rdock-fg);box-shadow:0 4px 16px var(--rdock-shadow);display:flex;flex-direction:column;gap:12px}
+[data-runtime-dock-settings-header] {display:flex;align-items:center;justify-content:space-between;gap:12px}
+[data-runtime-dock-panel] {box-sizing:border-box;display:flex;flex-direction:column;width:min(28rem,calc(100vw - 24px));background:var(--rdock-bg);color:var(--rdock-fg);border:1px solid var(--rdock-border);border-radius:12px;box-shadow:0 4px 16px var(--rdock-shadow);z-index:2147483001!important;font:14px/1.5 sans-serif;overflow:hidden!important}
 [data-runtime-dock-panel][hidden] {display:none!important}
-[data-runtime-dock-panel] > :first-child {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-bottom:1px solid #d8e0ea}
+[data-runtime-dock-panel] > :first-child {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-bottom:1px solid var(--rdock-divider)}
 [data-runtime-dock-panel] > :nth-child(2) {overflow:auto;min-height:0;padding:0 16px}
-[data-runtime-dock-panel] > :last-child {padding:12px 16px;border-top:1px solid #d8e0ea}
+[data-runtime-dock-panel] > :last-child {padding:12px 16px;border-top:1px solid var(--rdock-divider)}
 [data-runtime-dock-panel] h2 {font-size:18px;margin:0}
 [data-runtime-dock-panel] h3 {font-size:15px}
-[data-runtime-dock-panel] button {font:inherit;min-height:36px;padding:6px 10px;margin:3px;border:1px solid #9aa8b8;border-radius:6px;background:#f5f8fc;color:#25354a;cursor:pointer}
-[data-runtime-dock-panel] button[aria-checked=true] {border-color:#2864bd;box-shadow:inset 0 0 0 1px #2864bd;background:#e8effb}
-[data-runtime-dock-panel] button:focus-visible {outline:3px solid #2864bd;outline-offset:1px}
+[data-runtime-dock-panel] button {font:inherit;min-height:36px;padding:6px 10px;margin:3px;border:1px solid var(--rdock-border);border-radius:6px;background:var(--rdock-surface);color:var(--rdock-fg);cursor:pointer}
+[data-runtime-dock-panel] button:hover {background:var(--rdock-hover)}
+[data-runtime-dock-panel] button[aria-checked=true] {border-color:var(--rdock-accent);box-shadow:inset 0 0 0 1px var(--rdock-accent);background:var(--rdock-selected)}
+[data-runtime-dock-panel] button:focus-visible {outline:3px solid var(--rdock-accent);outline-offset:1px}
 [data-runtime-dock-settings] label {display:flex;align-items:center;justify-content:space-between;gap:12px}
-[data-runtime-dock-settings] select, [data-runtime-dock-settings] button {min-height:36px;padding:6px 10px;border:1px solid #9aa8b8;border-radius:6px;background:#f5f8fc}
+[data-runtime-dock-settings] select {min-height:36px;padding:6px 10px;border:1px solid var(--rdock-border);border-radius:6px;background:var(--rdock-input);color:var(--rdock-fg)}
+[data-runtime-dock-settings] button[data-runtime-dock-settings-close] {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:28px;min-height:0;padding:0;border:0;border-radius:6px;background:transparent;color:inherit}
+[data-runtime-dock-settings] button[data-runtime-dock-settings-close]:hover {background:var(--rdock-hover)}
 `;
 	const handle = document.createElement("button");
 	handle.type = "button";
@@ -121,8 +129,28 @@ function createRuntimeControlsDock(options) {
 	autoLabel.append(autoCheck);
 	const close = document.createElement("button");
 	close.type = "button";
-	close.textContent = labels.close;
-	settings.append(heading, edgeLabel, autoLabel, close);
+	close.setAttribute("data-runtime-dock-settings-close", "true");
+	close.setAttribute("aria-label", labels.close);
+	close.title = labels.close;
+	const svgNs = "http://www.w3.org/2000/svg";
+	const closeIcon = document.createElementNS(svgNs, "svg");
+	closeIcon.setAttribute("viewBox", "0 0 16 16");
+	closeIcon.setAttribute("width", "16");
+	closeIcon.setAttribute("height", "16");
+	closeIcon.setAttribute("aria-hidden", "true");
+	closeIcon.setAttribute("focusable", "false");
+	const closePath = document.createElementNS(svgNs, "path");
+	closePath.setAttribute("d", "M4 4l8 8M12 4l-8 8");
+	closePath.setAttribute("fill", "none");
+	closePath.setAttribute("stroke", "currentColor");
+	closePath.setAttribute("stroke-width", "1.6");
+	closePath.setAttribute("stroke-linecap", "round");
+	closeIcon.append(closePath);
+	close.append(closeIcon);
+	const settingsHeader = document.createElement("div");
+	settingsHeader.setAttribute("data-runtime-dock-settings-header", "true");
+	settingsHeader.append(heading, close);
+	settings.append(settingsHeader, edgeLabel, autoLabel);
 	const gear = document.createElement("button");
 	gear.type = "button";
 	const gearIcon = document.createElement("span");

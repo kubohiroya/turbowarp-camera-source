@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "author": {
     "name": "Hiroya Kubo",
     "email": "hiroya@cuc.ac.jp",
@@ -79,7 +79,7 @@
     "pages:build": "node scripts/prepare-pages.mjs"
   },
   "devDependencies": {
-    "@kubohiroya/turbowarp-app-shell": "^0.6.0",
+    "@kubohiroya/turbowarp-app-shell": "^0.6.1",
     "@eslint/js": "^9.39.5",
     "@kubohiroya/turbowarp-extension-manifest": "^0.5.0",
     "@kubohiroya/vite-plugin-turbowarp-extension": "^0.11.0",
