@@ -7,6 +7,7 @@ import {
   type CameraProfileStore,
   type StoredCameraProfile
 } from '../src/calibration/store.js';
+import {runtimeCapabilityKey} from '../src/runtime-capability.js';
 
 function scratch(runtime: Record<string, unknown> = {}) {
   return {
@@ -512,5 +513,54 @@ describe('the stored profiles generation', () => {
     const [channel] = [...FakeBroadcastChannel.open];
     extension.dispose();
     expect(channel?.closed).toBe(true);
+  });
+});
+
+describe('a project reload', () => {
+  // `vm.loadProject` disposes the runtime on every load while the extension stays loaded for the
+  // next project, so RUNTIME_DISPOSED is a project boundary, not the end of the extension.
+  function reloadableRuntime() {
+    const listeners = new Map<string, Set<() => void>>();
+    runtime = {
+      on: vi.fn((name: string, listener: () => void) => {
+        const registered = listeners.get(name) ?? new Set();
+        registered.add(listener);
+        listeners.set(name, registered);
+      }),
+      off: vi.fn((name: string, listener: () => void) => listeners.get(name)?.delete(listener))
+    };
+    vi.stubGlobal('Scratch', scratch(runtime));
+    return (name: string) => [...(listeners.get(name) ?? [])].forEach((listener) => listener());
+  }
+
+  it('keeps the capability, the project boundary and the profile channel', () => {
+    const emit = reloadableRuntime();
+    const extension = new CameraSourceExtension({profileStore: memoryStore()});
+    const capability = runtime[runtimeCapabilityKey];
+    expect(capability).toBeDefined();
+
+    emit('RUNTIME_DISPOSED');
+    emit('PROJECT_LOADED');
+
+    expect(runtime[runtimeCapabilityKey]).toBe(capability);
+
+    extension.registerCameraProfile({PROFILE_JSON: '{'});
+    expect(extension.cameraProfileError()).not.toBe('');
+    emit('PROJECT_STOP_ALL');
+    expect(extension.cameraProfileError()).toBe('');
+
+    const other = new FakeBroadcastChannel(cameraProfileChannelName);
+    other.postMessage({profileId: 'solved'});
+    expect(extension.storedCameraProfilesGeneration()).toBe(1);
+  });
+
+  it('clears what belonged to the project that was disposed', () => {
+    const emit = reloadableRuntime();
+    const extension = new CameraSourceExtension({profileStore: memoryStore()});
+    extension.registerCameraProfile({PROFILE_JSON: '{'});
+
+    emit('RUNTIME_DISPOSED');
+
+    expect(extension.cameraProfileError()).toBe('');
   });
 });
