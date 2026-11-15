@@ -309,8 +309,13 @@ export class CameraSourceExtension implements TurboWarpExtension {
   private readonly profileChannel: BroadcastChannel | undefined;
   private storedProfilesGeneration = 0;
 
-  private readonly removeSourceEditors: () => void;
+  private removeSourceEditors: () => void;
   private removeFixedEditors: () => void = () => {};
+  /**
+   * Loading a project disposes the runtime, which releases the editor registrations, but the
+   * extension stays loaded for the next project. Register them again once that project has loaded.
+   */
+  private editorsReleased = false;
 
   public constructor(options: CameraSourceExtensionOptions = {}) {
     this.removeSourceEditors = registerSourceEditors(Scratch);
@@ -338,7 +343,8 @@ export class CameraSourceExtension implements TurboWarpExtension {
       Scratch.vm.runtime[runtimeCapabilityKey] = this.capability;
       Scratch.vm.runtime.on?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
       Scratch.vm.runtime.on?.('PROJECT_LOADED', this.handleProjectBoundary);
-      Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.dispose);
+      Scratch.vm.runtime.on?.('RUNTIME_DISPOSED', this.handleRuntimeDisposed);
+      Scratch.vm.runtime.on?.('PROJECT_LOADED', this.restoreEditors);
     } catch (error) {
       this.dispose();
       throw error;
@@ -552,9 +558,41 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.blockPreviewLeases.clear();
   }
 
+  /** Final disposal by the owner: nothing registers again after it. */
   public readonly dispose = (): void => {
+    Scratch.vm.runtime.off?.('RUNTIME_DISPOSED', this.handleRuntimeDisposed);
+    Scratch.vm.runtime.off?.('PROJECT_LOADED', this.restoreEditors);
+    this.editorsReleased = false;
+    this.removeEditors();
+    this.tearDown();
+  };
+
+  /** Every project load disposes the runtime; only the editor registrations come back after it. */
+  private readonly handleRuntimeDisposed = (): void => {
+    this.removeEditors();
+    this.editorsReleased = true;
+    this.tearDown();
+  };
+
+  private readonly restoreEditors = (): void => {
+    if (!this.editorsReleased) return;
+    this.editorsReleased = false;
+    this.removeSourceEditors = registerSourceEditors(Scratch);
+    try {
+      this.removeFixedEditors = registerFixedInputEditors(Scratch, fixedInputEditors);
+    } catch (error) {
+      this.removeEditors();
+      this.editorsReleased = true;
+      throw error;
+    }
+  };
+
+  private removeEditors(): void {
     this.removeFixedEditors();
     this.removeSourceEditors();
+  }
+
+  private tearDown(): void {
     this.stopAllCameras();
     this.standaloneControls?.dispose();
     this.standaloneControls = null;
@@ -566,8 +604,7 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.profileChannel?.close();
     Scratch.vm.runtime.off?.('PROJECT_STOP_ALL', this.handleProjectBoundary);
     Scratch.vm.runtime.off?.('PROJECT_LOADED', this.handleProjectBoundary);
-    Scratch.vm.runtime.off?.('RUNTIME_DISPOSED', this.dispose);
-  };
+  }
 
   private readonly handleProjectBoundary = (): void => {
     this.stopAllCameras();
