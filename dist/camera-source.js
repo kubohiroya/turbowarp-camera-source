@@ -4349,18 +4349,30 @@ var CameraSourceExtension = class {
 		this.storedProfileOutcomes = /* @__PURE__ */ new Map();
 		this.storedProfilesGeneration = 0;
 		this.removeFixedEditors = () => {};
+		this.editorsReleased = false;
 		this.dispose = () => {
-			this.removeFixedEditors();
-			this.removeSourceEditors();
-			this.stopAllCameras();
-			this.standaloneControls?.dispose();
-			this.standaloneControls = null;
-			const runtime = Scratch.vm.runtime;
-			if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[cameraSourceCapabilityKey];
-			this.profileChannel?.close();
-			Scratch.vm.runtime.off?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
-			Scratch.vm.runtime.off?.("PROJECT_LOADED", this.handleProjectBoundary);
-			Scratch.vm.runtime.off?.("RUNTIME_DISPOSED", this.dispose);
+			Scratch.vm.runtime.off?.("RUNTIME_DISPOSED", this.handleRuntimeDisposed);
+			Scratch.vm.runtime.off?.("PROJECT_LOADED", this.restoreEditors);
+			this.editorsReleased = false;
+			this.removeEditors();
+			this.tearDown();
+		};
+		this.handleRuntimeDisposed = () => {
+			this.removeEditors();
+			this.editorsReleased = true;
+			this.tearDown();
+		};
+		this.restoreEditors = () => {
+			if (!this.editorsReleased) return;
+			this.editorsReleased = false;
+			this.removeSourceEditors = registerSourceEditors(Scratch);
+			try {
+				this.removeFixedEditors = registerFixedInputEditors(Scratch, fixedInputEditors);
+			} catch (error) {
+				this.removeEditors();
+				this.editorsReleased = true;
+				throw error;
+			}
 		};
 		this.handleProjectBoundary = () => {
 			this.stopAllCameras();
@@ -4388,7 +4400,8 @@ var CameraSourceExtension = class {
 			Scratch.vm.runtime[cameraSourceCapabilityKey] = this.capability;
 			Scratch.vm.runtime.on?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
 			Scratch.vm.runtime.on?.("PROJECT_LOADED", this.handleProjectBoundary);
-			Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.dispose);
+			Scratch.vm.runtime.on?.("RUNTIME_DISPOSED", this.handleRuntimeDisposed);
+			Scratch.vm.runtime.on?.("PROJECT_LOADED", this.restoreEditors);
 		} catch (error) {
 			this.dispose();
 			throw error;
@@ -4563,6 +4576,20 @@ var CameraSourceExtension = class {
 		for (const cameraId of [...this.sessions.keys()]) this.stopCameraSession(cameraId);
 		this.blockLeases.clear();
 		this.blockPreviewLeases.clear();
+	}
+	removeEditors() {
+		this.removeFixedEditors();
+		this.removeSourceEditors();
+	}
+	tearDown() {
+		this.stopAllCameras();
+		this.standaloneControls?.dispose();
+		this.standaloneControls = null;
+		const runtime = Scratch.vm.runtime;
+		if (runtime["kubohiroyaCameraSourceCapability"] === this.capability) delete runtime[cameraSourceCapabilityKey];
+		this.profileChannel?.close();
+		Scratch.vm.runtime.off?.("PROJECT_STOP_ALL", this.handleProjectBoundary);
+		Scratch.vm.runtime.off?.("PROJECT_LOADED", this.handleProjectBoundary);
 	}
 	registerCameraProfile(args = {}) {
 		this.registerProfileText(args.PROFILE_JSON, (document) => document);

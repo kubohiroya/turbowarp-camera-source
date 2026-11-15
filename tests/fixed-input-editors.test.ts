@@ -79,3 +79,32 @@ it('later constructor failure rolls back both optional editor registrations',()=
  let removed=0;const api={apiVersion:1,registerSourceEditor:()=>()=>{removed++;},registerFixedInputEditor:()=>()=>{removed++;}};vi.stubGlobal('Scratch',scratchHost(api));const options=Object.defineProperty({},'profileStore',{get(){throw Error('late constructor failure');}});
  try {expect(()=>new CameraSourceExtension(options)).toThrow('late constructor failure');expect(removed).toBe(2);}finally {vi.unstubAllGlobals();}
 });
+it('registers the editors again for each project the extension stays loaded for',()=>{
+ // Every project load disposes the runtime, which releases the registrations, but keeps the extension loaded.
+ const host=scratchHost(undefined);const callbacks=new Map<string,Set<()=>void>>();
+ host.vm.runtime={on:(event:string,f:()=>void)=>{const list=callbacks.get(event)??new Set<()=>void>();list.add(f);callbacks.set(event,list);},off:(event:string,f:()=>void)=>callbacks.get(event)?.delete(f)};
+ const emit=(event:string)=>{for(const f of [...callbacks.get(event)??[]])f();};
+ const fixedRemoves:Array<ReturnType<typeof vi.fn>>=[];const sourceRemoves:Array<ReturnType<typeof vi.fn>>=[];
+ const registerFixedInputEditor=vi.fn(()=>{const remove=vi.fn();fixedRemoves.push(remove);return remove;});
+ const registerSourceEditor=vi.fn(()=>{const remove=vi.fn();sourceRemoves.push(remove);return remove;});
+ host.gui.blockEditors={apiVersion:1,registerFixedInputEditor,registerSourceEditor};
+ vi.stubGlobal('Scratch',host);vi.stubGlobal('BroadcastChannel',undefined);
+ try {
+  const instance=new CameraSourceExtension();const fixedCount=registerFixedInputEditor.mock.calls.length;const sourceCount=registerSourceEditor.mock.calls.length;
+  expect(fixedCount).toBe(fixedInputEditors.length);expect(sourceCount).toBeGreaterThan(0);
+  emit('RUNTIME_DISPOSED');
+  for(const remove of [...fixedRemoves,...sourceRemoves])expect(remove).toHaveBeenCalledTimes(1);
+  emit('PROJECT_LOADED');
+  expect(registerFixedInputEditor).toHaveBeenCalledTimes(fixedCount*2);expect(registerSourceEditor).toHaveBeenCalledTimes(sourceCount*2);
+  for(const remove of [...fixedRemoves.slice(fixedCount),...sourceRemoves.slice(sourceCount)])expect(remove).not.toHaveBeenCalled();
+  emit('PROJECT_LOADED');
+  expect(registerFixedInputEditor).toHaveBeenCalledTimes(fixedCount*2);expect(registerSourceEditor).toHaveBeenCalledTimes(sourceCount*2);
+  emit('RUNTIME_DISPOSED');emit('PROJECT_LOADED');
+  expect(registerFixedInputEditor).toHaveBeenCalledTimes(fixedCount*3);expect(registerSourceEditor).toHaveBeenCalledTimes(sourceCount*3);
+  instance.dispose();
+  for(const remove of [...fixedRemoves,...sourceRemoves])expect(remove).toHaveBeenCalledTimes(1);
+  emit('RUNTIME_DISPOSED');emit('PROJECT_LOADED');
+  expect(registerFixedInputEditor).toHaveBeenCalledTimes(fixedCount*3);expect(registerSourceEditor).toHaveBeenCalledTimes(sourceCount*3);
+  for(const list of callbacks.values())expect(list.size).toBe(0);
+ } finally {vi.unstubAllGlobals();}
+});
