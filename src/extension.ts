@@ -567,11 +567,17 @@ export class CameraSourceExtension implements TurboWarpExtension {
     this.tearDown();
   };
 
-  /** Every project load disposes the runtime; only the editor registrations come back after it. */
+  /**
+   * Every project load disposes the runtime while this instance stays loaded for the next project.
+   * Only what belonged to the old project goes; the capability, the project-boundary listeners and
+   * the profile channel stay, and the editor registrations come back once the next project loads.
+   */
   private readonly handleRuntimeDisposed = (): void => {
     this.removeEditors();
     this.editorsReleased = true;
-    this.tearDown();
+    this.handleProjectBoundary();
+    this.standaloneControls?.dispose();
+    this.standaloneControls = null;
   };
 
   private readonly restoreEditors = (): void => {

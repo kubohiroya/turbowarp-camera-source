@@ -4360,7 +4360,9 @@ var CameraSourceExtension = class {
 		this.handleRuntimeDisposed = () => {
 			this.removeEditors();
 			this.editorsReleased = true;
-			this.tearDown();
+			this.handleProjectBoundary();
+			this.standaloneControls?.dispose();
+			this.standaloneControls = null;
 		};
 		this.restoreEditors = () => {
 			if (!this.editorsReleased) return;
