@@ -40,13 +40,13 @@ TurboWarp Camera Sourceは、MediaDevicesのカメラストリームを名前付
 次のURLをunsandboxed custom extensionとして読み込みます。
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.23.2/dist/camera-source.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-camera-source@0.24.0/dist/camera-source.js
 ```
 
 npm hostでは次を使います。
 
 ```bash
-pnpm add @kubohiroya/turbowarp-camera-source@0.23.2
+pnpm add @kubohiroya/turbowarp-camera-source@0.24.0
 ```
 
 ## 最初の使い方
