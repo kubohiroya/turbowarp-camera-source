@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-camera-source",
-  "version": "0.24.0",
+  "version": "0.24.1",
   "author": {
     "name": "Hiroya Kubo",
     "email": "hiroya@cuc.ac.jp",
@@ -100,5 +100,45 @@
     "camera",
     "media-devices",
     "getusermedia"
-  ]
+  ],
+  "turbowarpExtension": {
+    "resourceDeclaration": {
+      "schemaVersion": 1,
+      "resources": [
+        {
+          "type": "camera",
+          "usage": "required",
+          "purpose": {
+            "en": "Acquire and share camera video across extensions",
+            "ja": "カメラ映像を取得し、機能拡張間で共有する"
+          }
+        },
+        {
+          "type": "storage",
+          "usage": "conditional",
+          "purpose": {
+            "en": "Save and restore calibration profiles and camera control settings",
+            "ja": "校正プロファイルとカメラ操作パネルの設定を保存・復元する"
+          },
+          "condition": {
+            "en": "When saving/restoring profiles or using persistent camera controls",
+            "ja": "プロファイルの保存・復元、または設定を保持するカメラ操作パネルを使う場合"
+          }
+        },
+        {
+          "type": "microphone",
+          "usage": "conditional",
+          "purpose": {
+            "en": "The browser camera button also requests microphone access; audio tracks are immediately stopped and removed",
+            "ja": "ブラウザのカメラボタンがマイクの許可も要求する。音声トラックは取得直後に停止・除外する"
+          },
+          "condition": {
+            "en": "Only when using the browser usermedia camera button; the normal camera path requests video only",
+            "ja": "ブラウザのusermediaカメラボタンを使う経路のみ。通常のカメラ取得は映像だけを要求する"
+          },
+          "access": "permission-request"
+        }
+      ]
+    }
+  }
 }
