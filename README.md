@@ -496,7 +496,7 @@ const poseLease = await cameraSource.acquireCamera({
   deviceId: poseDeviceId,
 });
 const qrLease = await cameraSource.acquireCamera({
-  owner: "jsqr",
+  owner: "zxing",
   cameraId: "qr",
   deviceId: qrDeviceId,
 });
