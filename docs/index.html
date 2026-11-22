@@ -27,7 +27,7 @@
   <main><p lang="en" class="complete-block-reference-link"><a href="#extension-block-reference">Complete block reference (41 blocks)</a></p>
     <section class="hero">
       <div><p class="eyebrow">TurboWarp capability extension</p><h1>Named cameras for pose, image, and QR inputs.</h1>
-      <p class="lede">TurboWarp Camera Source owns `navigator.mediaDevices.getUserMedia()` and shares live frame sources by role name, so TM can use a horizontal camera while jsQR or image recognition uses a downward camera.</p></div>
+      <p class="lede">TurboWarp Camera Source owns `navigator.mediaDevices.getUserMedia()` and shares live frame sources by role name, so TM can use a horizontal camera while ZXing or image recognition uses a downward camera.</p></div>
       <div class="panel"><span class="block">start shared camera pose</span><span class="block">start shared camera qr</span><span class="block">camera device ID at 1</span></div>
     </section>
     <section class="section" id="blocks"><h2>Blocks</h2><div class="grid">
@@ -46,7 +46,7 @@
   deviceId: poseDeviceId
 });
 const qrLease = await cameraSource.acquireCamera({
-  owner: 'jsqr',
+  owner: 'zxing',
   cameraId: 'qr',
   deviceId: qrDeviceId
 });

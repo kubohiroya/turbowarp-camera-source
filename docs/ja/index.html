@@ -18,7 +18,7 @@
   <main>
     <section class="hero">
       <div><p class="eyebrow">TurboWarp capability extension</p><h1>姿勢、画像、QRでカメラを使い分ける。</h1>
-      <p class="lede">TurboWarp Camera Sourceは`navigator.mediaDevices.getUserMedia()`を管理し、役割名ごとにライブフレームを共有します。TMは水平カメラ、jsQRや画像認識は下向きカメラ、という構成にできます。</p></div>
+      <p class="lede">TurboWarp Camera Sourceは`navigator.mediaDevices.getUserMedia()`を管理し、役割名ごとにライブフレームを共有します。TMは水平カメラ、ZXingや画像認識は下向きカメラ、という構成にできます。</p></div>
       <div class="panel"><span class="block">start shared camera pose</span><span class="block">start shared camera qr</span><span class="block">camera device ID at 1</span></div>
     </section>
     <section class="section" id="blocks"><h2>ブロック</h2><div class="grid">
@@ -37,7 +37,7 @@
   deviceId: poseDeviceId
 });
 const qrLease = await cameraSource.acquireCamera({
-  owner: 'jsqr',
+  owner: 'zxing',
   cameraId: 'qr',
   deviceId: qrDeviceId
 });
