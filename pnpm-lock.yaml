@@ -15,11 +15,11 @@ importers:
         specifier: ^0.6.1
         version: 0.6.1
       '@kubohiroya/turbowarp-extension-data-editor':
-        specifier: ^0.11.1
-        version: 0.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.11.2
+        version: 0.11.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@kubohiroya/turbowarp-extension-manifest':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@kubohiroya/vite-plugin-turbowarp-extension':
         specifier: ^0.11.0
         version: 0.11.0(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(yaml@2.9.1))
@@ -271,8 +271,8 @@ packages:
     resolution: {integrity: sha512-IHJWp9QGjQfGyS/et3YFQgsKwaHqEEFMPJw/yXY6mmcaLiscPdfI9BF1uFEeVzjuQU1aq7EiiaGu2UBDEWoFvQ==}
     engines: {node: '>=24'}
 
-  '@kubohiroya/turbowarp-extension-data-editor@0.11.1':
-    resolution: {integrity: sha512-580R3gFT/v61LkS8QsIeb9UE3jzoUHtW8Inc+zsZD5tBHu/rwE07fNwL9oKbt6v9/hqNQTcM0XOUQb5Kje0l8A==}
+  '@kubohiroya/turbowarp-extension-data-editor@0.11.2':
+    resolution: {integrity: sha512-uTOZJSNVzvpJIMGyOUTaQt2LOXXf5kru8mUyRD2Y/rsYUNJoGM4S8dhEI5UeyDFaXR7rCRVzkFR5pAcqjmSycQ==}
     engines: {node: '>=24'}
     peerDependencies:
       react: ^16.14.0 || ^17 || ^18
@@ -283,8 +283,8 @@ packages:
       react-dom:
         optional: true
 
-  '@kubohiroya/turbowarp-extension-manifest@0.5.0':
-    resolution: {integrity: sha512-YD8fwGTwTC6oMinmVLRp5+x/6piKLTYNraKnsc+oEi/w6NFdePm1ocV8eHnBBMcqEO2usr2mI/0qnV66Ex35YA==}
+  '@kubohiroya/turbowarp-extension-manifest@0.6.0':
+    resolution: {integrity: sha512-GnNFESu2EeyrFkuxOQoFsEta3HwnNjen0PJm7DOOy2wPuqItqaogEUq80ccnJ/GwfVwfMS9V5Eddsga5CbF+Mw==}
     engines: {node: '>=24'}
 
   '@kubohiroya/vite-plugin-turbowarp-extension@0.11.0':
@@ -1368,7 +1368,7 @@ snapshots:
 
   '@kubohiroya/turbowarp-app-shell@0.6.1': {}
 
-  '@kubohiroya/turbowarp-extension-data-editor@0.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@kubohiroya/turbowarp-extension-data-editor@0.11.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@rjsf/core': 5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1)
       '@rjsf/utils': 5.24.13(react@18.3.1)
@@ -1381,7 +1381,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@kubohiroya/turbowarp-extension-manifest@0.5.0': {}
+  '@kubohiroya/turbowarp-extension-manifest@0.6.0': {}
 
   '@kubohiroya/vite-plugin-turbowarp-extension@0.11.0(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(yaml@2.9.1))':
     dependencies:
